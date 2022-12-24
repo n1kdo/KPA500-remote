@@ -403,6 +403,8 @@ async def read_network_client(reader):
     try:
         data = await reader.readline()
         return data.decode().strip()
+    except ConnectionResetError as cre:
+        print(f'ConnectionResetError in read_network_client: {str(cre)}')
     except Exception as ex:
         print(ex)
         print(f'exception in read_network_client: {str(ex)}')
@@ -501,6 +503,7 @@ async def serve_network_client(reader, writer):
             else:  # response was None
                 if not timed_out:
                     print('response was None')
+                    client_connected = False
 
             # send any outstanding data back...
             if len(client_data.update_list) > 0:
