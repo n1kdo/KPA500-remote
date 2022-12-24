@@ -49,3 +49,6 @@ class SerialPort:
         result = self.port.readinto(buf)
         return 0 if result is None else result
 
+    def flush(self):
+        self.port.flush()
+
