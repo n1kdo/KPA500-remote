@@ -208,6 +208,13 @@ kpa500_data[15] = '0,10,0'
 kpa500_data[18] = '4'
 
 
+def band_label_to_number(label):
+    for i in range(len(band_number_to_name)):
+        if label == band_number_to_name[i]:
+            return i
+    return None
+
+
 def get_timestamp(tt=None):
     if tt is None:
         tt = time.gmtime()
@@ -389,11 +396,17 @@ class ClientData:
     def __init__(self, client_name):
         self.client_name = client_name
         self.update_list = []
+        self.authorized = False
 
 
 async def read_network_client(reader):
-    reader.readline()
-
+    try:
+        data = await reader.readline()
+        return data.decode().strip()
+    except Exception as ex:
+        print(ex)
+        print(f'exception in read_network_client: {str(ex)}')
+    return None
 
 
 async def serve_network_client(reader, writer):
@@ -410,60 +423,78 @@ async def serve_network_client(reader, writer):
     print(client_name)
     print('\nnetwork client connected from {}'.format(extra[0]))
     login_valid = False
-    buffer_size = 80
-    buffer = bytearray(buffer_size)
-    bytes_received = 0
     client_connected = True
-    last_activity = milliseconds()
+    last_receive = milliseconds()
+    last_send = milliseconds()
 
     try:
         while client_connected:
-
-
-            print(reader.at_eof())
-            data = await reader.read(1)
-            if data is None:
-                break
-            else:
-                if len(data) == 1:
-                    b = data[0]
-                    #print(b)
-                    if b == 0x0a:
-                        last_activity = milliseconds()
-                        message = buffer[:bytes_received].decode().strip()
-                        print(message)
-                        if message.startswith('server::login::'):
-                            up_list = message[15:].split('::')
-                            print(up_list)
-                            if up_list[0] != username:
-                                response = b'server::login::invalid::Invalid username provided. Remote control will not be allowed.\n'
-                            elif up_list[1] != password:
-                                response = b'server::login::invalid::Invalid password provided. Remote control will not be allowed.\n'
+            try:
+                message = await asyncio.wait_for(read_network_client(reader), 0.05)
+            except asyncio.exceptions.TimeoutError as te:
+                message = None
+            if message is not None:
+                last_receive = milliseconds()
+                if len(message) == 0:  # keepalive?
+                    print('got keepalive')
+                elif message.startswith('server::login::'):
+                    up_list = message[15:].split('::')
+                    if up_list[0] != username:
+                        response = b'server::login::invalid::Invalid username provided. Remote control will not be allowed.\n'
+                    elif up_list[1] != password:
+                        response = b'server::login::invalid::Invalid password provided. Remote control will not be allowed.\n'
+                    else:
+                        response = b'server::login::valid\n'
+                        login_valid = True
+                    writer.write(response)
+                    last_send = milliseconds
+                    print(f'sending "{response.decode().strip()}"')
+                else:
+                    if login_valid:
+                        if message.startswith('amp::button::OPER::'):
+                            value = message[19:]
+                            if value == '1':
+                                command = b'^OS1;'
                             else:
-                                response = b'server::login::valid\n'
-                                login_valid = True
-                            writer.write(response)
-                            print(f'sending "{response.decode()}"')
+                                command = b'^OS0;'
+                            kpa500_command_queue.append(command)
+                        elif message.startswith('amp::dropdown::Band::'):
+                            value = message[21:]
+                            print(value)
+                            band_number = band_label_to_number(value)
+                            if band_number is not None:
+                                command = f'^BN{band_number:02d};'.encode()
+                                kpa500_command_queue.append(command)
+                        elif message.startswith('amp::slider::Fan Speed::'):
+                            value = message[24:]
+                            command = f'^FC{value};^FC;'.encode()
+                            kpa500_command_queue.append(command)
                         else:
                             print(f'unhandled message "{message}"')
 
-                        bytes_received = 0
-                    else:
-                        if bytes_received < buffer_size:  # anti-gibberish test
-                            buffer[bytes_received] = b
-                            bytes_received += 1
-                            # do something here.
             # send any outstanding data back...
             if len(client_data.update_list) > 0:
                 index = client_data.update_list.pop(0)
                 writer.write(key_names[index])
                 payload = f'::{kpa500_data[index]}\n'.encode()
                 writer.write(payload)
-                print(f'sent "{key_names[index].decode()}{payload.decode()}')
-            await asyncio.sleep(0.01)  # slight pacing
+                last_send = milliseconds()
+                print(f'sent "{key_names[index].decode()}{payload.decode().strip()}')
+            #await asyncio.sleep(0.01)  # slight pacing
 
-            delta = milliseconds() - last_activity
-            print(delta, last_activity)
+            receive_delta = milliseconds() - last_receive
+            send_delta = milliseconds() - last_send
+
+            if receive_delta > 15000:
+                print(f'receive_delta: {receive_delta}')
+            if send_delta > 15000:
+                print(f'send_delta: {send_delta}')
+                writer.write(b'\n')
+                last_send = milliseconds()
+                print('sent keepalive')
+            if receive_delta > 60000:
+                print('no activity timeout...')
+                client_connected = False
 
         # connection closing
         print(f'connection from {client_name} closing...')
