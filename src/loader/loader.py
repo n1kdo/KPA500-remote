@@ -14,7 +14,6 @@ FILES_LIST = [
     'data/',
     'main.py',
     'ntp.py',
-    'pl3.py',
     'serialport.py',
     'content/files.html',
     'content/prolaser.html',
