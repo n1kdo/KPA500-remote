@@ -16,7 +16,7 @@ FILES_LIST = [
     'ntp.py',
     'serialport.py',
     'content/files.html',
-    'content/prolaser.html',
+    'content/kpa500.html',
     'content/setup.html',
     'data/config.json',
 ]

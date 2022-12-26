@@ -3,7 +3,7 @@
 <!-- Copyright 2022, J. B. Otterson N1KDO. -->
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=0.8, minimum-scale=0.5, maximum-scale=2.0">
-    <title>ProLaser III Console Setup</title>
+    <title>Device Setup</title>
 </head>
 <style>
     .author {
@@ -213,7 +213,7 @@
 
 </script>
 <body onload="page_load()">
-<div class="header">ProLaser III Console Setup</div>
+<div class="header">Device Setup</div>
 <div class="config_form">
     <div class="config_inner">
         <form>
@@ -236,11 +236,11 @@
         </form>
         <div class="centered">
             <p>
-                <input type="button" id="cancel_button" value="Cancel" title="Back to Rotator Control"
+                <input type="button" id="cancel_button" value="Cancel" title="Cancel"
                        onclick="cancel_page()"/>
-                <input type="button" id="reset_button" value="Reset" title="Reload Configuration"
+                <input type="button" id="reset_button" value="Reset" title="Reload Device Configuration"
                        onclick="get_config()"/>
-                <input type="button" id="rstart_button" value="Restart" title="Restart Controller to use new setup"
+                <input type="button" id="rstart_button" value="Restart" title="Restart Device to use new setup"
                        onclick="restart()"/>
                 <input type="button" id="apply_button" value="Apply" title="Save Configuration" onclick="set_config()"/>
             </p>
@@ -248,6 +248,6 @@
     </div>
 </div>
 <div class="files_link"><a href="files.html">Files</a></div>
-<div class="author"><a href="https://www.n1kdo.com" target="_blank">N1KDO</a> 20221127</div>
+<div class="author"><a href="https://www.n1kdo.com" target="_blank">N1KDO</a> 20221226</div>
 </body>
 </html>

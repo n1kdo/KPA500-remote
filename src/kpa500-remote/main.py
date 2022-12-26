@@ -817,8 +817,7 @@ async def serve_http_client(reader, writer):
                 http_status = 200
                 bytes_sent = send_simple_response(writer, http_status, CT_TEXT_TEXT, response)
             elif target == '/api/status':
-                payload = {'timestamp': get_timestamp(),
-                           }
+                payload = {'kpa500_data': kpa500_data}
                 response = json.dumps(payload).encode('utf-8')
                 http_status = 200
                 bytes_sent = send_simple_response(writer, http_status, CT_APP_JSON, response)

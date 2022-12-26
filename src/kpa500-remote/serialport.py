@@ -1,6 +1,6 @@
 #
 # serial port access
-# compatible with both pyserial on cpython and machine.UARt on micropython
+# compatible with both pyserial on cpython and machine.UART on micropython
 #
 import sys
 

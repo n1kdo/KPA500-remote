@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/html" lang="en">
+<!-- Copyright 2022, J. B. Otterson N1KDO. -->
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=0.8, minimum-scale=0.5, maximum-scale=2.0">
+    <title>KPA500 Console</title>
+</head>
+<style>
+    body {
+        background-color: #ddd;
+        border-style: double;
+        font-family: sans-serif;
+        font-size: 10pt;
+        margin: 0;
+        height: 350px;
+        width: 500px;
+    }
+    .author {
+        font-size: 8pt;
+        font-weight: bold;
+        text-align: right;
+        position: absolute;
+        top: 340px;
+        left: 400px;
+        width: 100px;
+    }
+    .author a:link, .author a:visited, .author a:hover {
+        color: black;
+        text-decoration: none;
+    }
+    .data_table {
+        display: grid;
+        grid-template-columns: 60px 60px 360px;
+        margin: 10px 0 0px 0;
+    }
+    .dt_label {
+        text-align: right;
+    }
+    .dt_value {
+        margin-left: 2px;
+    }
+    .dt_meter {
+        width: 360px;
+        height: 2em;
+        position: relative;
+        top: -0.5em;
+    }
+    #fan_range {
+        position: relative;
+        top: -6px;
+        width: 360px;
+    }
+    .fault_text {
+        background-color: mediumseagreen;
+        border: 1px solid black;
+        font-weight: bold;
+        text-align: center;
+    }
+    .header {
+        text-align: center;
+        font-size: 24pt;
+        font-weight: bold;
+        border-bottom: 24px;
+    }
+    div.refresh_radio {
+        border: 1px solid black;
+        margin: 10px 150px 0px 150px;
+        text-align: left;
+    }
+    .refresh_radio_label {
+        font-weight: bold;
+        text-align: center;
+    }
+    #operate_radio_button, #standby_radio_button {
+        margin: 3px 10px 0 0;
+    }
+    .setup {
+        font-size: 8pt;
+        font-weight: bold;
+        color: black;
+        text-align: left;
+        position: absolute;
+        top: 340px;
+        width: 32px;
+    }
+    .setup a:link, .setup a:visited, .setup a:hover {
+        color: blue;
+        text-decoration: none;
+    }
+    .three_columns {
+        display: grid;
+        grid-row-gap: 10px;
+        grid-template-columns: 138px 220px 138px;
+        padding: 0 2px;
+    }
+    .two_columns {
+        display: grid;
+        grid-template-columns: 120px 380px;
+        Zmargin: 10px 0 0px 0;
+    }
+
+</style>
+<!--suppress JSUnusedLocalSymbols -->
+<script>
+    let free_updates = 0;
+    let update_secs = 0;
+    let update_timeout = 0;
+
+    function page_load() {
+        get_status();
+    }
+
+    function set_mode(mode) {
+        // send the set mode command
+        let xmlHttp = new XMLHttpRequest();
+        if (xmlHttp == null) {
+            alert("get a better browser!");
+            return;
+        }
+        let payload = "set=" + mode;
+        xmlHttp.open("POST", "/api/mode", true);
+        xmlHttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+        xmlHttp.send(payload);
+        get_status()
+    }
+
+    function toggle_laser() {
+        // send the toggle laser command
+        let xmlHttp = new XMLHttpRequest();
+        if (xmlHttp == null) {
+            alert("get a better browser!");
+            return;
+        }
+        let payload = "toggle=";
+        xmlHttp.open("POST", "/api/laser", true);
+        xmlHttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+        xmlHttp.send(payload);
+        free_updates = 3;
+        get_status();
+    }
+
+    function process_get_status_response(message) {
+        let status_data = JSON.parse(message);
+        let kpa500_data = status_data.kpa500_data;
+        let power_button = document.getElementById("power_button");
+        let operate_button = document.getElementById("operate_button");
+        let operate_radio_button = document.getElementById("operate_radio_button");
+        let operate_radio_button_label = document.getElementById("operate_radio_button_label")
+        let standby_radio_button = document.getElementById("standby_radio_button");
+        let standby_radio_button_label = document.getElementById("standby_radio_button_label");
+        let band_menu = document.getElementById("select_band");
+        let power_value = document.getElementById("power_value");
+        let power_meter = document.getElementById("power_meter")
+        let swr_value = document.getElementById("swr_value");
+        let swr_meter = document.getElementById("swr_meter");
+        let current_value = document.getElementById("current_value");
+        let current_meter = document.getElementById("current_meter");
+        let voltage_value = document.getElementById("voltage_value");
+        let voltage_meter = document.getElementById("voltage_meter");
+        let temp_value = document.getElementById("temp_value");
+        let temp_meter = document.getElementById("temp_meter");
+        let fan_range = document.getElementById("fan_range");
+        let fan_range_label = document.getElementById("fan_range_label");
+        let fault_text = document.getElementById("fault_text");
+
+        // operate_button & related radio buttons
+        if (kpa500_data[0] === "1") {
+            operate_button.style.color = "green";
+            operate_button.value = "Standby";
+            operate_radio_button.checked = true;
+            operate_radio_button_label.style.color = "green";
+            operate_radio_button_label.style.fontWeight = "bold"
+            standby_radio_button_label.style.color = "black";
+            standby_radio_button_label.style.fontWeight = "normal";
+        } else {
+            operate_button.style.color = "red";
+            operate_button.value = "Operate";
+            standby_radio_button.checked = true;
+            operate_radio_button_label.style.color = "black";
+            operate_radio_button_label.style.fontWeight = "normal"
+            standby_radio_button_label.style.color = "#800";
+            standby_radio_button_label.style.fontWeight = "bold";
+        }
+        // band dropdown
+        select_band.value = kpa500_data[5];
+        // power text and meter
+        let power = parseInt(kpa500_data[10]);
+        power_value.innerHTML = power.toString() + " W";
+        power_meter.value = power;
+        // SWR meter
+        let swr = parseInt(kpa500_data[11]);
+        if (power === 0) {
+            swr_value.innerHTML = "NO RF";
+        } else {
+            swr_value.innerHTML = swr.toString();
+            swr_meter.value = swr;
+        }
+        // current meter
+        let amps = parseInt(kpa500_data[9]) / 10.0;
+        if (amps === 0.0) {
+            current_value.innerHTML = "PTT OFF";
+        } else {
+            current_value.innerHTML = amps.toString() + " A";
+        }
+        current_meter.value = amps;
+        // voltage meter
+        let volts = parseInt(kpa500_data[13]) / 10.0;
+        voltage_value.innerHTML = volts.toString() + " V";
+        voltage_meter.value = volts;
+        // temp meter
+        let temp = parseInt(kpa500_data[12])
+        temp_value.innerHTML = temp.toString() + " C";
+        temp_meter.value = temp;
+        // fan slider
+        let fan_speed = parseInt(kpa500_data[17]);
+        if (fan_speed === 0) {
+            fan_range_label.innerHTML = "Fan Speed: Auto";
+        } else {
+            fan_range_label.innerHTML = "Fan Speed: " + fan_speed.toString();
+        }
+        fan_range.value = kpa500_data[17];
+        // fault text
+        if (kpa500_data[6] === "AMP ON") {
+            fault_text.style.background = '#9e9';
+        } else {
+            fault_text.style.background = '#fa7';
+        }
+        fault_text.innerHTML = kpa500_data[6];
+
+        // set the radio buttons to track automatic updating when rotator is moving...
+        document.getElementById('refresh_radio_0').checked = (update_secs === 0);
+        document.getElementById('refresh_radio_1').checked = (update_secs === 1);
+        document.getElementById('refresh_radio_5').checked = (update_secs === 5);
+
+        if (update_timeout !== 0) {
+            clearTimeout(update_timeout)
+            update_timeout = 0;
+        }
+
+        if (free_updates > 0) {
+            update_timeout = setTimeout(get_status, 1000);
+            free_updates--;
+        } else {
+            if (update_secs > 0) {
+                update_timeout = setTimeout(get_status, update_secs * 1000);
+            }
+        }
+    }
+
+    function get_status() {
+        let xmlHttp = new XMLHttpRequest();
+        if (xmlHttp == null) {
+            alert("get a better browser!");
+            return;
+        }
+        xmlHttp.onreadystatechange = function () {
+            if (xmlHttp.readyState === 4 && xmlHttp.status === 200) {
+                process_get_status_response(xmlHttp.responseText);
+            }
+        }
+        xmlHttp.open("GET", "/api/status", true);
+        xmlHttp.send();
+    }
+
+    function set_refresh(secs) {
+        update_secs = secs
+        if (update_secs === 0) {
+            if (update_timeout !== 0) {
+                clearTimeout(update_timeout)
+                update_timeout = 0;
+            }
+        } else {
+            get_status();
+        }
+    }
+</script>
+<body onload="page_load()">
+<div class="header">KPA500 Console</div>
+<div class="three_columns">
+    <div>
+        <input type="button" id="power_button" value="Power">
+        <input type="button" id="operate_button" value="Operate">
+    </div>
+    <div style="text-align: center;">
+        <label for="operate_radio_button" id="operate_radio_button_label">Operate</label>
+        <input type="radio" name="operate_standby" id="operate_radio_button" value="Operate">
+        <label for="standby_radio_button" id="standby_radio_button_label">Standby</label>
+        <input type="radio" name="operate_standby" id="standby_radio_button" value="Standby">
+    </div>
+    <div style="text-align:right;">
+        <label for="select_band">Band:</label>
+        <select id="select_band">
+        <option value="160m">160m</option>
+        <option value="80m">80m</option>
+        <option value="60m">60m</option>
+        <option value="40m">40m</option>
+        <option value="30m">30m</option>
+        <option value="20m">20m</option>
+        <option value="17m">17m</option>
+        <option value="15m">15m</option>
+        <option value="12m">12m</option>
+        <option value="10m">10m</option>
+        <option value="6m">6m</option>
+    </select>
+    </div>
+</div>
+<div class="data_table">
+    <div class="dt_label">Power:</div>
+    <div class="dt_value" id="power_value"></div>
+    <div class="dt_bg">
+        <meter id="power_meter" class="dt_meter" min="0" max="700" low="500" high="600" optimum="400"></meter>
+    </div>
+
+    <div class="dt_label">SWR:</div>
+    <div class="dt_value" id="swr_value"></div>
+    <div class="dt_bg">
+        <meter id="swr_meter" class="dt_meter" min="1" max="5" low="1.5" high="2" optimum="1.1"></meter>
+    </div>
+
+    <div class="dt_label">Current:</div>
+    <div class="dt_value" id="current_value"></div>
+    <div class="dt_bg">
+        <meter id="current_meter" class="dt_meter" min="0" max="15" low="8" high="10" optimum="5"></meter>
+    </div>
+
+    <div class="dt_label">Voltage:</div>
+    <div class="dt_value" id="voltage_value"></div>
+    <div class="dt_bg">
+        <meter id="voltage_meter" class="dt_meter" min="0" max="100" low="68" high="80" optimum="72"></meter>
+    </div>
+
+    <div class="dt_label">Temp:</div>
+    <div class="dt_value" id="temp_value"></div>
+    <div class="dt_bg">
+        <meter id="temp_meter" class="dt_meter" min="0" max="100" low="40" high="60" optimum="25"></meter>
+    </div>
+</div>
+<div class="two_columns">
+    <div>
+        <label for="fan_range" id="fan_range_label">Fan Speed</label>
+    </div>
+    <div>
+        <input type="range" id="fan_range" min="0" max="6" value="0" list="tickmarks">
+        <datalist id="tickmarks">
+            <option value="0" label="auto"></option>
+            <option value="1" label="1"></option>
+            <option value="2" label="2"></option>
+            <option value="3" label="3"></option>
+            <option value="4" label="4"></option>
+            <option value="5" label="5"></option>
+            <option value="6" label="6"></option>
+        </datalist>
+    </div>
+</div>
+<div class="three_columns">
+    <div style="text-align: left;">
+        <input type="button" id="speaker_button" value="Speaker Alarm">
+    </div>
+    <div class="fault_text" id="fault_text"></div>
+    <div style="text-align: right;">
+        <input type="button" id="clear_fault_button" value="Clear Fault">
+    </div>
+</div>
+<div class="row">
+        <div class="refresh_radio">
+            <div class="refresh_radio_label">Auto-Refresh</div>
+            <input type="radio" name="refresh_radio" id="refresh_radio_0" value="0" onclick="set_refresh(0)"/>
+            <label for="refresh_radio_0">Never</label><br>
+            <input type="radio" name="refresh_radio" id="refresh_radio_1" value="1" onclick="set_refresh(1)"/>
+            <label for="refresh_radio_1">1 second</label><br>
+            <input type="radio" name="refresh_radio" id="refresh_radio_5" value="5" onclick="set_refresh(5)"/>
+            <label for="refresh_radio_5">5 seconds</label><br>
+        </div>
+    </div>
+<div class="row">
+        <div class="setup"><a href="setup.html">Setup</a></div>
+        <div class="author"><a href="https://www.n1kdo.com" target="_blank">N1KDO</a> 20221226</div>
+</div>
+</div>
+</body>
+</html>
