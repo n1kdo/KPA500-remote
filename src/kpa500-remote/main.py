@@ -416,14 +416,15 @@ async def serve_network_client(reader, writer):
     this provides KPA500-Remote compatible control.
     """
     global network_clients
+    verbosity = 3
     t0 = milliseconds()
     extra = writer.get_extra_info('peername')
     client_name = f'{extra[0]}:{extra[1]}'
     client_data = ClientData(client_name)
     client_data.update_list.extend((7, 16, 6, 0, 1, 2, 3, 4, 8, 5, 9, 10, 11, 12, 13, 14, 15, 17, 18))  # initial list of items to send.
     network_clients.append(client_data)
-    print(client_name)
-    print('\nnetwork client connected from {}'.format(extra[0]))
+    if verbosity > 2:
+        print('\nnetwork client connected from {}'.format(extra[0]))
     login_valid = False
     client_connected = True
     last_receive = milliseconds()
@@ -440,7 +441,8 @@ async def serve_network_client(reader, writer):
             if message is not None and not timed_out:
                 last_receive = milliseconds()
                 if len(message) == 0:  # keepalive?
-                    print('got keepalive')
+                    if verbosity > 3:
+                        print('got keepalive')
                 elif message.startswith('server::login::'):
                     up_list = message[15:].split('::')
                     if up_list[0] != username:
@@ -452,7 +454,8 @@ async def serve_network_client(reader, writer):
                         login_valid = True
                     writer.write(response)
                     last_send = milliseconds
-                    print(f'sending "{response.decode().strip()}"')
+                    if verbosity > 3:
+                        print(f'sending "{response.decode().strip()}"')
                 else:
                     if login_valid:
                         if message.startswith('amp::button::CLEAR::'):
@@ -472,7 +475,7 @@ async def serve_network_client(reader, writer):
                                 command = b'^OS0;'
                             kpa500_command_queue.append(command)
                         elif message.startswith('amp::button::PWR::'):
-                            print(message)
+                            # print(message)
                             value = ""  # message[18:]
                             if value == '1':
                                 command = b'^ON1;'
@@ -489,7 +492,6 @@ async def serve_network_client(reader, writer):
                             kpa500_command_queue.append(command)
                         elif message.startswith('amp::dropdown::Band::'):
                             value = message[21:]
-                            print(value)
                             band_number = band_label_to_number(value)
                             if band_number is not None:
                                 command = f'^BN{band_number:02d};'.encode()
@@ -512,22 +514,23 @@ async def serve_network_client(reader, writer):
                 payload = f'::{kpa500_data[index]}\n'.encode()
                 writer.write(payload)
                 last_send = milliseconds()
-                print(f'sent "{key_names[index].decode()}{payload.decode().strip()}"')
-            #await asyncio.sleep(0.01)  # slight pacing
+                if verbosity > 3:
+                    print(f'sent "{key_names[index].decode()}{payload.decode().strip()}"')
 
             receive_delta = milliseconds() - last_receive
             send_delta = milliseconds() - last_send
 
-            if receive_delta > 20000:
-                print(f'receive_delta: {receive_delta}')
             if send_delta > 15000:
-                print(f'send_delta: {send_delta}')
                 writer.write(b'\n')
                 last_send = milliseconds()
-                print('sent keepalive')
+                if verbosity > 3:
+                    print(f'sent keepalive to client {client_name}')
             if receive_delta > 60000:
-                print('no activity timeout...')
+                if verbosity > 2:
+                    print(f'client {client_name} no activity timeout, closing connection')
                 client_connected = False
+
+            gc.collect()
 
         # connection closing
         print(f'connection from {client_name} closing...')
@@ -861,10 +864,13 @@ class BufferAndLength:
         self.bytes_received = 0
 
 
-async def kpa500_send_receive(amp_port, message, bl):
+async def kpa500_send_receive(amp_port, message, bl, timeout=0.05):
+    # should the read buffer be flushed? can only read to drain
+    while len(amp_port.read()) > 0:
+        pass
     amp_port.write(message)
     amp_port.flush()
-    await asyncio.sleep(0.05)
+    await asyncio.sleep(timeout)
     bl.bytes_received = amp_port.readinto(bl.buffer)
 
 
@@ -881,15 +887,15 @@ def process_kpa500_message(bl):
     if bl.bytes_received < 1:
         return
     if bl.buffer[0] != 94:  # '^'
-        print(f'what? {bl.buffer[:bl.bytes_received].decode()}')
+        print(f'bad data: {bl.buffer[:bl.bytes_received].decode()}')
         return
-    cmdlen = 3  # including the ^
-    if bl.buffer[cmdlen] > 57:  # there is another letter
-        cmdlen = 4
+    command_length = 3  # including the ^
+    if bl.buffer[command_length] > 57:  # there is another letter
+        command_length = 4
 
-    cmd = bl.buffer[1:cmdlen].decode()
+    cmd = bl.buffer[1:command_length].decode()
     semi_offset = bl.buffer.find(b';')
-    cmd_data = bl.buffer[cmdlen:semi_offset].decode()
+    cmd_data = bl.buffer[command_length:semi_offset].decode()
     if cmd == 'BN':  # band
         band_num = int(cmd_data)
         if band_num <= 10:
@@ -938,6 +944,12 @@ def process_kpa500_message(bl):
 
 
 async def kpa500_server(amp_serial_port, verbosity=4):
+    """
+    this manages the connection to the physical amplifier
+    :param amp_serial_port: SerialPort object
+    :param verbosity: how much logging?
+    :return: None
+    """
     global kpa500_command_queue
     bl = BufferAndLength(bytearray(16))
     amp_found = False
@@ -966,11 +978,10 @@ async def kpa500_server(amp_serial_port, verbosity=4):
                 print('amp is off')
                 # amp is off, try to turn it on...
                 await kpa500_send_receive(amp_serial_port, b'P', bl)
-                await asyncio.sleep(0.250)
+                await asyncio.sleep(1.5)
         else:
             amp_on = True
 
-    print(f'amp_on: {amp_on}')
 
     initial_queries = (b';',  # attention!
                        b'^RVM;',  # get version
@@ -1007,6 +1018,8 @@ async def kpa500_server(amp_serial_port, verbosity=4):
                         process_kpa500_message(bl)
                     if send_command == b'^ON0;':
                         amp_on = False
+                        update_kpa500_data(4, 0)
+                        update_kpa500_data(6, 'PWR OFF')
                         break
                 # send the next query to the amp.
                 await kpa500_send_receive(amp_serial_port, query, bl)
@@ -1019,11 +1032,14 @@ async def kpa500_server(amp_serial_port, verbosity=4):
                 send_command = kpa500_command_queue.pop(0)
                 print(f'amp off send_command {send_command}')
                 if send_command[0:3] == b'^ON':
-                    print('want to turn amp on now.')
+                    # print('want to turn amp on now.')
                     await kpa500_send_receive(amp_serial_port, b'P', bl)
-                    await asyncio.sleep(0.250)
+                    update_kpa500_data(6, 'Powering On')
+                    await asyncio.sleep(1.50)
                     await kpa500_send_receive(amp_serial_port, b';', bl)
                     amp_on = True
+                    update_kpa500_data(4, 1)
+                    update_kpa500_data(6, 'AMP ON')
         await asyncio.sleep(0.05)
 
 
@@ -1059,7 +1075,7 @@ async def main():
     if upython:
         asyncio.create_task(morse_sender())
 
-    port = SerialPort(baudrate=38400, timeout=0)
+    port = SerialPort(baudrate=38400, timeout=0)  # timeout is zero because we do not want to block
 
     if connected:
         ntp_time = ntp.get_ntp_time()
