@@ -1,5 +1,5 @@
 #
-# main.py -- this is the web server for the Raspberry Pi Pico W Web Rotator Controller.
+# main.py -- this is the web server for the Raspberry Pi Pico W Web IOT thing.
 #
 __author__ = 'J. B. Otterson'
 __copyright__ = 'Copyright 2022, J. B. Otterson N1KDO.'
@@ -816,6 +816,67 @@ async def serve_http_client(reader, writer):
                 response = b'ok\r\n'
                 http_status = 200
                 bytes_sent = send_simple_response(writer, http_status, CT_TEXT_TEXT, response)
+            elif target == '/api/clear_fault':
+                kpa500_command_queue.append(b'^FLC;')
+                response = b'ok\r\n'
+                http_status = 200
+                bytes_sent = send_simple_response(writer, http_status, CT_TEXT_TEXT, response)
+            elif target == '/api/set_band':
+                band_name = args.get('band')
+                band_number = band_label_to_number(band_name)
+                if band_number is not None:
+                    command = f'^BN{band_number:02d};'.encode()
+                    kpa500_command_queue.append(command)
+                    response = b'ok\r\n'
+                    http_status = 200
+                else:
+                    response = b'bad band name parameter\r\n'
+                    http_status = 400
+                bytes_sent = send_simple_response(writer, http_status, CT_TEXT_TEXT, response)
+            elif target == '/api/set_fan_speed':
+                speed = safe_int(args.get('speed', -1))
+                if 0 <= speed <= 6:
+                    command = f'^FC{speed};^FC;'.encode()
+                    kpa500_command_queue.append(command)
+                    response = b'ok\r\n'
+                    http_status = 200
+                else:
+                    response = b'bad fan speed parameter\r\n'
+                    http_status = 400
+                bytes_sent = send_simple_response(writer, http_status, CT_TEXT_TEXT, response)
+            elif target == '/api/set_operate':
+                state = args.get('state')
+                if state == '0' or state == '1':
+                    command = f'^OS{state};'.encode()
+                    kpa500_command_queue.append(command)
+                    response = b'ok\r\n'
+                    http_status = 200
+                else:
+                    response = b'bad state parameter\r\n'
+                    http_status = 400
+                bytes_sent = send_simple_response(writer, http_status, CT_TEXT_TEXT, response)
+            elif target == '/api/set_power':
+                state = args.get('state')
+                if state == '0' or state == '1':
+                    command = f'^ON{state};'.encode()
+                    kpa500_command_queue.append(command)
+                    response = b'ok\r\n'
+                    http_status = 200
+                else:
+                    response = b'bad state parameter\r\n'
+                    http_status = 400
+                bytes_sent = send_simple_response(writer, http_status, CT_TEXT_TEXT, response)
+            elif target == '/api/set_speaker_alarm':
+                state = args.get('state')
+                if state == '0' or state == '1':
+                    command = f'^SP{state};'.encode()
+                    kpa500_command_queue.append(command)
+                    response = b'ok\r\n'
+                    http_status = 200
+                else:
+                    response = b'bad state parameter\r\n'
+                    http_status = 400
+                bytes_sent = send_simple_response(writer, http_status, CT_TEXT_TEXT, response)
             elif target == '/api/status':
                 payload = {'kpa500_data': kpa500_data}
                 response = json.dumps(payload).encode('utf-8')
@@ -974,7 +1035,7 @@ async def kpa500_server(amp_serial_port, verbosity=4):
         await kpa500_send_receive(amp_serial_port, b'I', bl)
         if bl.bytes_received > 0:
             if bl.buffer[:bl.bytes_received].decode() == 'KPA500\r\n':
-                print('amp is off')
+                # print('amp is off')
                 # amp is off, try to turn it on...
                 await kpa500_send_receive(amp_serial_port, b'P', bl)
                 await asyncio.sleep(1.5)
@@ -1017,7 +1078,7 @@ async def kpa500_server(amp_serial_port, verbosity=4):
                         process_kpa500_message(bl)
                     if send_command == b'^ON0;':
                         amp_on = False
-                        update_kpa500_data(4, 0)
+                        update_kpa500_data(4, '0')
                         update_kpa500_data(6, 'PWR OFF')
                         break
                 # send the next query to the amp.
@@ -1029,7 +1090,7 @@ async def kpa500_server(amp_serial_port, verbosity=4):
         else:  # amp is not on.
             while len(kpa500_command_queue) != 0:
                 send_command = kpa500_command_queue.pop(0)
-                print(f'amp off send_command {send_command}')
+                # print(f'amp off send_command {send_command}')
                 if send_command[0:3] == b'^ON':
                     # print('want to turn amp on now.')
                     await kpa500_send_receive(amp_serial_port, b'P', bl)
@@ -1037,7 +1098,7 @@ async def kpa500_server(amp_serial_port, verbosity=4):
                     await asyncio.sleep(1.50)
                     await kpa500_send_receive(amp_serial_port, b';', bl)
                     amp_on = True
-                    update_kpa500_data(4, 1)
+                    update_kpa500_data(4, '1')
                     update_kpa500_data(6, 'AMP ON')
         await asyncio.sleep(0.05)
 
