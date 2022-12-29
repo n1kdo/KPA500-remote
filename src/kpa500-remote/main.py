@@ -525,7 +525,7 @@ async def serve_network_client(reader, writer):
                 last_send = milliseconds()
                 if verbosity > 3:
                     print(f'sent keepalive to client {client_name}')
-            if receive_delta > 60000:
+            if receive_delta > 120000:
                 if verbosity > 2:
                     print(f'client {client_name} no activity timeout, closing connection')
                 client_connected = False
