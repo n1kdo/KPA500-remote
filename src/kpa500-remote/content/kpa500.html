@@ -229,7 +229,7 @@
         power_value.innerHTML = power.toString() + " W";
         power_meter.value = power;
         // SWR meter
-        let swr = parseInt(kpa500_data[11]);
+        let swr = parseInt(kpa500_data[11]) / 10.0;
         if (power === 0) {
             swr_value.innerHTML = "NO RF";
             swr_meter.value = 0.0;
@@ -386,7 +386,7 @@
     <div class="dt_label">Temp:</div>
     <div class="dt_value" id="temp_value"></div>
     <div class="dt_bg">
-        <meter id="temp_meter" class="dt_meter" min="0" max="100" low="40" high="60" optimum="25" value="0"></meter>
+        <meter id="temp_meter" class="dt_meter" min="0" max="100" low="50" high="70" optimum="25" value="0"></meter>
     </div>
 </div>
 <div class="two_columns">

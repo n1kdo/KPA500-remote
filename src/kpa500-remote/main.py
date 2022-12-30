@@ -527,7 +527,7 @@ async def serve_network_client(reader, writer):
                     print(f'sent keepalive to client {client_name}')
             if receive_delta > 120000:
                 if verbosity > 2:
-                    print(f'client {client_name} no activity timeout, closing connection')
+                    print(f'client {client_name} no activity timeout {receive_delta/1000:6.1f}, closing connection')
                 client_connected = False
 
             gc.collect()
