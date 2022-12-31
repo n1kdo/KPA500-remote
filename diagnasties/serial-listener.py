@@ -114,7 +114,7 @@ def hexdump_buffer(buffer):
         printable += chr(b) if 32 <= b <= 126 else '.'
         offset += 1
         if len(hex_bytes) >= 48:
-            result += ofs + '  ' + hex_bytes + '  ' + printable +'\n'
+            result += ofs + '  ' + hex_bytes + '  ' + printable + '\n'
             hex_bytes = ''
             printable = ''
             ofs = '{:04x}'.format(offset)
@@ -268,18 +268,18 @@ def main():
                 if buf is not None and len(buf) > 0:
                     pass
                     print(f'TX: {buf.decode()}')
-                    #parse_kpa500_message(buf.decode())
-                    #print(f'transmit: "{buf.decode()}"')
-                    #print(hexdump_buffer(buf))
+                    # parse_kpa500_message(buf.decode())
+                    # print(f'transmit: "{buf.decode()}"')
+                    # print(hexdump_buffer(buf))
                 else:
                     break
             while True:
                 buf = rx_port.read(32)
                 if buf is not None and len(buf) > 0:
-                    #print(f'receive: "{buf.decode()}')
+                    # print(f'receive: "{buf.decode()}')
                     print(f'RX: {buf.decode()}')
-                    #parse_kpa500_message(buf.decode())
-                    #print(hexdump_buffer(buf))
+                    # parse_kpa500_message(buf.decode())
+                    # print(hexdump_buffer(buf))
                 else:
                     break
             time.sleep(0.02)

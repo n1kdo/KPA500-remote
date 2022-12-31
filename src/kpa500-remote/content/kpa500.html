@@ -125,7 +125,7 @@
     }
 
     function toggle_power() {
-        let payload = "";
+        let payload;
         if (kpa500_data[4] === "1") {
             payload = "state=0";
         } else {
@@ -135,7 +135,7 @@
     }
 
     function toggle_operate() {
-        let state = "0";
+        let state;
         if (kpa500_data[0] === "1") {
             state = "0";
         } else {
@@ -160,7 +160,7 @@
     }
 
     function speaker_alarm_button_click() {
-        let state = "0";
+        let state;
         if (kpa500_data[3] === "1") {
             state = "0";
         } else {
@@ -374,19 +374,19 @@
     <div class="dt_label">Current:</div>
     <div class="dt_value" id="current_value"></div>
     <div class="dt_bg">
-        <meter id="current_meter" class="dt_meter" min="0" max="15" low="8" high="10" optimum="5" value="0"></meter>
+        <meter id="current_meter" class="dt_meter" min="0" max="20" low="15" high="17" optimum="5" value="0"></meter>
     </div>
 
     <div class="dt_label">Voltage:</div>
     <div class="dt_value" id="voltage_value"></div>
     <div class="dt_bg">
-        <meter id="voltage_meter" class="dt_meter" min="0" max="100" low="68" high="80" optimum="72" value="0"></meter>
+        <meter id="voltage_meter" class="dt_meter" min="0" max="100" low="60" high="80" optimum="72" value="0"></meter>
     </div>
 
     <div class="dt_label">Temp:</div>
     <div class="dt_value" id="temp_value"></div>
     <div class="dt_bg">
-        <meter id="temp_meter" class="dt_meter" min="0" max="100" low="50" high="70" optimum="25" value="0"></meter>
+        <meter id="temp_meter" class="dt_meter" min="0" max="100" low="60" high="75" optimum="25" value="0"></meter>
     </div>
 </div>
 <div class="two_columns">
@@ -428,7 +428,7 @@
     </div>
 <div class="row">
         <div class="setup"><a href="setup.html">Setup</a></div>
-        <div class="author"><a href="https://www.n1kdo.com" target="_blank">N1KDO</a> 20221227</div>
+        <div class="author"><a href="https://www.n1kdo.com" target="_blank">N1KDO</a> 20221231</div>
 </div>
 </body>
 </html>

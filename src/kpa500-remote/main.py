@@ -54,28 +54,29 @@ else:
         @staticmethod
         def soft_reset():
             print('Machine.soft_reset()')
-    machine = Machine()
 
-"""
         class Pin(object):
             OUT = 1
             IN = 0
             PULL_UP = 0
 
             def __init__(self, name, options=0, value=0):
-                self.value = value
+                self.name = name
+                self.options = options
+                self.state = value
                 pass
 
             def on(self):
-                self.value = 1
+                self.state = 1
                 pass
 
             def off(self):
-                self.value = 0
+                self.state = 0
 
             def value(self):
-                return self.value
-"""
+                return self.state
+
+    machine = Machine()
 
 
 if upython:
@@ -93,11 +94,12 @@ CT_TEXT_HTML = 'text/html'
 CT_APP_JSON = 'application/json'
 CT_APP_WWW_FORM = 'application/x-www-form-urlencoded'
 CT_MULTIPART_FORM = 'multipart/form-data'
-DANGER_ZONE_FILE_NAMES = [
+DANGER_ZONE_FILE_NAMES = (
     'config.html',
     'files.html',
     'kpa500.html',
-]
+)
+# noinspection SpellCheckingInspection
 DEFAULT_SECRET = 'elecraft'
 DEFAULT_SSID = 'kpa500'
 DEFAULT_TCP_PORT = 4626
@@ -168,26 +170,27 @@ MP_END_BOUND = 4
 
 band_number_to_name = ('160m', '80m', '60m', '40m', '30m', '20m', '17m', '15m', '12m', '10m', '6m')
 
+# noinspection SpellCheckingInspection
 key_names = (
-    b'amp::button::OPER',            # 00
-    b'amp::button::STBY',            # 01
-    b'amp::button::CLEAR',           # 02
-    b'amp::button::SPKR',            # 03
-    b'amp::button::PWR',             # 04
-    b'amp::dropdown::Band',          # 05
-    b'amp::fault',                   # 06
-    b'amp::firmware',                # 07
-    b'amp::list::Band',              # 08
-    b'amp::meter::Current',          # 09
-    b'amp::meter::Power',            # 10
-    b'amp::meter::SWR',              # 11
-    b'amp::meter::Temp',             # 12
-    b'amp::meter::Voltage',          # 13
-    b'amp::range::Fan Speed',        # 14
-    b'amp::range::PWR Meter Hold',   # 15
-    b'amp::serial',                  # 16
-    b'amp::slider::Fan Speed',       # 17
-    b'amp::slider::PWR Meter Hold',  # 18
+    b'amp::button::OPER',            # 00 : 0 or 1
+    b'amp::button::STBY',            # 01 : 0 or 1
+    b'amp::button::CLEAR',           # 02 : 0 or 1
+    b'amp::button::SPKR',            # 03 : 0 or 1
+    b'amp::button::PWR',             # 04 : 0 or 1
+    b'amp::dropdown::Band',          # 05 : string
+    b'amp::fault',                   # 06 : string
+    b'amp::firmware',                # 07 : string
+    b'amp::list::Band',              # 08 : string
+    b'amp::meter::Current',          # 09 : integer
+    b'amp::meter::Power',            # 10 : integer
+    b'amp::meter::SWR',              # 11 : integer
+    b'amp::meter::Temp',             # 12 : integer
+    b'amp::meter::Voltage',          # 13 : integer
+    b'amp::range::Fan Speed',        # 14 : string
+    b'amp::range::PWR Meter Hold',   # 15 : string
+    b'amp::serial',                  # 16 : string
+    b'amp::slider::Fan Speed',       # 17 : integer
+    b'amp::slider::PWR Meter Hold',  # 18 : integer
 )
 
 # globals...
@@ -397,6 +400,9 @@ class ClientData:
         self.client_name = client_name
         self.update_list = []
         self.authorized = False
+        self.connected = True
+        self.last_receive = 0
+        self.last_send = 0
 
 
 async def read_network_client(reader):
@@ -421,43 +427,42 @@ async def serve_network_client(reader, writer):
     extra = writer.get_extra_info('peername')
     client_name = f'{extra[0]}:{extra[1]}'
     client_data = ClientData(client_name)
-    client_data.update_list.extend((7, 16, 6, 0, 1, 2, 3, 4, 8, 5, 9, 10, 11, 12, 13, 14, 15, 17, 18))  # initial list of items to send.
+    client_data.update_list.extend((7, 16, 6, 0, 1, 2, 3, 4, 8, 5, 9, 10, 11, 12, 13, 14, 15, 17, 18))  # items to send.
     network_clients.append(client_data)
     if verbosity > 2:
-        print('\nnetwork client connected from {}'.format(extra[0]))
-    login_valid = False
-    client_connected = True
-    last_receive = milliseconds()
-    last_send = milliseconds()
+        print('network client connected from {}'.format(extra[0]))
 
     try:
-        while client_connected:
+        while client_data.connected:
             try:
                 message = await asyncio.wait_for(read_network_client(reader), 0.05)
                 timed_out = False
-            except asyncio.exceptions.TimeoutError as te:
+            except asyncio.exceptions.TimeoutError:
                 message = None
                 timed_out = True
             if message is not None and not timed_out:
-                last_receive = milliseconds()
+                client_data.last_receive = milliseconds()
                 if len(message) == 0:  # keepalive?
-                    if verbosity > 3:
-                        print('got keepalive')
+                    if verbosity > 2:
+                        print(f'{get_timestamp()}: RECEIVED keepalive FROM client {client_name}')
                 elif message.startswith('server::login::'):
                     up_list = message[15:].split('::')
                     if up_list[0] != username:
-                        response = b'server::login::invalid::Invalid username provided. Remote control will not be allowed.\n'
+                        response = b'server::login::invalid::Invalid username provided. '\
+                                   b'Remote control will not be allowed.\n'
                     elif up_list[1] != password:
-                        response = b'server::login::invalid::Invalid password provided. Remote control will not be allowed.\n'
+                        response = b'server::login::invalid::Invalid password provided. '\
+                                   b'Remote control will not be allowed.\n'
                     else:
                         response = b'server::login::valid\n'
-                        login_valid = True
+                        client_data.authorized = True
                     writer.write(response)
-                    last_send = milliseconds
+                    client_data.last_send = milliseconds
                     if verbosity > 3:
                         print(f'sending "{response.decode().strip()}"')
                 else:
-                    if login_valid:
+                    if client_data.authorized:
+                        # noinspection SpellCheckingInspection
                         if message.startswith('amp::button::CLEAR::'):
                             kpa500_command_queue.append(b'^FLC;')
                         elif message.startswith('amp::button::OPER::'):
@@ -505,7 +510,7 @@ async def serve_network_client(reader, writer):
             else:  # response was None
                 if not timed_out:
                     print('response was None')
-                    client_connected = False
+                    client_data.connected = False
 
             # send any outstanding data back...
             if len(client_data.update_list) > 0:
@@ -513,37 +518,39 @@ async def serve_network_client(reader, writer):
                 writer.write(key_names[index])
                 payload = f'::{kpa500_data[index]}\n'.encode()
                 writer.write(payload)
-                last_send = milliseconds()
+                await writer.drain()
+                client_data.last_send = milliseconds()
                 if verbosity > 3:
                     print(f'sent "{key_names[index].decode()}{payload.decode().strip()}"')
 
-            receive_delta = milliseconds() - last_receive
-            send_delta = milliseconds() - last_send
+            receive_delta = milliseconds() - client_data.last_receive
+            send_delta = milliseconds() - client_data.last_send
 
             if send_delta > 15000:
                 writer.write(b'\n')
-                last_send = milliseconds()
-                if verbosity > 3:
-                    print(f'sent keepalive to client {client_name}')
-            if receive_delta > 120000:
+                await writer.drain()
+                client_data.last_send = milliseconds()
+                if verbosity > 2:
+                    print(f'{get_timestamp()}: SENT keepalive TO client {client_name}')
+            if receive_delta > 300000:  # 10 minutes no activity timeout.
                 if verbosity > 2:
                     print(f'client {client_name} no activity timeout {receive_delta/1000:6.1f}, closing connection')
-                client_connected = False
+                client_data.connected = False
 
             gc.collect()
 
         # connection closing
-        print(f'connection from {client_name} closing...')
+        print(f'connection from {client_data.client_name} closing...')
         writer.close()
         await writer.wait_closed()
 
     except Exception as ex:
         print('exception in serve_network_client:', type(ex), ex)
     finally:
-        print(f'client {client_name} disconnected')
+        print(f'client {client_data.client_name} disconnected')
         found_network_client = None
         for network_client in network_clients:
-            if network_client.client_name == client_name:
+            if network_client.client_name == client_data.client_name:
                 found_network_client = network_client
                 break
         if found_network_client is not None:
@@ -973,10 +980,10 @@ def process_kpa500_message(bl):
     elif cmd == 'ON':
         update_kpa500_data(4, cmd_data)
     elif cmd == 'OS':
-        oper = cmd_data
-        stby = '1' if cmd_data == '0' else '0'
-        update_kpa500_data(0, oper)
-        update_kpa500_data(1, stby)
+        operate = cmd_data
+        standby = '1' if cmd_data == '0' else '0'
+        update_kpa500_data(0, operate)
+        update_kpa500_data(1, standby)
     elif cmd == 'RVM':  # version
         update_kpa500_data(7, cmd_data)
     elif cmd == 'SN':  # serial number
@@ -984,21 +991,22 @@ def process_kpa500_message(bl):
     elif cmd == 'SP':  # speaker on/off
         update_kpa500_data(3, cmd_data)
     elif cmd == 'TM':  # temp
-        update_kpa500_data(12, cmd_data)
+        temp = int(cmd_data)
+        update_kpa500_data(12, str(temp))
     elif cmd == 'VI':  # volts
         split_cmd_data = cmd_data.split(' ')
         if len(split_cmd_data) == 2:
-            volts = split_cmd_data[0]
-            amps = split_cmd_data[1]
-            update_kpa500_data(13, volts)
-            update_kpa500_data(9, amps)
+            volts = int(split_cmd_data[0])
+            amps = int(split_cmd_data[1])
+            update_kpa500_data(13, str(volts))
+            update_kpa500_data(9, str(amps))
     elif cmd == 'WS':  # watts swr
         split_cmd_data = cmd_data.split(' ')
         if len(split_cmd_data) == 2:
-            watts = split_cmd_data[0]
-            swr = split_cmd_data[1]
-            update_kpa500_data(10, watts)
-            update_kpa500_data(11, swr)
+            watts = int(split_cmd_data[0])
+            swr = int(split_cmd_data[1])
+            update_kpa500_data(10, str(watts))
+            update_kpa500_data(11, str(swr))
     else:
         print(f'unprocessed command {cmd} with data {cmd_data}')
 
@@ -1041,7 +1049,6 @@ async def kpa500_server(amp_serial_port, verbosity=4):
                 await asyncio.sleep(1.5)
         else:
             amp_on = True
-
 
     initial_queries = (b';',  # attention!
                        b'^RVM;',  # get version
@@ -1090,7 +1097,6 @@ async def kpa500_server(amp_serial_port, verbosity=4):
         else:  # amp is not on.
             while len(kpa500_command_queue) != 0:
                 send_command = kpa500_command_queue.pop(0)
-                # print(f'amp off send_command {send_command}')
                 if send_command[0:3] == b'^ON':
                     # print('want to turn amp on now.')
                     await kpa500_send_receive(amp_serial_port, b'P', bl)
