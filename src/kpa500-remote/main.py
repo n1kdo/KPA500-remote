@@ -43,8 +43,10 @@ if upython:
     import machine
     import network
     import uasyncio as asyncio
+    from uasyncio import TimeoutError
 else:
     import asyncio
+    from asyncio.exceptions import TimeoutError
 
     class Machine(object):
         """
@@ -324,7 +326,100 @@ def send_simple_response(writer, http_status=200, content_type=None, response=No
     return content_length
 
 
-def connect_to_network(ssid, secret, access_point_mode=False):
+def connect_to_network(config):
+    global morse_message
+
+    ssid = config.get('SSID') or ''
+    if len(ssid) == 0 or len(ssid) > 64:
+        ssid = DEFAULT_SSID
+    secret = config.get('secret') or ''
+    if len(secret) > 64:
+        secret = ''
+    access_point_mode = config.get('ap_mode') or False
+
+    if access_point_mode:
+        print('Starting setup WLAN...')
+        wlan = network.WLAN(network.AP_IF)
+        wlan.active(False)
+        wlan.config(pm=0xa11140)  # disable power save, this is a server.
+
+        hostname = config.get('hostname')
+        if hostname is not None:
+            try:
+                wlan.config(hostname=hostname)
+            except ValueError:
+                print(f'hostname is still not supported on Pico W')
+
+        # wlan.ifconfig(('10.0.0.1', '255.255.255.0', '0.0.0.0', '0.0.0.0'))
+
+        """
+        #define CYW43_AUTH_OPEN (0)                     ///< No authorisation required (open)
+        #define CYW43_AUTH_WPA_TKIP_PSK   (0x00200002)  ///< WPA authorisation
+        #define CYW43_AUTH_WPA2_AES_PSK   (0x00400004)  ///< WPA2 authorisation (preferred)
+        #define CYW43_AUTH_WPA2_MIXED_PSK (0x00400006)  ///< WPA2/WPA mixed authorisation
+        """
+        ssid = DEFAULT_SSID
+        secret = DEFAULT_SECRET
+        if len(secret) == 0:
+            security = 0
+        else:
+            security = 0x00400004  # CYW43_AUTH_WPA2_AES_PSK
+        wlan.config(ssid=ssid, key=secret, security=security)
+        wlan.active(True)
+        print(wlan.active())
+        print('ssid={}'.format(wlan.config('ssid')))
+    else:
+        print('Connecting to WLAN...')
+        wlan = network.WLAN(network.STA_IF)
+        wlan.config(pm=0xa11140)  # disable power save, this is a server.
+
+        hostname = config.get('hostname')
+        if hostname is not None:
+            try:
+                wlan.config(hostname=hostname)
+            except ValueError:
+                print(f'hostname is still not supported on Pico W')
+
+        is_dhcp = config.get('dhcp') or True
+        if not is_dhcp:
+            ip_address = config.get('ip_address')
+            netmask = config.get('netmask')
+            gateway = config.get('gateway')
+            dns_server = config.get('dns_server')
+            if ip_address is not None and netmask is not None and gateway is not None and dns_server is not None:
+                print('setting up static IP')
+                wlan.ifconfig((ip_address, netmask, gateway, dns_server))
+            else:
+                print('cannot use static IP, data is missing, configuring network with DHCP')
+                wlan.ifconfig('dhcp')
+        else:
+            print('configuring network with DHCP')
+            # wlan.ifconfig('dhcp')  #  this does not work.  network does not come up.  no errors, either.
+
+        wlan.active(True)
+        wlan.connect(ssid, secret)
+        max_wait = 10
+        while max_wait > 0:
+            status = wlan.status()
+            if status < 0 or status >= 3:
+                break
+            max_wait -= 1
+            print('Waiting for connection to come up, status={}'.format(status))
+            time.sleep(1)
+        if wlan.status() != network.STAT_GOT_IP:
+            morse_message = 'ERR'
+            # return None
+            raise RuntimeError('Network connection failed')
+
+    status = wlan.ifconfig()
+    ip_address = status[0]
+    morse_message = 'A  {}  '.format(ip_address) if access_point_mode else '{} '.format(ip_address)
+    morse_message = morse_message.replace('.', ' ')
+    print(morse_message)
+    return ip_address
+
+
+def old_connect_to_network(ssid, secret, access_point_mode=False):
     global morse_message
 
     if access_point_mode:
@@ -422,7 +517,7 @@ async def serve_network_client(reader, writer):
     this provides KPA500-Remote compatible control.
     """
     global network_clients
-    verbosity = 3
+    verbosity = 1
     t0 = milliseconds()
     extra = writer.get_extra_info('peername')
     client_name = f'{extra[0]}:{extra[1]}'
@@ -437,7 +532,7 @@ async def serve_network_client(reader, writer):
             try:
                 message = await asyncio.wait_for(read_network_client(reader), 0.05)
                 timed_out = False
-            except asyncio.exceptions.TimeoutError:
+            except TimeoutError as e:
                 message = None
                 timed_out = True
             if message is not None and not timed_out:
@@ -537,6 +632,7 @@ async def serve_network_client(reader, writer):
                     print(f'client {client_name} no activity timeout {receive_delta/1000:6.1f}, closing connection')
                 client_data.connected = False
 
+
             gc.collect()
 
         # connection closing
@@ -546,6 +642,7 @@ async def serve_network_client(reader, writer):
 
     except Exception as ex:
         print('exception in serve_network_client:', type(ex), ex)
+        raise ex
     finally:
         print(f'client {client_data.client_name} disconnected')
         found_network_client = None
@@ -649,19 +746,82 @@ async def serve_http_client(reader, writer):
                     http_status = 200
                     bytes_sent = send_simple_response(writer, http_status, CT_APP_JSON, response)
                 elif verb == 'POST':
-                    tcp_port = args.get('tcp_port') or '-1'
-                    web_port = args.get('web_port') or '-1'
-                    tcp_port_int = safe_int(tcp_port, -2)
-                    web_port_int = safe_int(web_port, -2)
-                    ssid = args.get('SSID') or ''
-                    secret = args.get('secret') or ''
-                    ap_mode = True if args.get('ap_mode', '0') == '1' else False
-                    if 0 <= web_port_int <= 65535 and 0 <= tcp_port_int <= 65535 and 0 < len(ssid) <= 64 and len(
-                            secret) < 64 and len(args) == 4:
-                        config = {'SSID': ssid, 'secret': secret, 'tcp_port': tcp_port, 'web_port': web_port,
-                                  'ap_mode': ap_mode}
-                        # config = json.dumps(args)
-                        save_config(config)
+                    config = read_config()
+                    dirty = False
+                    errors = False
+                    tcp_port = args.get('tcp_port')
+                    if tcp_port is not None:
+                        tcp_port_int = safe_int(tcp_port, -2)
+                        if 0 <= tcp_port_int <= 65535:
+                            config['tcp_port'] = tcp_port
+                            dirty = True
+                        else:
+                            errors = True
+                    web_port = args.get('web_port')
+                    if web_port is not None:
+                        web_port_int = safe_int(web_port, -2)
+                        if 0 <= web_port_int <= 65535:
+                            config['web_port'] = web_port
+                            dirty = True
+                        else:
+                            errors = True
+                    ssid = args.get('SSID')
+                    if ssid is not None:
+                        if 0 < len(ssid) < 64:
+                            config['SSID'] = ssid
+                            dirty = True
+                        else:
+                            errors = True
+                    secret = args.get('secret')
+                    if secret is not None:
+                        if 8 <= len(secret) < 32:
+                            config['secret'] = secret
+                            dirty = True
+                        else:
+                            errors = True
+                    username = args.get('username')
+                    if username is not None:
+                        if 1 <= len(username) <= 16:
+                            config['username'] = username
+                            dirty = True
+                        else:
+                            errors = True
+                    password = args.get('password')
+                    if password is not None:
+                        if 1 <= len(password) <+ 16:
+                            config['password'] = password
+                            dirty = True
+                        else:
+                            errors = True
+                    ap_mode_arg = args.get('ap_mode')
+                    if ap_mode_arg is not None:
+                        ap_mode = True if ap_mode_arg == '1' else False
+                        config['ap_mode'] = ap_mode
+                        dirty = True
+                    dhcp_arg = args.get('dhcp')
+                    if dhcp_arg is not None:
+                        dhcp = True if dhcp_arg == 1 else False
+                        config['dhcp'] = dhcp
+                        dirty = True
+                    ip_address = args.get('ip_address')
+                    if ip_address is not None:
+                        config['ip_address'] = ip_address
+                        dirty = True
+                    netmask = args.get('netmask')
+                    if netmask is not None:
+                        config['netmask'] = netmask
+                        dirty = True
+                    gateway = args.get('gateway')
+                    if gateway is not None:
+                        config['gateway'] = gateway
+                        dirty = True
+                    dns_server = args.get('dns_server')
+                    if dns_server is not None:
+                        config['dns_server'] = dns_server
+                        dirty = True
+                    if not errors:
+                        if dirty:
+                            save_config(config)
                         response = b'ok\r\n'
                         http_status = 200
                         bytes_sent = send_simple_response(writer, http_status, CT_TEXT_TEXT, response)
@@ -669,6 +829,7 @@ async def serve_http_client(reader, writer):
                         response = b'parameter out of range\r\n'
                         http_status = 400
                         bytes_sent = send_simple_response(writer, http_status, CT_TEXT_TEXT, response)
+
             elif target == '/api/get_files':
                 if verb == 'GET':
                     payload = os.listdir(CONTENT_DIR)
@@ -1121,18 +1282,13 @@ async def main():
     web_port = safe_int(config.get('web_port') or DEFAULT_WEB_PORT, DEFAULT_WEB_PORT)
     if web_port < 0 or web_port > 65535:
         web_port = DEFAULT_WEB_PORT
-    ssid = config.get('SSID') or ''
-    if len(ssid) == 0 or len(ssid) > 64:
-        ssid = DEFAULT_SSID
-    secret = config.get('secret') or ''
-    if len(secret) > 64:
-        secret = ''
+
     ap_mode = config.get('ap_mode', False)
 
     connected = True
     if upython:
         try:
-            ip_address = connect_to_network(ssid=ssid, secret=secret, access_point_mode=ap_mode)
+            ip_address = connect_to_network(config)
             connected = ip_address is not None
         except Exception as ex:
             connected = False
@@ -1149,6 +1305,7 @@ async def main():
             print('ntp time query failed.  clock may be inaccurate.')
         else:
             print('Got time from NTP: {}'.format(get_timestamp()))
+
         print('Starting web service on port {}'.format(web_port))
         asyncio.create_task(asyncio.start_server(serve_http_client, '0.0.0.0', web_port))
         print('Starting tcp service on port {}'.format(tcp_port))
