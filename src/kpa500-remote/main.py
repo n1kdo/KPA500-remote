@@ -443,7 +443,7 @@ async def serve_network_client(reader, writer):
             if message is not None and not timed_out:
                 client_data.last_receive = milliseconds()
                 if len(message) == 0:  # keepalive?
-                    if verbosity > 2:
+                    if verbosity > 3:
                         print(f'{get_timestamp()}: RECEIVED keepalive FROM client {client_name}')
                 elif message.startswith('server::login::'):
                     up_list = message[15:].split('::')
@@ -530,7 +530,7 @@ async def serve_network_client(reader, writer):
                 writer.write(b'\n')
                 await writer.drain()
                 client_data.last_send = milliseconds()
-                if verbosity > 2:
+                if verbosity > 3:
                     print(f'{get_timestamp()}: SENT keepalive TO client {client_name}')
             if receive_delta > 300000:  # 10 minutes no activity timeout.
                 if verbosity > 2:
