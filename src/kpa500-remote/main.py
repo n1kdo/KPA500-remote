@@ -1157,16 +1157,23 @@ def process_kpa500_message(bl):
     elif cmd == 'VI':  # volts
         split_cmd_data = cmd_data.split(' ')
         if len(split_cmd_data) == 2:
-            volts = int(split_cmd_data[0])
-            amps = int(split_cmd_data[1])
+            volts = split_cmd_data[0]  # int(split_cmd_data[0])
+            amps = split_cmd_data[1]  # int(split_cmd_data[1])  # int breaks Elecraft client "Current: PTT OFF"
+            if amps != '000' and amps[0] == '0':
+                amps = amps[1:]
             update_kpa500_data(13, str(volts))
             update_kpa500_data(9, str(amps))
-    elif cmd == 'WS':  # watts swr
+    elif cmd == 'WS':  # watts/power & swr
         split_cmd_data = cmd_data.split(' ')
         if len(split_cmd_data) == 2:
-            watts = int(split_cmd_data[0])
-            swr = int(split_cmd_data[1])
+            watts = split_cmd_data[0]  # the Elecraft client likes '000' for no "SWR: NO RF"
+            if watts != '000':
+                while len(watts) > 1 and watts[0] == '0':
+                    watts = watts[1:]
             update_kpa500_data(10, str(watts))
+            swr = split_cmd_data[1]
+            if swr != '000' and swr[0] == '0':
+                swr = swr[1:]
             update_kpa500_data(11, str(swr))
     else:
         print(f'unprocessed command {cmd} with data {cmd_data}')

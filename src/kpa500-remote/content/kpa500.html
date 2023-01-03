@@ -114,14 +114,19 @@
     function post_request(url, payload) {
         let xmlHttp = new XMLHttpRequest();
         if (xmlHttp == null) {
-            alert("no xmlhttp -- get a modern browser!");
+            alert("no xmlhttp -- try a newer browser?");
             return;
         }
         xmlHttp.open("POST", url, true);
         xmlHttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
         xmlHttp.send(payload);
-        free_updates = 3;
-        get_status();
+        // free_updates = 2;
+        // update the UI after a short period
+        if (update_timeout !== 0) {
+            clearTimeout(update_timeout)
+            update_timeout = 0;
+        }
+        update_timeout = setTimeout(get_status, 500);
     }
 
     function toggle_power() {
@@ -230,11 +235,11 @@
         power_meter.value = power;
         // SWR meter
         let swr = parseInt(kpa500_data[11]) / 10.0;
-        if (power === 0) {
+        if (swr === 0) {
             swr_value.innerHTML = "NO RF";
             swr_meter.value = 0.0;
         } else {
-            swr_value.innerHTML = swr.toString();
+            swr_value.innerHTML = swr.toFixed(1) + " to 1";
             swr_meter.value = swr;
         }
         // current meter
@@ -368,7 +373,7 @@
     <div class="dt_label">SWR:</div>
     <div class="dt_value" id="swr_value"></div>
     <div class="dt_bg">
-        <meter id="swr_meter" class="dt_meter" min="1" max="5" low="1.5" high="2" optimum="1.1" value="0"></meter>
+        <meter id="swr_meter" class="dt_meter" min="0" max="3" low="1.5" high="2" optimum="1.1" value="0"></meter>
     </div>
 
     <div class="dt_label">Current:</div>
