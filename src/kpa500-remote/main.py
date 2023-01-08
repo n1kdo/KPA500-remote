@@ -993,74 +993,6 @@ async def kpa500_send_receive(amp_port, message, bl, timeout=0.05):
     bl.bytes_received = amp_port.readinto(bl.buffer)
 
 
-def process_kpa500_message(bl):
-    if bl.bytes_received < 1:
-        return
-    if bl.bytes_received == 1 and bl.buffer[0] == 59:  # ';'
-        return  # ignore empty response
-    if bl.buffer[0] != 94:  # '^'
-        print(f'bad data: {bl.buffer[:bl.bytes_received].decode()}')
-        return
-    command_length = 3  # including the ^
-    if bl.buffer[command_length] > 57:  # there is another letter
-        command_length = 4
-
-    cmd = bl.buffer[1:command_length].decode()
-    semi_offset = bl.buffer.find(b';')
-    cmd_data = bl.buffer[command_length:semi_offset].decode()
-    if cmd == 'BN':  # band
-        band_num = int(cmd_data)
-        if band_num <= 10:
-            band_name = kpa500.band_number_to_name[band_num]
-            kpa500.update_kpa500_data(5, band_name)
-    elif cmd == 'FC':  # fan minimum speed
-        fan_min = int(cmd_data)
-        kpa500.update_kpa500_data(17, str(fan_min))
-    elif cmd == 'FL':
-        fault = kpa500.get_fault_text(cmd_data)
-        kpa500.update_kpa500_data(6, fault)
-        # kpa500.update_kpa500_data(2, '0' if cmd_data == '00' else '1')
-    elif cmd == 'ON':
-        kpa500.update_kpa500_data(4, cmd_data)
-    elif cmd == 'OS':
-        operate = cmd_data
-        standby = '1' if cmd_data == '0' else '0'
-        kpa500.update_kpa500_data(0, operate)
-        kpa500.update_kpa500_data(1, standby)
-    elif cmd == 'RVM':  # version
-        kpa500.update_kpa500_data(7, cmd_data)
-    elif cmd == 'SN':  # serial number
-        kpa500.update_kpa500_data(16, cmd_data)
-    elif cmd == 'SP':  # speaker on/off
-        kpa500.update_kpa500_data(3, cmd_data)
-    elif cmd == 'TM':  # temp
-        temp = int(cmd_data)
-        kpa500.update_kpa500_data(12, str(temp))
-    elif cmd == 'VI':  # volts
-        split_cmd_data = cmd_data.split(' ')
-        if len(split_cmd_data) == 2:
-            volts = split_cmd_data[0]  # int(split_cmd_data[0])
-            amps = split_cmd_data[1]  # int(split_cmd_data[1])  # int breaks Elecraft client "Current: PTT OFF"
-            if amps != '000' and amps[0] == '0':
-                amps = amps[1:]
-            kpa500.update_kpa500_data(13, str(volts))
-            kpa500.update_kpa500_data(9, str(amps))
-    elif cmd == 'WS':  # watts/power & swr
-        split_cmd_data = cmd_data.split(' ')
-        if len(split_cmd_data) == 2:
-            watts = split_cmd_data[0]  # the Elecraft client likes '000' for no "SWR: NO RF"
-            if watts != '000':
-                while len(watts) > 1 and watts[0] == '0':
-                    watts = watts[1:]
-            kpa500.update_kpa500_data(10, str(watts))
-            swr = split_cmd_data[1]
-            if swr != '000' and swr[0] == '0':
-                swr = swr[1:]
-            kpa500.update_kpa500_data(11, str(swr))
-    else:
-        print(f'unprocessed command {cmd} with data {cmd_data}')
-
-
 async def kpa500_server(amp_serial_port, verbosity=3):
     """
     this manages the connection to the physical amplifier
@@ -1164,7 +1096,7 @@ async def kpa500_server(amp_serial_port, verbosity=3):
                 await asyncio.sleep(1.50)
             else:
                 if bl.bytes_received > 0:
-                    process_kpa500_message(bl)
+                    kpa500.process_kpa500_message(bl.data().decode())
                 else:
                     amp_state = 0
                     kpa500.update_kpa500_data(6, 'NO AMP')

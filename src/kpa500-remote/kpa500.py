@@ -2,6 +2,28 @@
 # KPA500 & KPA-500 Remote client data abstraction
 #
 
+#
+# Copyright 2022, J. B. Otterson N1KDO.
+#
+# Redistribution and use in source and binary forms, with or without modification,
+# are permitted provided that the following conditions are met:
+#
+#  1. Redistributions of source code must retain the above copyright notice,
+#     this list of conditions and the following disclaimer.
+#  2. Redistributions in binary form must reproduce the above copyright notice,
+#     this list of conditions and the following disclaimer in the documentation
+#     and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+# ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+# IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+# INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+# LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+# OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+# OF THE POSSIBILITY OF SUCH DAMAGE.
 
 class ClientData:
     """
@@ -116,6 +138,73 @@ class KPA500:
             if fault_num < len(self.fault_texts):
                 return self.fault_texts[fault_num]
         return fault_code
+
+    def process_kpa500_message(self, msg):
+        if msg is None or len(msg) == 0:
+            print('empty message')
+        if msg == ';':
+            return
+        if msg[0] != '^':
+            print(f'bad data: {msg}')
+            return
+        command_length = 3  # including the ^
+        if msg[command_length] >= 'A':  # there is another letter
+            command_length = 4
+
+        cmd = msg[1:command_length]
+        semi_offset = msg.find(';')
+        cmd_data = msg[command_length:semi_offset]
+        if cmd == 'BN':  # band
+            band_num = int(cmd_data)
+            if band_num <= 10:
+                band_name = self.band_number_to_name[band_num]
+                self.update_kpa500_data(5, band_name)
+        elif cmd == 'FC':  # fan minimum speed
+            fan_min = int(cmd_data)
+            self.update_kpa500_data(17, str(fan_min))
+        elif cmd == 'FL':
+            fault = self.get_fault_text(cmd_data)
+            self.update_kpa500_data(6, fault)
+            # self.update_kpa500_data(2, '0' if cmd_data == '00' else '1')
+        elif cmd == 'ON':
+            self.update_kpa500_data(4, cmd_data)
+        elif cmd == 'OS':
+            operate = cmd_data
+            standby = '1' if cmd_data == '0' else '0'
+            self.update_kpa500_data(0, operate)
+            self.update_kpa500_data(1, standby)
+        elif cmd == 'RVM':  # version
+            self.update_kpa500_data(7, cmd_data)
+        elif cmd == 'SN':  # serial number
+            self.update_kpa500_data(16, cmd_data)
+        elif cmd == 'SP':  # speaker on/off
+            self.update_kpa500_data(3, cmd_data)
+        elif cmd == 'TM':  # temp
+            temp = int(cmd_data)
+            self.update_kpa500_data(12, str(temp))
+        elif cmd == 'VI':  # volts
+            split_cmd_data = cmd_data.split(' ')
+            if len(split_cmd_data) == 2:
+                volts = split_cmd_data[0]  # int(split_cmd_data[0])
+                amps = split_cmd_data[1]  # int(split_cmd_data[1])  # int breaks Elecraft client "Current: PTT OFF"
+                if amps != '000' and amps[0] == '0':
+                    amps = amps[1:]
+                self.update_kpa500_data(13, str(volts))
+                self.update_kpa500_data(9, str(amps))
+        elif cmd == 'WS':  # watts/power & swr
+            split_cmd_data = cmd_data.split(' ')
+            if len(split_cmd_data) == 2:
+                watts = split_cmd_data[0]  # the Elecraft client likes '000' for no "SWR: NO RF"
+                if watts != '000':
+                    while len(watts) > 1 and watts[0] == '0':
+                        watts = watts[1:]
+                self.update_kpa500_data(10, str(watts))
+                swr = split_cmd_data[1]
+                if swr != '000' and swr[0] == '0':
+                    swr = swr[1:]
+                self.update_kpa500_data(11, str(swr))
+        else:
+            print(f'unprocessed command {cmd} with data {cmd_data}')
 
     def set_amp_off_data(self):
         # reset all the indicators when the amp is turned off.
