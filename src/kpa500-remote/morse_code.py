@@ -89,5 +89,3 @@ class MorseCode:
                         await asyncio.sleep(t/100)
                         led.off()
                     await asyncio.sleep(self.MORSE_ESP / 100 if len(blink_list) > 0 else self.MORSE_LSP / 100)
-
-

@@ -12,6 +12,7 @@ SRC_DIR = '../kpa500-remote/'
 FILES_LIST = [
     'content/',
     'data/',
+    'http_server.py',
     'kpa500.py',
     'main.py',
     'morse_code.py',
