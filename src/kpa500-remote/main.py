@@ -419,65 +419,6 @@ def connect_to_network(config):
     return ip_address
 
 
-def old_connect_to_network(ssid, secret, access_point_mode=False):
-    global morse_message
-
-    if access_point_mode:
-        print('Starting setup WLAN...')
-        wlan = network.WLAN(network.AP_IF)
-        wlan.active(False)
-        wlan.config(pm=0xa11140)  # disable power save, this is a server.
-
-        # wlan.ifconfig(('10.0.0.1', '255.255.255.0', '0.0.0.0', '0.0.0.0'))
-
-        """
-        #define CYW43_AUTH_OPEN (0)                     ///< No authorisation required (open)
-        #define CYW43_AUTH_WPA_TKIP_PSK   (0x00200002)  ///< WPA authorisation
-        #define CYW43_AUTH_WPA2_AES_PSK   (0x00400004)  ///< WPA2 authorisation (preferred)
-        #define CYW43_AUTH_WPA2_MIXED_PSK (0x00400006)  ///< WPA2/WPA mixed authorisation
-        """
-        ssid = DEFAULT_SSID
-        secret = DEFAULT_SECRET
-        if len(secret) == 0:
-            security = 0
-        else:
-            security = 0x00400004  # CYW43_AUTH_WPA2_AES_PSK
-        wlan.config(ssid=ssid, key=secret, security=security)
-        wlan.active(True)
-        print(wlan.active())
-        print('ssid={}'.format(wlan.config('ssid')))
-    else:
-        print('Connecting to WLAN...')
-        wlan = network.WLAN(network.STA_IF)
-        wlan.config(pm=0xa11140)  # disable power save, this is a server.
-        # wlan.config(hostname='not supported on pico-w')
-        # wlan.ifconfig(('10.0.0.1', '255.255.255.0', '0.0.0.0', '0.0.0.0'))
-        # ifconfig takes a 4-tuple as an arg: (IP_address, subnet_mask, gateway and DNS_server)
-        # wlan.ifconfig(('192.168.1.69', '255.255.255.0', '192.168.1.1', '8.8.8.8'))
-
-        wlan.active(True)
-        wlan.connect(ssid, secret)
-        max_wait = 10
-        while max_wait > 0:
-            status = wlan.status()
-            if status < 0 or status >= 3:
-                break
-            max_wait -= 1
-            print('Waiting for connection to come up, status={}'.format(status))
-            time.sleep(1)
-        if wlan.status() != network.STAT_GOT_IP:
-            morse_message = 'ERR'
-            # return None
-            raise RuntimeError('Network connection failed')
-
-    status = wlan.ifconfig()
-    ip_address = status[0]
-    morse_message = 'A  {}  '.format(ip_address) if access_point_mode else '{} '.format(ip_address)
-    morse_message = morse_message.replace('.', ' ')
-    print(morse_message)
-    return ip_address
-
-
 def unpack_args(s):
     args_dict = {}
     if s is not None:
@@ -563,20 +504,20 @@ async def serve_network_client(reader, writer):
                         elif message.startswith('amp::button::OPER::'):
                             value = message[19:]
                             if value == '1':
-                                command = b'^OS1;'
+                                command = b'^OS1;^OS;'
                             else:
-                                command = b'^OS0;'
+                                command = b'^OS0;^OS;'
                             kpa500_command_queue.append(command)
                         elif message.startswith('amp::button::STBY::'):
                             value = message[19:]
                             if value == '0':
-                                command = b'^OS1;'
+                                command = b'^OS1;^OS;'
                             else:
-                                command = b'^OS0;'
+                                command = b'^OS0;^OS;'
                             kpa500_command_queue.append(command)
                         elif message.startswith('amp::button::PWR::'):
                             # print(message)
-                            value = ""  # message[18:]
+                            value = message[18:]
                             if value == '1':
                                 command = b'^ON1;'
                             else:
@@ -631,7 +572,6 @@ async def serve_network_client(reader, writer):
                 if verbosity > 2:
                     print(f'client {client_name} no activity timeout {receive_delta/1000:6.1f}, closing connection')
                 client_data.connected = False
-
 
             gc.collect()
 
@@ -1015,7 +955,7 @@ async def serve_http_client(reader, writer):
             elif target == '/api/set_operate':
                 state = args.get('state')
                 if state == '0' or state == '1':
-                    command = f'^OS{state};'.encode()
+                    command = f'^OS{state};^OS;'.encode()
                     kpa500_command_queue.append(command)
                     response = b'ok\r\n'
                     http_status = 200
@@ -1114,6 +1054,8 @@ def update_kpa500_data(index, value):
 def process_kpa500_message(bl):
     if bl.bytes_received < 1:
         return
+    if bl.bytes_received == 1 and bl.buffer[0] == 59:  # ';'
+        return  # ignore empty response
     if bl.buffer[0] != 94:  # '^'
         print(f'bad data: {bl.buffer[:bl.bytes_received].decode()}')
         return
@@ -1187,50 +1129,11 @@ async def kpa500_server(amp_serial_port, verbosity=4):
     :return: None
     """
     global kpa500_command_queue
-    bl = BufferAndLength(bytearray(16))
-    amp_found = False
-    tries = 3
-    while not amp_found and tries > 0:
-        # gently poke the amplifier -- is it connected?
-        await kpa500_send_receive(amp_serial_port, b';', bl)
-        # connected will return a ';' here
-        if bl.bytes_received != 1 or bl.buffer[0] != 59:
-            print(f'amp not found, {tries} tries left...')
-            tries -= 1
-            print(f'amp not found, {tries} tries left...')
-        else:
-            amp_found = True
-
-    if not amp_found:
-        print('amp not found.')
-        return
-
-    amp_on = False
-    while not amp_on:
-        # check to see if amp is on or off
-        await kpa500_send_receive(amp_serial_port, b'I', bl)
-        if bl.bytes_received > 0:
-            if bl.buffer[:bl.bytes_received].decode() == 'KPA500\r\n':
-                # print('amp is off')
-                # amp is off, try to turn it on...
-                await kpa500_send_receive(amp_serial_port, b'P', bl)
-                await asyncio.sleep(1.5)
-        else:
-            amp_on = True
-
     initial_queries = (b';',  # attention!
                        b'^RVM;',  # get version
                        b'^SN;',  # Serial Number
                        b'^ON;',  # on/off status
                        b'^FC;')  # minimum fan speed.
-    for query in initial_queries:
-        await kpa500_send_receive(amp_serial_port, query, bl)
-        if bl.bytes_received > 0:
-            process_kpa500_message(bl)
-        else:
-            if len(query) > 1:
-                print(f'no response to {query}!')
-        await asyncio.sleep(0.1)
 
     normal_queries = (b'^FL;',  # faults
                       b'^WS;',  # watts/swr
@@ -1241,27 +1144,91 @@ async def kpa500_server(amp_serial_port, verbosity=4):
                       b'^SP;',  # speaker
                       )
 
-    while True:
-        if amp_on:
-            for query in normal_queries:
-                # first check to see if there are any commands queued to be sent to the amp...
-                if len(kpa500_command_queue) > 0:
-                    # there is at least one command queued
-                    send_command = kpa500_command_queue.pop(0)
-                    await kpa500_send_receive(amp_serial_port, send_command, bl)
-                    if bl.bytes_received > 0:
-                        process_kpa500_message(bl)
-                    if send_command == b'^ON0;':
-                        amp_on = False
-                        update_kpa500_data(4, '0')
-                        update_kpa500_data(6, 'PWR OFF')
-                        break
-                # send the next query to the amp.
-                await kpa500_send_receive(amp_serial_port, query, bl)
+    amp_state = 0  # 0 not connected, 1 online state unknown , 2 power off, 3 power on
+    bl = BufferAndLength(bytearray(16))
+    next_command = 0
+    run_loop = True
+
+    wait_time = 0.05  # 0.05
+
+    while run_loop:
+        if amp_state == 0:  # unknown / no response state
+            # poke at the amplifier -- is it connected?
+            await kpa500_send_receive(amp_serial_port, b';', bl)
+            # connected will return a ';' here
+            if bl.bytes_received != 1 or bl.buffer[0] != 59:
+                update_kpa500_data(6, 'NO AMP')
+            else:
+                amp_state = 1
+                print(f'new amp state = {amp_state} (was 0)')
+        elif amp_state == 1:  # apparently connected
+            # ask if it is turned on.
+            await kpa500_send_receive(amp_serial_port, b'^ON;', bl)  # hi there.
+            # is b'^ON1;' when amp is on.
+            # is b'^ON;' when amp is off
+            # is b'' when amp is not found.
+            if bl.bytes_received == 0:
+                amp_state = 1
+                update_kpa500_data(4, '0')  # not powered
+                update_kpa500_data(6, 'NO AMP')
+                print(f'new amp state = {amp_state}')
+            elif bl.bytes_received == 5 and bl.buffer[3] == 49:  # '1', amp appears on
+                amp_state = 3  # amp is powered on.
+                update_kpa500_data(4, '1')
+                update_kpa500_data(6, 'AMP ON')
+                kpa500_command_queue.extend(initial_queries)
+                print(f'new amp state = {amp_state} (was 1)')
+            elif bl.bytes_received == 4 and bl.buffer[3] == 59:  # ';', amp connected but off.
+                amp_state = 2
+                update_kpa500_data(4, '0')
+                update_kpa500_data(6, 'AMP OFF')
+                print(f'new amp state = {amp_state} (was 1)')
+            else:
+                print(f'unexpected data {bl.buffer[:bl.bytes_received]}')
+        elif amp_state == 2:  # connected, power off.
+            if len(kpa500_command_queue) > 0:
+                query = kpa500_command_queue.pop()
+                print(query)
+                if query == b'^ON1;':  # turn on amplifier
+                    await kpa500_send_receive(amp_serial_port, b'P', bl)
+                    update_kpa500_data(6, 'Powering On')
+                    await asyncio.sleep(1.50)
+                    amp_state = 0  # test state again.
+                    print(f'amp_state: {amp_state}, rx {bl.buffer[:bl.bytes_received]} (was 2)')
+
+        elif amp_state == 3:  # connected, power on.
+            if len(kpa500_command_queue) > 0:
+                # there is at least one command queued
+                query = kpa500_command_queue.pop(0)
+            else:
+                query = normal_queries[next_command]
+                if next_command == len(normal_queries) - 1:  # this is the last one
+                    next_command = 0
+                else:
+                    next_command += 1
+            await kpa500_send_receive(amp_serial_port, query, bl)
+            if query == b'^ON0;':
+                amp_state = 1
+                print(f'power off command, amp_state: {amp_state}, rx {bl.buffer[:bl.bytes_received]}')
+                update_kpa500_data(4, '0')  # TODO FIXME put into standby.
+                update_kpa500_data(4, '0')
+                update_kpa500_data(6, 'PWR OFF')
+            else:
                 if bl.bytes_received > 0:
                     process_kpa500_message(bl)
                 else:
-                    print(f'no response to {query}!')
+                    amp_state = 0
+                    update_kpa500_data(6, 'NO AMP')
+                    print(f'no response, amp_state: {amp_state}, rx {bl.buffer[:bl.bytes_received]} (was 3)')
+        else:
+            print(f'invalid amp_state: {amp_state}, bye bye.')
+            run_loop = False
+
+        await asyncio.sleep(wait_time)
+
+
+"""
+        if amp_on:
         else:  # amp is not on.
             while len(kpa500_command_queue) != 0:
                 send_command = kpa500_command_queue.pop(0)
@@ -1274,7 +1241,7 @@ async def kpa500_server(amp_serial_port, verbosity=4):
                     amp_on = True
                     update_kpa500_data(4, '1')
                     update_kpa500_data(6, 'AMP ON')
-        await asyncio.sleep(0.05)
+"""
 
 
 async def main():
