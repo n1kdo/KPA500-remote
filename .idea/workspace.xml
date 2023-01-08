@@ -7,11 +7,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="4e64a78b-8e71-496b-87ac-41648ca07843" name="Changes" comment="started kpa500 abstraction">
+    <list default="true" id="4e64a78b-8e71-496b-87ac-41648ca07843" name="Changes" comment="more kpa500 abstraction">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kpa500-remote/content/kpa500.html" beforeDir="false" afterPath="$PROJECT_DIR$/src/kpa500-remote/content/kpa500.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kpa500-remote/kpa500.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/kpa500-remote/kpa500.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/kpa500-remote/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/kpa500-remote/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/loader/loader.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/loader/loader.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -70,55 +69,12 @@
       <recent name="C:\Users\Jeff\KPA500-remote\src" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\Users\Jeff\KPA500-remote\src\kpa500-remote" />
       <recent name="C:\Users\Jeff\KPA500-remote\diagnasties" />
       <recent name="C:\Users\Jeff\KPA500-remote\src" />
     </key>
   </component>
   <component name="RunManager" selected="Python.main">
-    <configuration name="client" type="PythonConfigurationType" factoryName="Python" nameIsGenerated="true">
-      <module name="KPA500-remote" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-      </envs>
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/src" />
-      <option name="IS_MODULE_SDK" value="true" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
-      <option name="SCRIPT_NAME" value="C:\Users\Jeff\KPA500-remote\diagnasties\client.py" />
-      <option name="PARAMETERS" value="" />
-      <option name="SHOW_COMMAND_LINE" value="false" />
-      <option name="EMULATE_TERMINAL" value="false" />
-      <option name="MODULE_MODE" value="false" />
-      <option name="REDIRECT_INPUT" value="false" />
-      <option name="INPUT_FILE" value="" />
-      <method v="2" />
-    </configuration>
-    <configuration name="kpa500_server" type="PythonConfigurationType" factoryName="Python" nameIsGenerated="true">
-      <module name="KPA500-remote" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-      </envs>
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/src" />
-      <option name="IS_MODULE_SDK" value="true" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/src/kpa500_server.py" />
-      <option name="PARAMETERS" value="" />
-      <option name="SHOW_COMMAND_LINE" value="false" />
-      <option name="EMULATE_TERMINAL" value="false" />
-      <option name="MODULE_MODE" value="false" />
-      <option name="REDIRECT_INPUT" value="false" />
-      <option name="INPUT_FILE" value="" />
-      <method v="2" />
-    </configuration>
     <configuration name="loader" type="PythonConfigurationType" factoryName="Python" nameIsGenerated="true">
       <module name="KPA500-remote" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -163,28 +119,10 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
-    <configuration name="serial-listener" type="PythonConfigurationType" factoryName="Python" nameIsGenerated="true">
-      <module name="KPA500-remote" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-      </envs>
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/diagnasties" />
-      <option name="IS_MODULE_SDK" value="true" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/diagnasties/serial-listener.py" />
-      <option name="PARAMETERS" value="" />
-      <option name="SHOW_COMMAND_LINE" value="false" />
-      <option name="EMULATE_TERMINAL" value="false" />
-      <option name="MODULE_MODE" value="false" />
-      <option name="REDIRECT_INPUT" value="false" />
-      <option name="INPUT_FILE" value="" />
-      <method v="2" />
-    </configuration>
+    <list>
+      <item itemvalue="Python.loader" />
+      <item itemvalue="Python.main" />
+    </list>
   </component>
   <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
   <component name="TypeScriptGeneratedFilesManager">
@@ -221,7 +159,8 @@
     <MESSAGE value="make amplifier data collection more robust" />
     <MESSAGE value="make power on/off auto-update for 5 sec" />
     <MESSAGE value="started kpa500 abstraction" />
-    <option name="LAST_COMMIT_MESSAGE" value="started kpa500 abstraction" />
+    <MESSAGE value="more kpa500 abstraction" />
+    <option name="LAST_COMMIT_MESSAGE" value="more kpa500 abstraction" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -238,16 +177,21 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/src/kpa500-remote/main.py</url>
-          <line>1079</line>
+          <line>961</line>
           <option name="timeStamp" value="10" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/src/kpa500-remote/main.py</url>
+          <line>945</line>
+          <option name="timeStamp" value="13" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
-    <SUITE FILE_PATH="coverage/KPA500_remote$loader.coverage" NAME="loader Coverage Results" MODIFIED="1673195959582" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src/loader" />
+    <SUITE FILE_PATH="coverage/KPA500_remote$loader.coverage" NAME="loader Coverage Results" MODIFIED="1673202522892" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src/loader" />
     <SUITE FILE_PATH="coverage/KPA500_remote$kpa500_server.coverage" NAME="kpa500_server Coverage Results" MODIFIED="1671825709019" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src" />
-    <SUITE FILE_PATH="coverage/KPA500_remote$main.coverage" NAME="main Coverage Results" MODIFIED="1673200094742" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src/kpa500-remote" />
+    <SUITE FILE_PATH="coverage/KPA500_remote$main.coverage" NAME="main Coverage Results" MODIFIED="1673202762483" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src/kpa500-remote" />
     <SUITE FILE_PATH="coverage/KPA500_remote$serial_listener.coverage" NAME="serial-listener Coverage Results" MODIFIED="1671825079201" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/diagnasties" />
   </component>
 </project>

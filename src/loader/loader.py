@@ -14,6 +14,7 @@ FILES_LIST = [
     'data/',
     'kpa500.py',
     'main.py',
+    'morse_code.py',
     'ntp.py',
     'serialport.py',
     'content/files.html',

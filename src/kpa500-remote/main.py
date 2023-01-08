@@ -36,6 +36,7 @@ import time
 
 import ntp
 from kpa500 import ClientData, KPA500
+from morse_code import MorseCode
 from serialport import SerialPort
 
 upython = sys.implementation.name == 'micropython'
@@ -81,12 +82,10 @@ else:
 
     machine = Machine()
 
-
-if upython:
-    onboard = machine.Pin('LED', machine.Pin.OUT, value=0)
-    onboard.on()
-    blinky = machine.Pin(2, machine.Pin.OUT, value=0)  # status LED
-    button = machine.Pin(3, machine.Pin.IN, machine.Pin.PULL_UP)
+onboard = machine.Pin('LED', machine.Pin.OUT, value=0)
+onboard.on()
+morse_led = machine.Pin(2, machine.Pin.OUT, value=0)  # status LED
+reset_button = machine.Pin(3, machine.Pin.IN, machine.Pin.PULL_UP)
 
 
 BUFFER_SIZE = 4096
@@ -137,47 +136,18 @@ HTTP_STATUS_TEXT = {
     502: 'Bad Gateway',
     503: 'Service Unavailable',
 }
-MORSE_PERIOD = 15  # x 10 to MS: the speed of the morse code is set by the dit length of 150 ms.
-MORSE_DIT = MORSE_PERIOD
-MORSE_ESP = MORSE_DIT  # inter-element space
-MORSE_DAH = 3 * MORSE_PERIOD
-MORSE_LSP = 5 * MORSE_PERIOD  # more space between letters
-MORSE_PATTERNS = {  # sparse to save space
-    ' ': (0, 0, 0, 0, 0),  # 5 element spaces then a letter space = 10 element pause  # space is 0x20 ascii
-    '0': (MORSE_DAH, MORSE_DAH, MORSE_DAH, MORSE_DAH, MORSE_DAH),  # 0 is 0x30 ascii
-    '1': (MORSE_DIT, MORSE_DAH, MORSE_DAH, MORSE_DAH, MORSE_DAH),
-    '2': (MORSE_DIT, MORSE_DIT, MORSE_DAH, MORSE_DAH, MORSE_DAH),
-    '3': (MORSE_DIT, MORSE_DIT, MORSE_DIT, MORSE_DAH, MORSE_DAH),
-    '4': (MORSE_DIT, MORSE_DIT, MORSE_DIT, MORSE_DIT, MORSE_DAH),
-    '5': (MORSE_DIT, MORSE_DIT, MORSE_DIT, MORSE_DIT, MORSE_DIT),
-    '6': (MORSE_DAH, MORSE_DIT, MORSE_DIT, MORSE_DIT, MORSE_DIT),
-    '7': (MORSE_DAH, MORSE_DAH, MORSE_DIT, MORSE_DIT, MORSE_DIT),
-    '8': (MORSE_DAH, MORSE_DAH, MORSE_DAH, MORSE_DIT, MORSE_DIT),
-    '9': (MORSE_DAH, MORSE_DAH, MORSE_DAH, MORSE_DAH, MORSE_DIT),
-    'A': (MORSE_DIT, MORSE_DAH),                                    # 'A' is 0x41 ascii
-    #  'C': (MORSE_DAH, MORSE_DIT, MORSE_DAH, MORSE_DIT),
-    'E': (MORSE_DIT, ),
-    #  'I': (MORSE_DIT, MORSE_DIT),
-    #  'S': (MORSE_DIT, MORSE_DIT, MORSE_DIT),
-    'R': (MORSE_DIT, MORSE_DAH, MORSE_DIT),
-    #  'H': (MORSE_DIT, MORSE_DIT, MORSE_DIT, MORSE_DIT),
-    #  'O': (MORSE_DAH, MORSE_DAH, MORSE_DAH),
-    #  'N': (MORSE_DAH, MORSE_DIT),
-    #  'D': (MORSE_DAH, MORSE_DIT, MORSE_DIT),
-    #  'B': (MORSE_DAH, MORSE_DIT, MORSE_DIT, MORSE_DIT),
-}
 MP_START_BOUND = 1
 MP_HEADERS = 2
 MP_DATA = 3
 MP_END_BOUND = 4
 
 # globals...
-morse_message = ''
 restart = False
 port = None
 username = ''
 password = ''
 kpa500 = KPA500()
+morse_code_sender = MorseCode(morse_led)
 
 
 def get_timestamp(tt=None):
@@ -287,8 +257,6 @@ def send_simple_response(writer, http_status=200, content_type=None, response=No
 
 
 def connect_to_network(config):
-    global morse_message
-
     ssid = config.get('SSID') or ''
     if len(ssid) == 0 or len(ssid) > 64:
         ssid = DEFAULT_SSID
@@ -367,15 +335,16 @@ def connect_to_network(config):
             print('Waiting for connection to come up, status={}'.format(status))
             time.sleep(1)
         if wlan.status() != network.STAT_GOT_IP:
-            morse_message = 'ERR'
+            morse_code_sender.set_message('ERR')
             # return None
             raise RuntimeError('Network connection failed')
 
     status = wlan.ifconfig()
     ip_address = status[0]
-    morse_message = 'A  {}  '.format(ip_address) if access_point_mode else '{} '.format(ip_address)
-    morse_message = morse_message.replace('.', ' ')
-    print(morse_message)
+    message = 'A  {}  '.format(ip_address) if access_point_mode else '{} '.format(ip_address)
+    message = message.replace('.', ' ')
+    morse_code_sender.set_message(message)
+    print(message)
     return ip_address
 
 
@@ -955,25 +924,6 @@ async def serve_http_client(reader, writer):
     gc.collect()
 
 
-async def morse_sender():
-    while True:
-        msg = morse_message  # using global...
-        for morse_letter in msg:
-            blink_pattern = MORSE_PATTERNS.get(morse_letter)
-            if blink_pattern is None:
-                print('Warning: no pattern for letter {}'.format(morse_letter))
-                blink_pattern = MORSE_PATTERNS.get(' ')
-            blink_list = [elem for elem in blink_pattern]
-            while len(blink_list) > 0:
-                t = blink_list.pop(0)
-                if t > 0:
-                    # blink time is in milliseconds!, but data is in 10 msec
-                    blinky.on()
-                    await asyncio.sleep(t/100)
-                    blinky.off()
-                await asyncio.sleep(MORSE_ESP / 100 if len(blink_list) > 0 else MORSE_LSP / 100)
-
-
 class BufferAndLength:
     def __init__(self, buffer):
         self.buffer = buffer
@@ -1135,7 +1085,7 @@ async def main():
             print(type(ex), ex)
 
     if upython:
-        asyncio.create_task(morse_sender())
+        asyncio.create_task(morse_code_sender.morse_sender(morse_led))
 
     port = SerialPort(baudrate=38400, timeout=0)  # timeout is zero because we do not want to block
 
@@ -1156,14 +1106,14 @@ async def main():
     asyncio.create_task(kpa500_server(port, 3))
 
     if upython:
-        last_pressed = button.value() == 0
+        last_pressed = reset_button.value() == 0
     else:
         last_pressed = False
 
     while True:
         if upython:
             await asyncio.sleep(0.25)
-            pressed = button.value() == 0
+            pressed = reset_button.value() == 0
             if not last_pressed and pressed:  # look for activating edge
                 ap_mode = not ap_mode
                 config['ap_mode'] = ap_mode
