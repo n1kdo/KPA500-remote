@@ -35,7 +35,7 @@ import sys
 import time
 
 import ntp
-from kpa500 import KPA500
+from kpa500 import ClientData, KPA500
 from serialport import SerialPort
 
 upython = sys.implementation.name == 'micropython'
@@ -175,7 +175,6 @@ MP_END_BOUND = 4
 morse_message = ''
 restart = False
 port = None
-network_clients = []
 username = ''
 password = ''
 kpa500 = KPA500()
@@ -391,17 +390,6 @@ def unpack_args(s):
     return args_dict
 
 
-class ClientData:
-
-    def __init__(self, client_name):
-        self.client_name = client_name
-        self.update_list = []
-        self.authorized = False
-        self.connected = True
-        self.last_receive = 0
-        self.last_send = 0
-
-
 async def read_network_client(reader):
     try:
         data = await reader.readline()
@@ -418,14 +406,13 @@ async def serve_network_client(reader, writer):
     """
     this provides KPA500-Remote compatible control.
     """
-    global network_clients
     verbosity = 1
     t0 = milliseconds()
     extra = writer.get_extra_info('peername')
     client_name = f'{extra[0]}:{extra[1]}'
     client_data = ClientData(client_name)
     client_data.update_list.extend((7, 16, 6, 0, 1, 2, 3, 4, 8, 5, 9, 10, 11, 12, 13, 14, 15, 17, 18))  # items to send.
-    network_clients.append(client_data)
+    kpa500.network_clients.append(client_data)
     if verbosity > 2:
         print('network client connected from {}'.format(extra[0]))
 
@@ -547,12 +534,12 @@ async def serve_network_client(reader, writer):
     finally:
         print(f'client {client_data.client_name} disconnected')
         found_network_client = None
-        for network_client in network_clients:
+        for network_client in kpa500.network_clients:
             if network_client.client_name == client_data.client_name:
                 found_network_client = network_client
                 break
         if found_network_client is not None:
-            network_clients.remove(found_network_client)
+            kpa500.network_clients.remove(found_network_client)
             print(f'network client removed {client_name}')
 
     tc = milliseconds()
@@ -992,6 +979,9 @@ class BufferAndLength:
         self.buffer = buffer
         self.bytes_received = 0
 
+    def data(self):
+        return self.buffer[:self.bytes_received]
+
 
 async def kpa500_send_receive(amp_port, message, bl, timeout=0.05):
     # should the read buffer be flushed? can only read to drain
@@ -1001,15 +991,6 @@ async def kpa500_send_receive(amp_port, message, bl, timeout=0.05):
     amp_port.flush()
     await asyncio.sleep(timeout)
     bl.bytes_received = amp_port.readinto(bl.buffer)
-
-
-def update_kpa500_data(index, value):
-    global network_clients
-    if kpa500.kpa500_data[index] != value:
-        kpa500.kpa500_data[index] = value
-        for network_client in network_clients:
-            if index not in network_client.update_list:
-                network_client.update_list.append(index)
 
 
 def process_kpa500_message(bl):
@@ -1031,32 +1012,30 @@ def process_kpa500_message(bl):
         band_num = int(cmd_data)
         if band_num <= 10:
             band_name = kpa500.band_number_to_name[band_num]
-            update_kpa500_data(5, band_name)
+            kpa500.update_kpa500_data(5, band_name)
     elif cmd == 'FC':  # fan minimum speed
         fan_min = int(cmd_data)
-        update_kpa500_data(17, str(fan_min))
+        kpa500.update_kpa500_data(17, str(fan_min))
     elif cmd == 'FL':
-        if cmd_data == '00':
-            fault = 'AMP ON'
-        else:
-            fault = cmd_data
-        update_kpa500_data(6, fault)
+        fault = kpa500.get_fault_text(cmd_data)
+        kpa500.update_kpa500_data(6, fault)
+        # kpa500.update_kpa500_data(2, '0' if cmd_data == '00' else '1')
     elif cmd == 'ON':
-        update_kpa500_data(4, cmd_data)
+        kpa500.update_kpa500_data(4, cmd_data)
     elif cmd == 'OS':
         operate = cmd_data
         standby = '1' if cmd_data == '0' else '0'
-        update_kpa500_data(0, operate)
-        update_kpa500_data(1, standby)
+        kpa500.update_kpa500_data(0, operate)
+        kpa500.update_kpa500_data(1, standby)
     elif cmd == 'RVM':  # version
-        update_kpa500_data(7, cmd_data)
+        kpa500.update_kpa500_data(7, cmd_data)
     elif cmd == 'SN':  # serial number
-        update_kpa500_data(16, cmd_data)
+        kpa500.update_kpa500_data(16, cmd_data)
     elif cmd == 'SP':  # speaker on/off
-        update_kpa500_data(3, cmd_data)
+        kpa500.update_kpa500_data(3, cmd_data)
     elif cmd == 'TM':  # temp
         temp = int(cmd_data)
-        update_kpa500_data(12, str(temp))
+        kpa500.update_kpa500_data(12, str(temp))
     elif cmd == 'VI':  # volts
         split_cmd_data = cmd_data.split(' ')
         if len(split_cmd_data) == 2:
@@ -1064,8 +1043,8 @@ def process_kpa500_message(bl):
             amps = split_cmd_data[1]  # int(split_cmd_data[1])  # int breaks Elecraft client "Current: PTT OFF"
             if amps != '000' and amps[0] == '0':
                 amps = amps[1:]
-            update_kpa500_data(13, str(volts))
-            update_kpa500_data(9, str(amps))
+            kpa500.update_kpa500_data(13, str(volts))
+            kpa500.update_kpa500_data(9, str(amps))
     elif cmd == 'WS':  # watts/power & swr
         split_cmd_data = cmd_data.split(' ')
         if len(split_cmd_data) == 2:
@@ -1073,26 +1052,13 @@ def process_kpa500_message(bl):
             if watts != '000':
                 while len(watts) > 1 and watts[0] == '0':
                     watts = watts[1:]
-            update_kpa500_data(10, str(watts))
+            kpa500.update_kpa500_data(10, str(watts))
             swr = split_cmd_data[1]
             if swr != '000' and swr[0] == '0':
                 swr = swr[1:]
-            update_kpa500_data(11, str(swr))
+            kpa500.update_kpa500_data(11, str(swr))
     else:
         print(f'unprocessed command {cmd} with data {cmd_data}')
-
-
-def set_amp_off_data():
-    # reset all the indicators when the amp is turned off.
-    update_kpa500_data(0, '0')  # OPER button
-    update_kpa500_data(1, '1')  # STBY button
-    update_kpa500_data(4, '0')  # POWER button
-    update_kpa500_data(9, '000')  # CURRENT meter
-    update_kpa500_data(10, '000')  # POWER meter
-    update_kpa500_data(11, '000')  # SWR meter
-    update_kpa500_data(12, '0')  # TEMPERATURE meter
-    update_kpa500_data(13, '00')  # VOLTAGE meter
-    update_kpa500_data(17, '0')  # Fan Minimum speed slider
 
 
 async def kpa500_server(amp_serial_port, verbosity=3):
@@ -1114,7 +1080,7 @@ async def kpa500_server(amp_serial_port, verbosity=3):
             await kpa500_send_receive(amp_serial_port, b';', bl)
             # connected will return a ';' here
             if bl.bytes_received != 1 or bl.buffer[0] != 59:
-                update_kpa500_data(6, 'NO AMP')
+                kpa500.update_kpa500_data(6, 'NO AMP')
             else:
                 amp_state = 1
                 if verbosity > 3:
@@ -1127,21 +1093,21 @@ async def kpa500_server(amp_serial_port, verbosity=3):
             # is b'' when amp is not found.
             if bl.bytes_received == 0:
                 amp_state = 0
-                update_kpa500_data(4, '0')  # not powered
-                update_kpa500_data(6, 'NO AMP')
+                kpa500.update_kpa500_data(4, '0')  # not powered
+                kpa500.update_kpa500_data(6, 'NO AMP')
                 if verbosity > 3:
                     print('1: no response, amp state 1-->0')
             elif bl.bytes_received == 5 and bl.buffer[3] == 49:  # '1', amp appears on
                 amp_state = 3  # amp is powered on.
-                update_kpa500_data(4, '1')
-                update_kpa500_data(6, 'AMP ON')
+                kpa500.update_kpa500_data(4, '1')
+                kpa500.update_kpa500_data(6, 'AMP ON')
                 kpa500.enqueue_command(kpa500.initial_queries)
                 if verbosity > 3:
                     print(f'amp state 1-->3')
             elif bl.bytes_received == 4 and bl.buffer[3] == 59:  # ';', amp connected but off.
                 amp_state = 2
-                update_kpa500_data(4, '0')
-                update_kpa500_data(6, 'AMP OFF')
+                kpa500.update_kpa500_data(4, '0')
+                kpa500.update_kpa500_data(6, 'AMP OFF')
                 if verbosity > 3:
                     print('amp state 1-->2')
             else:
@@ -1152,7 +1118,7 @@ async def kpa500_server(amp_serial_port, verbosity=3):
             # throw away any queries except the ON command.
             if query is not None and query == b'^ON1;':  # turn on amplifier
                 await kpa500_send_receive(amp_serial_port, b'P', bl)
-                update_kpa500_data(6, 'Powering On')
+                kpa500.update_kpa500_data(6, 'Powering On')
                 await asyncio.sleep(1.50)
                 amp_state = 0  # test state again.
                 if verbosity > 3:
@@ -1164,14 +1130,14 @@ async def kpa500_server(amp_serial_port, verbosity=3):
                 # is b'' when amp is not found.
                 if bl.bytes_received == 0:
                     amp_state = 1
-                    update_kpa500_data(4, '0')  # not powered
-                    update_kpa500_data(6, 'NO AMP')
+                    kpa500.update_kpa500_data(4, '0')  # not powered
+                    kpa500.update_kpa500_data(6, 'NO AMP')
                     if verbosity > 3:
                         print('no data, amp state 2-->1')
                 elif bl.bytes_received == 5 and bl.buffer[3] == 49:  # '1', amp appears on
                     amp_state = 3  # amp is powered on.
-                    update_kpa500_data(4, '1')
-                    update_kpa500_data(6, 'AMP ON')
+                    kpa500.update_kpa500_data(4, '1')
+                    kpa500.update_kpa500_data(6, 'AMP ON')
                     kpa500.enqueue_command(kpa500.initial_queries)
                     if verbosity > 3:
                         print(f'amp state 2-->3')
@@ -1193,16 +1159,16 @@ async def kpa500_server(amp_serial_port, verbosity=3):
                 amp_state = 1
                 if verbosity > 3:
                     print('power off command, amp state 3-->1')
-                update_kpa500_data(6, 'PWR OFF')
-                set_amp_off_data()
+                kpa500.update_kpa500_data(6, 'PWR OFF')
+                kpa500.set_amp_off_data()
                 await asyncio.sleep(1.50)
             else:
                 if bl.bytes_received > 0:
                     process_kpa500_message(bl)
                 else:
                     amp_state = 0
-                    update_kpa500_data(6, 'NO AMP')
-                    set_amp_off_data()
+                    kpa500.update_kpa500_data(6, 'NO AMP')
+                    kpa500.set_amp_off_data()
                     if verbosity > 3:
                         print('no response, amp state 3-->0')
         else:

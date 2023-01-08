@@ -7,11 +7,11 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="4e64a78b-8e71-496b-87ac-41648ca07843" name="Changes" comment="make amplifier data collection more robust">
+    <list default="true" id="4e64a78b-8e71-496b-87ac-41648ca07843" name="Changes" comment="started kpa500 abstraction">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/kpa500-remote/content/kpa500.html" beforeDir="false" afterPath="$PROJECT_DIR$/src/kpa500-remote/content/kpa500.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kpa500-remote/kpa500.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/kpa500-remote/kpa500.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/kpa500-remote/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/kpa500-remote/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/loader/loader.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/loader/loader.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -219,7 +219,9 @@
     <MESSAGE value="add static ip config, make work on pico-w again." />
     <MESSAGE value="app compatability.&#10;&#10;try to make this work in a manner that is compatible with the &#10;elecraft kpa500-server application.&#10;&#10;adjust web meter ranges.&#10;adjust web data readouts.&#10;somewhat ameliorate the control flash, particularly on the fan slider.&#10;adjust data sent to network clients.&#10;&amp; etc." />
     <MESSAGE value="make amplifier data collection more robust" />
-    <option name="LAST_COMMIT_MESSAGE" value="make amplifier data collection more robust" />
+    <MESSAGE value="make power on/off auto-update for 5 sec" />
+    <MESSAGE value="started kpa500 abstraction" />
+    <option name="LAST_COMMIT_MESSAGE" value="started kpa500 abstraction" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -236,16 +238,16 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/src/kpa500-remote/main.py</url>
-          <line>1113</line>
+          <line>1079</line>
           <option name="timeStamp" value="10" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
-    <SUITE FILE_PATH="coverage/KPA500_remote$loader.coverage" NAME="loader Coverage Results" MODIFIED="1672601706079" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src/loader" />
+    <SUITE FILE_PATH="coverage/KPA500_remote$loader.coverage" NAME="loader Coverage Results" MODIFIED="1673195959582" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src/loader" />
     <SUITE FILE_PATH="coverage/KPA500_remote$kpa500_server.coverage" NAME="kpa500_server Coverage Results" MODIFIED="1671825709019" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src" />
-    <SUITE FILE_PATH="coverage/KPA500_remote$main.coverage" NAME="main Coverage Results" MODIFIED="1673194673530" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src/kpa500-remote" />
+    <SUITE FILE_PATH="coverage/KPA500_remote$main.coverage" NAME="main Coverage Results" MODIFIED="1673200094742" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src/kpa500-remote" />
     <SUITE FILE_PATH="coverage/KPA500_remote$serial_listener.coverage" NAME="serial-listener Coverage Results" MODIFIED="1671825079201" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/diagnasties" />
   </component>
 </project>
