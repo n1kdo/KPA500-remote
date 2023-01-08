@@ -34,7 +34,6 @@ import re
 import sys
 import time
 
-import ntp
 from http_server import HttpServer
 from kpa500 import ClientData, KPA500
 from morse_code import MorseCode
@@ -116,12 +115,6 @@ def get_timestamp(tt=None):
     if tt is None:
         tt = time.gmtime()
     return '{:04d}-{:02d}-{:02d} {:02d}:{:02d}:{:02d}Z'.format(tt[0], tt[1], tt[2], tt[3], tt[4], tt[5])
-
-
-def get_iso_8601_timestamp(tt=None):
-    if tt is None:
-        tt = time.gmtime()
-    return '{:04d}-{:02d}-{:02d}T{:02d}:{:02d}:{:02d}+00:00'.format(tt[0], tt[1], tt[2], tt[3], tt[4], tt[5])
 
 
 def read_config():
@@ -415,415 +408,6 @@ async def serve_network_client(reader, writer):
     print('network client disconnected, elapsed time {:6.3f} seconds'.format((tc - t0) / 1000.0))
 
 
-async def serve_http_client(reader, writer):
-    global restart
-    verbosity = 3
-    t0 = milliseconds()
-    http_status = 418  # can only make tea, sorry.
-    bytes_sent = 0
-    partner = writer.get_extra_info('peername')[0]
-    if verbosity >= 4:
-        print('\nweb client connected from {}'.format(partner))
-    request_line = await reader.readline()
-    request = request_line.decode().strip()
-    if verbosity >= 4:
-        print(request)
-    pieces = request.split(' ')
-    if len(pieces) != 3:  # does the http request line look approximately correct?
-        http_status = 400
-        response = b'Bad Request !=3'
-        bytes_sent = http_server.send_simple_response(writer, http_status, http_server.CT_TEXT_HTML, response)
-    else:
-        verb = pieces[0]
-        target = pieces[1]
-        protocol = pieces[2]
-        # should validate protocol here...
-        if '?' in target:
-            pieces = target.split('?')
-            target = pieces[0]
-            query_args = pieces[1]
-        else:
-            query_args = ''
-        if verb not in ['GET', 'POST']:
-            http_status = 400
-            response = b'<html><body><p>only GET and POST are supported</p></body></html>'
-            bytes_sent = http_server.send_simple_response(writer, http_status, http_server.CT_TEXT_HTML, response)
-        elif protocol not in ['HTTP/1.0', 'HTTP/1.1']:
-            http_status = 400
-            response = b'that protocol is not supported'
-            bytes_sent = http_server.send_simple_response(writer, http_status, http_server.CT_TEXT_HTML, response)
-        else:
-            # get HTTP request headers
-            request_content_length = 0
-            request_content_type = ''
-            while True:
-                header = await reader.readline()
-                if len(header) == 0:
-                    # empty header line, eof?
-                    break
-                if header == b'\r\n':
-                    # blank line at end of headers
-                    break
-                else:
-                    # process headers.  look for those we are interested in.
-                    # print(header)
-                    parts = header.decode().strip().split(':', 1)
-                    if parts[0] == 'Content-Length':
-                        request_content_length = int(parts[1].strip())
-                    elif parts[0] == 'Content-Type':
-                        request_content_type = parts[1].strip()
-
-            args = {}
-            if verb == 'GET':
-                args = http_server.unpack_args(query_args)
-            elif verb == 'POST':
-                if request_content_length > 0:
-                    if request_content_type == http_server.CT_APP_WWW_FORM:
-                        data = await reader.read(request_content_length)
-                        args = http_server.unpack_args(data.decode())
-                    elif request_content_type == http_server.CT_APP_JSON:
-                        data = await reader.read(request_content_length)
-                        args = json.loads(data.decode())
-                    # else:
-                    #    print('warning: unhandled content_type {}'.format(request_content_type))
-                    #    print('request_content_length={}'.format(request_content_length))
-            else:  # bad request
-                http_status = 400
-                response = b'only GET and POST are supported'
-                bytes_sent = http_server.send_simple_response(writer, http_status, http_server.CT_TEXT_TEXT, response)
-
-            if target == '/':
-                http_status = 301
-                bytes_sent = http_server.send_simple_response(writer, http_status, None, None, ['Location: /kpa500.html'])
-            elif target == '/api/config':
-                if verb == 'GET':
-                    payload = read_config()
-                    # payload.pop('secret')  # do not return the secret
-                    response = json.dumps(payload).encode('utf-8')
-                    http_status = 200
-                    bytes_sent = http_server.send_simple_response(writer, http_status, http_server.CT_APP_JSON, response)
-                elif verb == 'POST':
-                    config = read_config()
-                    dirty = False
-                    errors = False
-                    tcp_port = args.get('tcp_port')
-                    if tcp_port is not None:
-                        tcp_port_int = safe_int(tcp_port, -2)
-                        if 0 <= tcp_port_int <= 65535:
-                            config['tcp_port'] = tcp_port
-                            dirty = True
-                        else:
-                            errors = True
-                    web_port = args.get('web_port')
-                    if web_port is not None:
-                        web_port_int = safe_int(web_port, -2)
-                        if 0 <= web_port_int <= 65535:
-                            config['web_port'] = web_port
-                            dirty = True
-                        else:
-                            errors = True
-                    ssid = args.get('SSID')
-                    if ssid is not None:
-                        if 0 < len(ssid) < 64:
-                            config['SSID'] = ssid
-                            dirty = True
-                        else:
-                            errors = True
-                    secret = args.get('secret')
-                    if secret is not None:
-                        if 8 <= len(secret) < 32:
-                            config['secret'] = secret
-                            dirty = True
-                        else:
-                            errors = True
-                    remote_username = args.get('username')
-                    if remote_username is not None:
-                        if 1 <= len(remote_username) <= 16:
-                            config['username'] = remote_username
-                            dirty = True
-                        else:
-                            errors = True
-                    remote_password = args.get('password')
-                    if remote_password is not None:
-                        if 1 <= len(remote_password) <= 16:
-                            config['password'] = remote_password
-                            dirty = True
-                        else:
-                            errors = True
-                    ap_mode_arg = args.get('ap_mode')
-                    if ap_mode_arg is not None:
-                        ap_mode = True if ap_mode_arg == '1' else False
-                        config['ap_mode'] = ap_mode
-                        dirty = True
-                    dhcp_arg = args.get('dhcp')
-                    if dhcp_arg is not None:
-                        dhcp = True if dhcp_arg == 1 else False
-                        config['dhcp'] = dhcp
-                        dirty = True
-                    ip_address = args.get('ip_address')
-                    if ip_address is not None:
-                        config['ip_address'] = ip_address
-                        dirty = True
-                    netmask = args.get('netmask')
-                    if netmask is not None:
-                        config['netmask'] = netmask
-                        dirty = True
-                    gateway = args.get('gateway')
-                    if gateway is not None:
-                        config['gateway'] = gateway
-                        dirty = True
-                    dns_server = args.get('dns_server')
-                    if dns_server is not None:
-                        config['dns_server'] = dns_server
-                        dirty = True
-                    if not errors:
-                        if dirty:
-                            save_config(config)
-                        response = b'ok\r\n'
-                        http_status = 200
-                        bytes_sent = http_server.send_simple_response(writer, http_status, http_server.CT_TEXT_TEXT, response)
-                    else:
-                        response = b'parameter out of range\r\n'
-                        http_status = 400
-                        bytes_sent = http_server.send_simple_response(writer, http_status, http_server.CT_TEXT_TEXT, response)
-
-            elif target == '/api/get_files':
-                if verb == 'GET':
-                    payload = os.listdir(http_server.content_dir)
-                    response = json.dumps(payload).encode('utf-8')
-                    http_status = 200
-                    bytes_sent = http_server.send_simple_response(writer, http_status, http_server.CT_APP_JSON, response)
-            elif target == '/api/upload_file':
-                if verb == 'POST':
-                    boundary = None
-                    if ';' in request_content_type:
-                        pieces = request_content_type.split(';')
-                        request_content_type = pieces[0]
-                        boundary = pieces[1].strip()
-                        if boundary.startswith('boundary='):
-                            boundary = boundary[9:]
-                    if request_content_type != http_server.CT_MULTIPART_FORM or boundary is None:
-                        response = b'multipart boundary or content type error'
-                        http_status = 400
-                    else:
-                        response = b'unhandled problem'
-                        http_status = 500
-                        remaining_content_length = request_content_length
-                        start_boundary = http_server.HYPHENS + boundary
-                        end_boundary = start_boundary + http_server.HYPHENS
-                        state = http_server.MP_START_BOUND
-                        filename = None
-                        output_file = None
-                        writing_file = False
-                        more_bytes = True
-                        leftover_bytes = []
-                        while more_bytes:
-                            # print('waiting for read')
-                            buffer = await reader.read(BUFFER_SIZE)
-                            # print('read {} bytes of max {}'.format(len(buffer), BUFFER_SIZE))
-                            remaining_content_length -= len(buffer)
-                            # print('remaining content length {}'.format(remaining_content_length))
-                            if remaining_content_length == 0:  # < BUFFER_SIZE:
-                                more_bytes = False
-                            if len(leftover_bytes) != 0:
-                                buffer = leftover_bytes + buffer
-                                leftover_bytes = []
-                            start = 0
-                            while start < len(buffer):
-                                if state == http_server.MP_DATA:
-                                    if not output_file:
-                                        output_file = open(http_server.content_dir + 'uploaded_' + filename, 'wb')
-                                        writing_file = True
-                                    end = len(buffer)
-                                    for i in range(start, len(buffer) - 3):
-                                        if buffer[i] == 13 and buffer[i + 1] == 10 and buffer[i + 2] == 45 and \
-                                                buffer[i + 3] == 45:
-                                            end = i
-                                            writing_file = False
-                                            break
-                                    if end == BUFFER_SIZE:
-                                        if buffer[-1] == 13:
-                                            leftover_bytes = buffer[-1:]
-                                            buffer = buffer[:-1]
-                                            end -= 1
-                                        elif buffer[-2] == 13 and buffer[-1] == 10:
-                                            leftover_bytes = buffer[-2:]
-                                            buffer = buffer[:-2]
-                                            end -= 2
-                                        elif buffer[-3] == 13 and buffer[-2] == 10 and buffer[-1] == 45:
-                                            leftover_bytes = buffer[-3:]
-                                            buffer = buffer[:-3]
-                                            end -= 3
-                                    # print('writing buffer[{}:{}] buffer size={}'.format(start, end, BUFFER_SIZE))
-                                    output_file.write(buffer[start:end])
-                                    if not writing_file:
-                                        # print('closing file')
-                                        state = http_server.MP_END_BOUND
-                                        output_file.close()
-                                        output_file = None
-                                        response = 'Uploaded {} successfully'.format(filename).encode('utf-8')
-                                        http_status = 201
-                                    start = end + 2
-                                else:  # must be reading headers or boundary
-                                    line = ''
-                                    for i in range(start, len(buffer) - 1):
-                                        if buffer[i] == 13 and buffer[i + 1] == 10:
-                                            line = buffer[start:i].decode('utf-8')
-                                            start = i + 2
-                                            break
-                                    if state == http_server.MP_START_BOUND:
-                                        if line == start_boundary:
-                                            state = http_server.MP_HEADERS
-                                        else:
-                                            print('expecting start boundary, got ' + line)
-                                    elif state == http_server.MP_HEADERS:
-                                        if len(line) == 0:
-                                            state = http_server.MP_DATA
-                                        elif line.startswith('Content-Disposition:'):
-                                            pieces = line.split(';')
-                                            fn = pieces[2].strip()
-                                            if fn.startswith('filename="'):
-                                                filename = fn[10:-1]
-                                                if not valid_filename(filename):
-                                                    response = b'bad filename'
-                                                    http_status = 500
-                                                    more_bytes = False
-                                                    start = len(buffer)
-                                        # else:
-                                        #     print('processing headers, got ' + line)
-                                    elif state == http_server.MP_END_BOUND:
-                                        if line == end_boundary:
-                                            state = http_server.MP_START_BOUND
-                                        else:
-                                            print('expecting end boundary, got ' + line)
-                                    else:
-                                        http_status = 500
-                                        response = 'unmanaged state {}'.format(state).encode('utf-8')
-                    bytes_sent = http_server.send_simple_response(writer, http_status, http_server.CT_TEXT_TEXT, response)
-            elif target == '/api/remove_file':
-                filename = args.get('filename')
-                if valid_filename(filename) and filename not in DANGER_ZONE_FILE_NAMES:
-                    filename = http_server.content_dir + filename
-                    try:
-                        os.remove(filename)
-                        http_status = 200
-                        response = b'removed\r\n'
-                    except OSError as ose:
-                        http_status = 409
-                        response = str(ose).encode('utf-8')
-                else:
-                    http_status = 409
-                    response = b'bad file name\r\n'
-                bytes_sent = http_server.send_simple_response(writer, http_status, http_server.CT_APP_JSON, response)
-            elif target == '/api/rename_file':
-                filename = args.get('filename')
-                newname = args.get('newname')
-                if valid_filename(filename) and valid_filename(newname):
-                    filename = http_server.content_dir + filename
-                    newname = http_server.content_dir + newname
-                    try:
-                        os.remove(newname)
-                    except OSError:
-                        pass  # swallow exception.
-                    try:
-                        os.rename(filename, newname)
-                        http_status = 200
-                        response = b'renamed\r\n'
-                    except Exception as ose:
-                        http_status = 409
-                        response = str(ose).encode('utf-8')
-                else:
-                    http_status = 409
-                    response = b'bad file name'
-                bytes_sent = http_server.send_simple_response(writer, http_status, http_server.CT_APP_JSON, response)
-            elif target == '/api/restart' and upython:
-                restart = True
-                response = b'ok\r\n'
-                http_status = 200
-                bytes_sent = http_server.send_simple_response(writer, http_status, http_server.CT_TEXT_TEXT, response)
-            elif target == '/api/clear_fault':
-                kpa500.enqueue_command(b'^FLC;')
-                response = b'ok\r\n'
-                http_status = 200
-                bytes_sent = http_server.send_simple_response(writer, http_status, http_server.CT_TEXT_TEXT, response)
-            elif target == '/api/set_band':
-                band_name = args.get('band')
-                band_number = kpa500.band_label_to_number(band_name)
-                if band_number is not None:
-                    command = f'^BN{band_number:02d};'.encode()
-                    kpa500.enqueue_command(command)
-                    response = b'ok\r\n'
-                    http_status = 200
-                else:
-                    response = b'bad band name parameter\r\n'
-                    http_status = 400
-                bytes_sent = http_server.send_simple_response(writer, http_status, http_server.CT_TEXT_TEXT, response)
-            elif target == '/api/set_fan_speed':
-                speed = safe_int(args.get('speed', -1))
-                if 0 <= speed <= 6:
-                    command = f'^FC{speed};^FC;'.encode()
-                    kpa500.enqueue_command(command)
-                    response = b'ok\r\n'
-                    http_status = 200
-                else:
-                    response = b'bad fan speed parameter\r\n'
-                    http_status = 400
-                bytes_sent = http_server.send_simple_response(writer, http_status, http_server.CT_TEXT_TEXT, response)
-            elif target == '/api/set_operate':
-                state = args.get('state')
-                if state == '0' or state == '1':
-                    command = f'^OS{state};^OS;'.encode()
-                    kpa500.enqueue_command(command)
-                    response = b'ok\r\n'
-                    http_status = 200
-                else:
-                    response = b'bad state parameter\r\n'
-                    http_status = 400
-                bytes_sent = http_server.send_simple_response(writer, http_status, http_server.CT_TEXT_TEXT, response)
-            elif target == '/api/set_power':
-                state = args.get('state')
-                if state == '0' or state == '1':
-                    command = f'^ON{state};'.encode()
-                    kpa500.enqueue_command(command)
-                    response = b'ok\r\n'
-                    http_status = 200
-                else:
-                    response = b'bad state parameter\r\n'
-                    http_status = 400
-                bytes_sent = http_server.send_simple_response(writer, http_status, http_server.CT_TEXT_TEXT, response)
-            elif target == '/api/set_speaker_alarm':
-                state = args.get('state')
-                if state == '0' or state == '1':
-                    command = f'^SP{state};'.encode()
-                    kpa500.enqueue_command(command)
-                    response = b'ok\r\n'
-                    http_status = 200
-                else:
-                    response = b'bad state parameter\r\n'
-                    http_status = 400
-                bytes_sent = http_server.send_simple_response(writer, http_status, http_server.CT_TEXT_TEXT, response)
-            elif target == '/api/status':
-                payload = {'kpa500_data': kpa500.kpa500_data}
-                response = json.dumps(payload).encode('utf-8')
-                http_status = 200
-                bytes_sent = http_server.send_simple_response(writer, http_status, http_server.CT_APP_JSON, response)
-            else:
-                content_file = target[1:] if target[0] == '/' else target
-                bytes_sent, http_status = http_server.serve_content(writer, content_file)
-
-    await writer.drain()
-    writer.close()
-    await writer.wait_closed()
-    elapsed = milliseconds() - t0
-    if http_status == 200:
-        if verbosity > 2:
-            print('{} {} {} {} {} ms'.format(partner, request, http_status, bytes_sent, elapsed))
-    else:
-        if verbosity >= 1:
-            print('{} {} {} {} {} ms'.format(partner, request, http_status, bytes_sent, elapsed))
-    gc.collect()
-
-
 class BufferAndLength:
     def __init__(self, buffer):
         self.buffer = buffer
@@ -960,11 +544,378 @@ async def kpa500_server(amp_serial_port, verbosity=3):
         await asyncio.sleep(0.025)  # 40/sec
 
 
+async def slash_callback(http, verb, args, reader, writer, request_headers=None):  # callback for '/'
+    http_status = 301
+    bytes_sent = http.send_simple_response(writer, http_status, None, None, ['Location: /kpa500.html'])
+    return bytes_sent, http_status
+
+
+async def api_config_callback(http, verb, args, reader, writer, request_headers=None):  # callback for '/api/config'
+    if verb == 'GET':
+        payload = read_config()
+        # payload.pop('secret')  # do not return the secret
+        response = json.dumps(payload).encode('utf-8')
+        http_status = 200
+        bytes_sent = http.send_simple_response(writer, http_status, http.CT_APP_JSON, response)
+    elif verb == 'POST':
+        config = read_config()
+        dirty = False
+        errors = False
+        tcp_port = args.get('tcp_port')
+        if tcp_port is not None:
+            tcp_port_int = safe_int(tcp_port, -2)
+            if 0 <= tcp_port_int <= 65535:
+                config['tcp_port'] = tcp_port
+                dirty = True
+            else:
+                errors = True
+        web_port = args.get('web_port')
+        if web_port is not None:
+            web_port_int = safe_int(web_port, -2)
+            if 0 <= web_port_int <= 65535:
+                config['web_port'] = web_port
+                dirty = True
+            else:
+                errors = True
+        ssid = args.get('SSID')
+        if ssid is not None:
+            if 0 < len(ssid) < 64:
+                config['SSID'] = ssid
+                dirty = True
+            else:
+                errors = True
+        secret = args.get('secret')
+        if secret is not None:
+            if 8 <= len(secret) < 32:
+                config['secret'] = secret
+                dirty = True
+            else:
+                errors = True
+        remote_username = args.get('username')
+        if remote_username is not None:
+            if 1 <= len(remote_username) <= 16:
+                config['username'] = remote_username
+                dirty = True
+            else:
+                errors = True
+        remote_password = args.get('password')
+        if remote_password is not None:
+            if 1 <= len(remote_password) <= 16:
+                config['password'] = remote_password
+                dirty = True
+            else:
+                errors = True
+        ap_mode_arg = args.get('ap_mode')
+        if ap_mode_arg is not None:
+            ap_mode = True if ap_mode_arg == '1' else False
+            config['ap_mode'] = ap_mode
+            dirty = True
+        dhcp_arg = args.get('dhcp')
+        if dhcp_arg is not None:
+            dhcp = True if dhcp_arg == 1 else False
+            config['dhcp'] = dhcp
+            dirty = True
+        ip_address = args.get('ip_address')
+        if ip_address is not None:
+            config['ip_address'] = ip_address
+            dirty = True
+        netmask = args.get('netmask')
+        if netmask is not None:
+            config['netmask'] = netmask
+            dirty = True
+        gateway = args.get('gateway')
+        if gateway is not None:
+            config['gateway'] = gateway
+            dirty = True
+        dns_server = args.get('dns_server')
+        if dns_server is not None:
+            config['dns_server'] = dns_server
+            dirty = True
+        if not errors:
+            if dirty:
+                save_config(config)
+            response = b'ok\r\n'
+            http_status = 200
+            bytes_sent = http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
+        else:
+            response = b'parameter out of range\r\n'
+            http_status = 400
+            bytes_sent = http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
+    return bytes_sent, http_status
+
+
+async def api_get_files_callback(http, verb, args, reader, writer, request_headers=None):
+    if verb == 'GET':
+        payload = os.listdir(http.content_dir)
+        response = json.dumps(payload).encode('utf-8')
+        http_status = 200
+        bytes_sent = http.send_simple_response(writer, http_status, http.CT_APP_JSON, response)
+    else:
+        http_status = 400
+        response = b'only GET permitted'
+        bytes_sent = http.send_simple_response(writer, http_status, http.CT_APP_JSON, response)
+    return bytes_sent, http_status
+
+
+async def api_upload_file_callback(http, verb, args, reader, writer, request_headers=None):
+    if verb == 'POST':
+        boundary = None
+        request_content_type = request_headers.get('content-type') or ''
+        if ';' in request_content_type:
+            pieces = request_content_type.split(';')
+            request_content_type = pieces[0]
+            boundary = pieces[1].strip()
+            if boundary.startswith('boundary='):
+                boundary = boundary[9:]
+        if request_content_type != http.CT_MULTIPART_FORM or boundary is None:
+            response = b'multipart boundary or content type error'
+            http_status = 400
+        else:
+            response = b'unhandled problem'
+            http_status = 500
+            request_content_length = int(request_headers.get('content-length') or '0')
+            remaining_content_length = request_content_length
+            start_boundary = http.HYPHENS + boundary
+            end_boundary = start_boundary + http.HYPHENS
+            state = http.MP_START_BOUND
+            filename = None
+            output_file = None
+            writing_file = False
+            more_bytes = True
+            leftover_bytes = []
+            while more_bytes:
+                # print('waiting for read')
+                buffer = await reader.read(BUFFER_SIZE)
+                # print('read {} bytes of max {}'.format(len(buffer), BUFFER_SIZE))
+                remaining_content_length -= len(buffer)
+                # print('remaining content length {}'.format(remaining_content_length))
+                if remaining_content_length == 0:  # < BUFFER_SIZE:
+                    more_bytes = False
+                if len(leftover_bytes) != 0:
+                    buffer = leftover_bytes + buffer
+                    leftover_bytes = []
+                start = 0
+                while start < len(buffer):
+                    if state == http.MP_DATA:
+                        if not output_file:
+                            output_file = open(http.content_dir + 'uploaded_' + filename, 'wb')
+                            writing_file = True
+                        end = len(buffer)
+                        for i in range(start, len(buffer) - 3):
+                            if buffer[i] == 13 and buffer[i + 1] == 10 and buffer[i + 2] == 45 and \
+                                    buffer[i + 3] == 45:
+                                end = i
+                                writing_file = False
+                                break
+                        if end == BUFFER_SIZE:
+                            if buffer[-1] == 13:
+                                leftover_bytes = buffer[-1:]
+                                buffer = buffer[:-1]
+                                end -= 1
+                            elif buffer[-2] == 13 and buffer[-1] == 10:
+                                leftover_bytes = buffer[-2:]
+                                buffer = buffer[:-2]
+                                end -= 2
+                            elif buffer[-3] == 13 and buffer[-2] == 10 and buffer[-1] == 45:
+                                leftover_bytes = buffer[-3:]
+                                buffer = buffer[:-3]
+                                end -= 3
+                        # print('writing buffer[{}:{}] buffer size={}'.format(start, end, BUFFER_SIZE))
+                        output_file.write(buffer[start:end])
+                        if not writing_file:
+                            # print('closing file')
+                            state = http.MP_END_BOUND
+                            output_file.close()
+                            output_file = None
+                            response = 'Uploaded {} successfully'.format(filename).encode('utf-8')
+                            http_status = 201
+                        start = end + 2
+                    else:  # must be reading headers or boundary
+                        line = ''
+                        for i in range(start, len(buffer) - 1):
+                            if buffer[i] == 13 and buffer[i + 1] == 10:
+                                line = buffer[start:i].decode('utf-8')
+                                start = i + 2
+                                break
+                        if state == http.MP_START_BOUND:
+                            if line == start_boundary:
+                                state = http.MP_HEADERS
+                            else:
+                                print('expecting start boundary, got ' + line)
+                        elif state == http.MP_HEADERS:
+                            if len(line) == 0:
+                                state = http.MP_DATA
+                            elif line.startswith('Content-Disposition:'):
+                                pieces = line.split(';')
+                                fn = pieces[2].strip()
+                                if fn.startswith('filename="'):
+                                    filename = fn[10:-1]
+                                    if not valid_filename(filename):
+                                        response = b'bad filename'
+                                        http_status = 500
+                                        more_bytes = False
+                                        start = len(buffer)
+                            # else:
+                            #     print('processing headers, got ' + line)
+                        elif state == http.MP_END_BOUND:
+                            if line == end_boundary:
+                                state = http.MP_START_BOUND
+                            else:
+                                print('expecting end boundary, got ' + line)
+                        else:
+                            http_status = 500
+                            response = 'unmanaged state {}'.format(state).encode('utf-8')
+        bytes_sent = http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
+    return bytes_sent, http_status
+
+
+async def api_rename_file_callback(http, verb, args, reader, writer, request_headers=None):
+    filename = args.get('filename')
+    newname = args.get('newname')
+    if valid_filename(filename) and valid_filename(newname):
+        filename = http.content_dir + filename
+        newname = http.content_dir + newname
+        try:
+            os.remove(newname)
+        except OSError:
+            pass  # swallow exception.
+        try:
+            os.rename(filename, newname)
+            http_status = 200
+            response = b'renamed\r\n'
+        except Exception as ose:
+            http_status = 409
+            response = str(ose).encode('utf-8')
+    else:
+        http_status = 409
+        response = b'bad file name'
+    bytes_sent = http.send_simple_response(writer, http_status, http.CT_APP_JSON, response)
+    return bytes_sent, http_status
+
+
+async def api_restart_callback(http, verb, args, reader, writer, request_headers=None):
+    global restart
+    if upython:
+        restart = True
+        response = b'ok\r\n'
+        http_status = 200
+        bytes_sent = http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
+    else:
+        http_status = 400
+        response = b'not permitted except on PICO-W'
+        bytes_sent = http.send_simple_response(writer, http_status, http.CT_APP_JSON, response)
+    return bytes_sent, http_status
+
+
+# KPA500 specific APIs
+async def api_clear_fault_callback(http, verb, args, reader, writer, request_headers=None):
+    kpa500.enqueue_command(b'^FLC;')
+    response = b'ok\r\n'
+    http_status = 200
+    bytes_sent = http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
+    return bytes_sent, http_status
+
+
+async def api_set_band_callback(http, verb, args, reader, writer, request_headers=None):
+    band_name = args.get('band')
+    band_number = kpa500.band_label_to_number(band_name)
+    if band_number is not None:
+        command = f'^BN{band_number:02d};'.encode()
+        kpa500.enqueue_command(command)
+        response = b'ok\r\n'
+        http_status = 200
+    else:
+        response = b'bad band name parameter\r\n'
+        http_status = 400
+    bytes_sent = http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
+    return bytes_sent, http_status
+
+
+async def api_set_fan_speed_callback(http, verb, args, reader, writer, request_headers=None):
+    speed = safe_int(args.get('speed', -1))
+    if 0 <= speed <= 6:
+        command = f'^FC{speed};^FC;'.encode()
+        kpa500.enqueue_command(command)
+        response = b'ok\r\n'
+        http_status = 200
+    else:
+        response = b'bad fan speed parameter\r\n'
+        http_status = 400
+    bytes_sent = http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
+    return bytes_sent, http_status
+
+
+async def api_set_operate_callback(http, verb, args, reader, writer, request_headers=None):
+    state = args.get('state')
+    if state == '0' or state == '1':
+        command = f'^OS{state};^OS;'.encode()
+        kpa500.enqueue_command(command)
+        response = b'ok\r\n'
+        http_status = 200
+    else:
+        response = b'bad state parameter\r\n'
+        http_status = 400
+    bytes_sent = http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
+    return bytes_sent, http_status
+
+
+async def api_set_power_callback(http, verb, args, reader, writer, request_headers=None):
+    state = args.get('state')
+    if state == '0' or state == '1':
+        command = f'^ON{state};'.encode()
+        kpa500.enqueue_command(command)
+        response = b'ok\r\n'
+        http_status = 200
+    else:
+        response = b'bad state parameter\r\n'
+        http_status = 400
+    bytes_sent = http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
+    return bytes_sent, http_status
+
+
+async def api_set_speaker_alarm_callback(http, verb, args, reader, writer, request_headers=None):
+    state = args.get('state')
+    if state == '0' or state == '1':
+        command = f'^SP{state};^SP;'.encode()
+        kpa500.enqueue_command(command)
+        response = b'ok\r\n'
+        http_status = 200
+    else:
+        response = b'bad state parameter\r\n'
+        http_status = 400
+    bytes_sent = http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
+    return bytes_sent, http_status
+
+
+async def api_status_callback(http, verb, args, reader, writer, request_headers=None):  # callback for '/api/status'
+    payload = {'kpa500_data': kpa500.kpa500_data}
+    response = json.dumps(payload).encode('utf-8')
+    http_status = 200
+    bytes_sent = http.send_simple_response(writer, http_status, http.CT_APP_JSON, response)
+    return bytes_sent, http_status
+
+
 async def main():
     global port, restart, username, password
     config = read_config()
     username = config.get('username')
     password = config.get('password')
+
+    http_server.add_uri_callback('/', slash_callback)
+    http_server.add_uri_callback('/api/config', api_config_callback)
+    http_server.add_uri_callback('/api/get_files', api_get_files_callback)
+    http_server.add_uri_callback('/api/upload_file', api_upload_file_callback)
+    http_server.add_uri_callback('/api/rename_file', api_rename_file_callback)
+    http_server.add_uri_callback('/api/restart', api_restart_callback)
+
+    # now KPA500 specific
+    http_server.add_uri_callback('/api/clear_fault', api_clear_fault_callback)
+    http_server.add_uri_callback('/api/set_band', api_set_band_callback)
+    http_server.add_uri_callback('/api/set_fan_speed', api_set_fan_speed_callback)
+    http_server.add_uri_callback('/api/set_operate', api_set_operate_callback)
+    http_server.add_uri_callback('/api/set_power', api_set_power_callback)
+    http_server.add_uri_callback('/api/set_speaker_alarm', api_set_speaker_alarm_callback)
+    http_server.add_uri_callback('/api/status', api_status_callback)
 
     tcp_port = safe_int(config.get('tcp_port') or DEFAULT_TCP_PORT, DEFAULT_TCP_PORT)
     if tcp_port < 0 or tcp_port > 65535:
@@ -990,14 +941,8 @@ async def main():
     port = SerialPort(baudrate=38400, timeout=0)  # timeout is zero because we do not want to block
 
     if connected:
-        ntp_time = ntp.get_ntp_time()
-        if ntp_time is None:
-            print('ntp time query failed.  clock may be inaccurate.')
-        else:
-            print('Got time from NTP: {}'.format(get_timestamp()))
-
         print('Starting web service on port {}'.format(web_port))
-        asyncio.create_task(asyncio.start_server(serve_http_client, '0.0.0.0', web_port))
+        asyncio.create_task(asyncio.start_server(http_server.serve_http_client, '0.0.0.0', web_port))
         print('Starting tcp service on port {}'.format(tcp_port))
         asyncio.create_task(asyncio.start_server(serve_network_client, '0.0.0.0', tcp_port))
     else:
@@ -1005,24 +950,24 @@ async def main():
 
     asyncio.create_task(kpa500_server(port, 3))
 
-    if upython:
-        last_pressed = reset_button.value() == 0
-    else:
-        last_pressed = False
+    reset_button_pressed_count = 0
 
     while True:
         if upython:
             await asyncio.sleep(0.25)
             pressed = reset_button.value() == 0
-            if not last_pressed and pressed:  # look for activating edge
-                ap_mode = not ap_mode
-                config['ap_mode'] = ap_mode
-                save_config(config)
-                restart = True
-            last_pressed = pressed
+            if pressed:
+                reset_button_pressed_count += 1
+                if reset_button_pressed_count > 7:
+                    ap_mode = not ap_mode
+                    config['ap_mode'] = ap_mode
+                    save_config(config)
+                    restart = True
+            else:
+                reset_button_pressed_count = 0
 
             if restart:
-                machine.soft_reset()
+                machine.reset()
         else:
             await asyncio.sleep(10.0)
 

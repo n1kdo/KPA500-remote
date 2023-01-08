@@ -1,7 +1,23 @@
 #
 # http server.
 #
+import gc
+import json
 import os
+import sys
+import time
+impl_name = sys.implementation.name
+if impl_name == 'cpython':
+    import asyncio
+else:
+    import uasyncio as asyncio
+
+
+def milliseconds():
+    if impl_name == 'cpython':
+        return int(time.time() * 1000)
+    else:
+        return time.ticks_ms()
 
 
 class HttpServer:
@@ -49,6 +65,11 @@ class HttpServer:
 
     def __init__(self, content_dir):
         self.content_dir = content_dir
+        self.verbosity = 3
+        self.uri_map = {}
+
+    def add_uri_callback(self, uri, callback):
+        self.uri_map[uri] = callback
 
     def serve_content(self, writer, filename):
         filename = self.content_dir + filename
@@ -114,6 +135,164 @@ class HttpServer:
                     args_dict[arg_parts[0]] = arg_parts[1]
         return args_dict
 
+    async def serve_http_client(self, reader, writer):
+        t0 = milliseconds()
+        http_status = 418  # can only make tea, sorry.
+        bytes_sent = 0
+        partner = writer.get_extra_info('peername')[0]
+        if self.verbosity >= 4:
+            print('\nweb client connected from {}'.format(partner))
+        request_line = await reader.readline()
+        request = request_line.decode().strip()
+        if self.verbosity >= 4:
+            print(request)
+        pieces = request.split(' ')
+        if len(pieces) != 3:  # does the http request line look approximately correct?
+            http_status = 400
+            response = b'Bad Request !=3'
+            bytes_sent = self.send_simple_response(writer, http_status, self.CT_TEXT_HTML, response)
+        else:
+            verb = pieces[0]
+            target = pieces[1]
+            protocol = pieces[2]
+            # should validate protocol here...
+            if '?' in target:
+                pieces = target.split('?')
+                target = pieces[0]
+                query_args = pieces[1]
+            else:
+                query_args = ''
+            if verb not in ['GET', 'POST']:
+                http_status = 400
+                response = b'<html><body><p>only GET and POST are supported</p></body></html>'
+                bytes_sent = self.send_simple_response(writer, http_status, self.CT_TEXT_HTML, response)
+            elif protocol not in ['HTTP/1.0', 'HTTP/1.1']:
+                http_status = 400
+                response = b'that protocol is not supported'
+                bytes_sent = self.send_simple_response(writer, http_status, self.CT_TEXT_HTML, response)
+            else:
+                # get HTTP request headers
+                request_content_length = 0
+                request_content_type = ''
+                while True:
+                    header = await reader.readline()
+                    request_headers = {}
+                    if len(header) == 0:
+                        # empty header line, eof?
+                        break
+                    if header == b'\r\n':
+                        # blank line at end of headers
+                        break
+                    else:
+                        # process headers.  look for those we are interested in.
+                        parts = header.decode().strip().split(':', 1)
+                        request_headers[parts[0].strip().lower()] = parts[1].strip()
+                        if parts[0] == 'Content-Length':
+                            request_content_length = int(parts[1].strip())
+                        elif parts[0] == 'Content-Type':
+                            request_content_type = parts[1].strip()
+
+                args = {}
+                if verb == 'GET':
+                    args = self.unpack_args(query_args)
+                elif verb == 'POST':
+                    if request_content_length > 0:
+                        if request_content_type == self.CT_APP_WWW_FORM:
+                            data = await reader.read(request_content_length)
+                            args = self.unpack_args(data.decode())
+                        elif request_content_type == self.CT_APP_JSON:
+                            data = await reader.read(request_content_length)
+                            args = json.loads(data.decode())
+                        # else:
+                        #    print('warning: unhandled content_type {}'.format(request_content_type))
+                        #    print('request_content_length={}'.format(request_content_length))
+                else:  # bad request
+                    http_status = 400
+                    response = b'only GET and POST are supported'
+                    bytes_sent = self.send_simple_response(writer, http_status, self.CT_TEXT_TEXT, response)
+
+                if verb in ('GET', 'POST'):
+                    callback = self.uri_map.get(target)
+                    if callback is not None:
+                        bytes_sent, http_status = await callback(self, verb, args, reader, writer, request_headers)
+                    else:
+                        content_file = target[1:] if target[0] == '/' else target
+                        bytes_sent, http_status = self.serve_content(writer, content_file)
+
+        await writer.drain()
+        writer.close()
+        await writer.wait_closed()
+        elapsed = milliseconds() - t0
+        if http_status == 200:
+            if self.verbosity > 2:
+                print('{} {} {} {} {} ms'.format(partner, request, http_status, bytes_sent, elapsed))
+        else:
+            if self.verbosity >= 1:
+                print('{} {} {} {} {} ms'.format(partner, request, http_status, bytes_sent, elapsed))
+        gc.collect()
 
 
+'''
+                elif target == '/api/clear_fault':
+                    kpa500.enqueue_command(b'^FLC;')
+                    response = b'ok\r\n'
+                    http_status = 200
+                    bytes_sent = self.send_simple_response(writer, http_status, self.CT_TEXT_TEXT, response)
+                elif target == '/api/set_band':
+                    band_name = args.get('band')
+                    band_number = kpa500.band_label_to_number(band_name)
+                    if band_number is not None:
+                        command = f'^BN{band_number:02d};'.encode()
+                        kpa500.enqueue_command(command)
+                        response = b'ok\r\n'
+                        http_status = 200
+                    else:
+                        response = b'bad band name parameter\r\n'
+                        http_status = 400
+                    bytes_sent = self.send_simple_response(writer, http_status, self.CT_TEXT_TEXT, response)
+                elif target == '/api/set_fan_speed':
+                    speed = safe_int(args.get('speed', -1))
+                    if 0 <= speed <= 6:
+                        command = f'^FC{speed};^FC;'.encode()
+                        kpa500.enqueue_command(command)
+                        response = b'ok\r\n'
+                        http_status = 200
+                    else:
+                        response = b'bad fan speed parameter\r\n'
+                        http_status = 400
+                    bytes_sent = self.send_simple_response(writer, http_status, self.CT_TEXT_TEXT, response)
+                elif target == '/api/set_operate':
+                    state = args.get('state')
+                    if state == '0' or state == '1':
+                        command = f'^OS{state};^OS;'.encode()
+                        kpa500.enqueue_command(command)
+                        response = b'ok\r\n'
+                        http_status = 200
+                    else:
+                        response = b'bad state parameter\r\n'
+                        http_status = 400
+                    bytes_sent = self.send_simple_response(writer, http_status, self.CT_TEXT_TEXT, response)
+                elif target == '/api/set_power':
+                    state = args.get('state')
+                    if state == '0' or state == '1':
+                        command = f'^ON{state};'.encode()
+                        kpa500.enqueue_command(command)
+                        response = b'ok\r\n'
+                        http_status = 200
+                    else:
+                        response = b'bad state parameter\r\n'
+                        http_status = 400
+                    bytes_sent = self.send_simple_response(writer, http_status, self.CT_TEXT_TEXT, response)
+                elif target == '/api/set_speaker_alarm':
+                    state = args.get('state')
+                    if state == '0' or state == '1':
+                        command = f'^SP{state};'.encode()
+                        kpa500.enqueue_command(command)
+                        response = b'ok\r\n'
+                        http_status = 200
+                    else:
+                        response = b'bad state parameter\r\n'
+                        http_status = 400
+                    bytes_sent = self.send_simple_response(writer, http_status, self.CT_TEXT_TEXT, response)
 
+'''

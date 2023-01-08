@@ -16,8 +16,8 @@ FILES_LIST = [
     'kpa500.py',
     'main.py',
     'morse_code.py',
-    'ntp.py',
     'serialport.py',
+    'content/favicon.ico',
     'content/files.html',
     'content/kpa500.html',
     'content/setup.html',
@@ -80,27 +80,30 @@ def load_device(port):
 
 
 def main():
-    print('Disconnect the Pico-W if it is connected.')
-    input('(press enter to continue...)')
-    ports_1 = get_ports_list()
-    print('Detected serial ports: ' + ' '.join(ports_1))
-    print('\nConnect the Pico-W to USB port.')
-    input('(press enter to continue...)')
-    ports_2 = get_ports_list()
-    print('Detected serial ports: ' + ' '.join(ports_2))
+    try:
+        print('Disconnect the Pico-W if it is connected.')
+        input('(press enter to continue...)')
+        ports_1 = get_ports_list()
+        print('Detected serial ports: ' + ' '.join(ports_1))
+        print('\nConnect the Pico-W to USB port. Wait for the "connected" sound')
+        input('(press enter to continue...)')
+        ports_2 = get_ports_list()
+        print('Detected serial ports: ' + ' '.join(ports_2))
 
-    picow_port = None
-    for port in ports_2:
-        if port not in ports_1:
-            picow_port = port
-            break
+        picow_port = None
+        for port in ports_2:
+            if port not in ports_1:
+                picow_port = port
+                break
 
-    if picow_port is None:
-        print('Could not identify Pico-W communications port.  Exiting.')
-        exit(1)
+        if picow_port is None:
+            print('Could not identify Pico-W communications port.  Exiting.')
+            exit(1)
 
-    print('\nAttempting to load device on port {}'.format(picow_port))
-    load_device(picow_port)
+        print('\nAttempting to load device on port {}'.format(picow_port))
+        load_device(picow_port)
+    except KeyboardInterrupt:
+        print('\n\nBye.')
 
 
 if __name__ == "__main__":
