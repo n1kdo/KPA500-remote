@@ -102,7 +102,7 @@
 </style>
 <!--suppress JSUnusedLocalSymbols -->
 <script>
-    let free_updates = 0;
+    let auto_updates = 0;
     let update_secs = 0;
     let update_timeout = 0;
     let kpa500_data = [];
@@ -120,7 +120,6 @@
         xmlHttp.open("POST", url, true);
         xmlHttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
         xmlHttp.send(payload);
-        // free_updates = 2;
         // update the UI after a short period
         if (update_timeout !== 0) {
             clearTimeout(update_timeout)
@@ -136,6 +135,7 @@
         } else {
             payload = "state=1";
         }
+        auto_updates = 5;
         post_request("/api/set_power", payload);
     }
 
@@ -288,10 +288,10 @@
         }
 
         let button_secs = update_secs;
-        if (free_updates > 0) {
+        if (auto_updates > 0) {
             update_timeout = setTimeout(get_status, 1000);
             button_secs = 1;
-            free_updates--;
+            auto_updates--;
         } else {
             if (update_secs > 0) {
                 update_timeout = setTimeout(get_status, update_secs * 1000);
@@ -433,7 +433,7 @@
     </div>
 <div class="row">
         <div class="setup"><a href="setup.html">Setup</a></div>
-        <div class="author"><a href="https://www.n1kdo.com" target="_blank">N1KDO</a> 20221231</div>
+        <div class="author"><a href="https://www.n1kdo.com" target="_blank">N1KDO</a> 20220108</div>
 </div>
 </body>
 </html>
