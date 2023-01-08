@@ -12,6 +12,7 @@ SRC_DIR = '../kpa500-remote/'
 FILES_LIST = [
     'content/',
     'data/',
+    'kpa500.py',
     'main.py',
     'ntp.py',
     'serialport.py',
