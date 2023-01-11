@@ -5,7 +5,7 @@ __author__ = 'J. B. Otterson'
 __copyright__ = 'Copyright 2022, J. B. Otterson N1KDO.'
 
 #
-# Copyright 2022, J. B. Otterson N1KDO.
+# Copyright 2023, J. B. Otterson N1KDO.
 #
 # Redistribution and use in source and binary forms, with or without modification,
 # are permitted provided that the following conditions are met:
@@ -37,7 +37,6 @@ import time
 from http_server import HttpServer
 from kpa500 import ClientData, KPA500
 from morse_code import MorseCode
-from serialport import SerialPort
 
 upython = sys.implementation.name == 'micropython'
 
@@ -103,7 +102,6 @@ DEFAULT_WEB_PORT = 80
 
 # globals...
 restart = False
-port = None
 username = ''
 password = ''
 http_server = HttpServer(content_dir='content/')
@@ -406,142 +404,6 @@ async def serve_network_client(reader, writer):
 
     tc = milliseconds()
     print('network client disconnected, elapsed time {:6.3f} seconds'.format((tc - t0) / 1000.0))
-
-
-class BufferAndLength:
-    def __init__(self, buffer):
-        self.buffer = buffer
-        self.bytes_received = 0
-
-    def data(self):
-        return self.buffer[:self.bytes_received]
-
-
-async def kpa500_send_receive(amp_port, message, bl, timeout=0.05):
-    # should the read buffer be flushed? can only read to drain
-    while len(amp_port.read()) > 0:
-        pass
-    amp_port.write(message)
-    amp_port.flush()
-    await asyncio.sleep(timeout)
-    bl.bytes_received = amp_port.readinto(bl.buffer)
-
-
-async def kpa500_server(amp_serial_port, verbosity=3):
-    """
-    this manages the connection to the physical amplifier
-    :param amp_serial_port: SerialPort object
-    :param verbosity: how much logging?
-    :return: None
-    """
-
-    amp_state = 0  # 0 not connected, 1 online state unknown , 2 power off, 3 power on
-    bl = BufferAndLength(bytearray(16))
-    next_command = 0
-    run_loop = True
-
-    while run_loop:
-        if amp_state == 0:  # unknown / no response state
-            # poke at the amplifier -- is it connected?
-            await kpa500_send_receive(amp_serial_port, b';', bl)
-            # connected will return a ';' here
-            if bl.bytes_received != 1 or bl.buffer[0] != 59:
-                kpa500.update_kpa500_data(6, 'NO AMP')
-            else:
-                amp_state = 1
-                if verbosity > 3:
-                    print('amp state 0-->1')
-        elif amp_state == 1:  # apparently connected
-            # ask if it is turned on.
-            await kpa500_send_receive(amp_serial_port, b'^ON;', bl)  # hi there.
-            # is b'^ON1;' when amp is on.
-            # is b'^ON;' when amp is off
-            # is b'' when amp is not found.
-            if bl.bytes_received == 0:
-                amp_state = 0
-                kpa500.update_kpa500_data(4, '0')  # not powered
-                kpa500.update_kpa500_data(6, 'NO AMP')
-                if verbosity > 3:
-                    print('1: no response, amp state 1-->0')
-            elif bl.bytes_received == 5 and bl.buffer[3] == 49:  # '1', amp appears on
-                amp_state = 3  # amp is powered on.
-                kpa500.update_kpa500_data(4, '1')
-                kpa500.update_kpa500_data(6, 'AMP ON')
-                kpa500.enqueue_command(kpa500.initial_queries)
-                if verbosity > 3:
-                    print(f'amp state 1-->3')
-            elif bl.bytes_received == 4 and bl.buffer[3] == 59:  # ';', amp connected but off.
-                amp_state = 2
-                kpa500.update_kpa500_data(4, '0')
-                kpa500.update_kpa500_data(6, 'AMP OFF')
-                if verbosity > 3:
-                    print('amp state 1-->2')
-            else:
-                if verbosity > 1:
-                    print(f'1: unexpected data {bl.buffer[:bl.bytes_received]}')
-        elif amp_state == 2:  # connected, power off.
-            query = kpa500.dequeue_command()
-            # throw away any queries except the ON command.
-            if query is not None and query == b'^ON1;':  # turn on amplifier
-                await kpa500_send_receive(amp_serial_port, b'P', bl)
-                kpa500.update_kpa500_data(6, 'Powering On')
-                await asyncio.sleep(1.50)
-                amp_state = 0  # test state again.
-                if verbosity > 3:
-                    print('amp state 2-->0')
-            else:
-                await kpa500_send_receive(amp_serial_port, b'^ON;', bl, timeout=1.5)  # hi there.
-                # is b'^ON1;' when amp is on.
-                # is b'^ON;' when amp is off
-                # is b'' when amp is not found.
-                if bl.bytes_received == 0:
-                    amp_state = 1
-                    kpa500.update_kpa500_data(4, '0')  # not powered
-                    kpa500.update_kpa500_data(6, 'NO AMP')
-                    if verbosity > 3:
-                        print('no data, amp state 2-->1')
-                elif bl.bytes_received == 5 and bl.buffer[3] == 49:  # '1', amp appears on
-                    amp_state = 3  # amp is powered on.
-                    kpa500.update_kpa500_data(4, '1')
-                    kpa500.update_kpa500_data(6, 'AMP ON')
-                    kpa500.enqueue_command(kpa500.initial_queries)
-                    if verbosity > 3:
-                        print(f'amp state 2-->3')
-                elif bl.bytes_received == 4 and bl.buffer[3] == 59:  # ';', amp connected but off.
-                    pass  # this is the expected result when amp is off
-                else:
-                    if verbosity > 3:
-                        print(f'2: unexpected data {bl.buffer[:bl.bytes_received]}')
-        elif amp_state == 3:  # connected, power on.
-            query = kpa500.dequeue_command()
-            if query is None:
-                query = kpa500.normal_queries[next_command]
-                if next_command == len(kpa500.normal_queries) - 1:  # this is the last one
-                    next_command = 0
-                else:
-                    next_command += 1
-            await kpa500_send_receive(amp_serial_port, query, bl)
-            if query == b'^ON0;':
-                amp_state = 1
-                if verbosity > 3:
-                    print('power off command, amp state 3-->1')
-                kpa500.update_kpa500_data(6, 'PWR OFF')
-                kpa500.set_amp_off_data()
-                await asyncio.sleep(1.50)
-            else:
-                if bl.bytes_received > 0:
-                    kpa500.process_kpa500_message(bl.data().decode())
-                else:
-                    amp_state = 0
-                    kpa500.update_kpa500_data(6, 'NO AMP')
-                    kpa500.set_amp_off_data()
-                    if verbosity > 3:
-                        print('no response, amp state 3-->0')
-        else:
-            print(f'invalid amp state: {amp_state}, bye bye.')
-            run_loop = False
-
-        await asyncio.sleep(0.025)  # 40/sec
 
 
 async def slash_callback(http, verb, args, reader, writer, request_headers=None):  # callback for '/'
@@ -896,7 +758,7 @@ async def api_status_callback(http, verb, args, reader, writer, request_headers=
 
 
 async def main():
-    global port, restart, username, password
+    global restart, username, password
     config = read_config()
     username = config.get('username')
     password = config.get('password')
@@ -937,9 +799,6 @@ async def main():
 
     if upython:
         asyncio.create_task(morse_code_sender.morse_sender(morse_led))
-
-    port = SerialPort(baudrate=38400, timeout=0)  # timeout is zero because we do not want to block
-
     if connected:
         print('Starting web service on port {}'.format(web_port))
         asyncio.create_task(asyncio.start_server(http_server.serve_http_client, '0.0.0.0', web_port))
@@ -948,7 +807,7 @@ async def main():
     else:
         print('no network connection')
 
-    asyncio.create_task(kpa500_server(port, 3))
+    asyncio.create_task(kpa500.kpa500_server(3))
 
     reset_button_pressed_count = 0
 
