@@ -54,7 +54,7 @@ def put_file(filename, target):
             print('sending file {} '.format(filename), end='')
             target.fs_put(src_file_name, filename, progress_callback=put_file_progress_callback)
             print()
-        except OSError as e:
+        except OSError:
             print('cannot find source file {}'.format(src_file_name))
 
 

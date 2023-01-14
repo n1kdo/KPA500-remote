@@ -1,7 +1,6 @@
 # stuff
 
 import socket
-import time
 
 kpa500_remote_ip_hostname = '192.168.1.102'
 kpa500_remote_port = 4626
@@ -29,6 +28,7 @@ def parse_kpa500_message(buffer, size):
 
 def main():
     global kpa500_status
+    skt = None
 
     try:
         ip_addr = socket.gethostbyname(kpa500_remote_ip_hostname)
@@ -77,8 +77,9 @@ def main():
                 message = message.replace('\n', '\\n')
                 print(f'RX: {message}')
             parse_kpa500_message(buffer, num_received)
-    except KeyboardInterrupt as ke:
-        skt.close()
+    except KeyboardInterrupt:
+        if skt is not None:
+            skt.close()
 
     for k, v in kpa500_status.items():
         print(f"'{k}': '{v}'")
