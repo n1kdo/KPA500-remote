@@ -72,7 +72,7 @@ class MorseCode:
     def set_message(self, message):
         self.message = message
 
-    async def morse_sender(self, led):
+    async def morse_sender(self):
         while True:
             msg = self.message
             for morse_letter in msg:
@@ -85,7 +85,7 @@ class MorseCode:
                     t = blink_list.pop(0)
                     if t > 0:
                         # blink time is in milliseconds!, but data is in 10 msec
-                        led.on()
+                        self.led.on()
                         await asyncio.sleep(t/100)
-                        led.off()
+                        self.led.off()
                     await asyncio.sleep(self.MORSE_ESP / 100 if len(blink_list) > 0 else self.MORSE_LSP / 100)

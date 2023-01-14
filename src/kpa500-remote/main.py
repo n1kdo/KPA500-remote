@@ -798,7 +798,7 @@ async def main():
             print(type(ex), ex)
 
     if upython:
-        asyncio.create_task(morse_code_sender.morse_sender(morse_led))
+        asyncio.create_task(morse_code_sender.morse_sender())
     if connected:
         print('Starting web service on port {}'.format(web_port))
         asyncio.create_task(asyncio.start_server(http_server.serve_http_client, '0.0.0.0', web_port))
@@ -838,5 +838,5 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         print('bye')
     finally:
-        asyncio.new_event_loop()  # why? to drain?
+        asyncio.new_event_loop()
     print('done')
