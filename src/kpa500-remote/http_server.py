@@ -92,6 +92,7 @@ class HttpServer:
         self.content_dir = content_dir
         self.verbosity = 3
         self.uri_map = {}
+        self.buffer = bytearray(self.BUFFER_SIZE)
 
     def add_uri_callback(self, uri, callback):
         self.uri_map[uri] = callback
@@ -121,12 +122,15 @@ class HttpServer:
             try:
                 with open(filename, 'rb', self.BUFFER_SIZE) as infile:
                     while True:
-                        buffer = infile.read(self.BUFFER_SIZE)
-                        writer.write(buffer)
-                        if len(buffer) < self.BUFFER_SIZE:
+                        bytes_read = infile.readinto(self.buffer)
+                        if bytes_read is None:
+                            break
+                        writer.write(self.buffer[:bytes_read])
+                        if bytes_read < self.BUFFER_SIZE:
                             break
             except Exception as e:
                 print('Exception in serve_content: ', type(e), e)
+                raise e
             return content_length, http_status
 
     def start_response(self, writer, http_status=200, content_type=None, response_size=0, extra_headers=None):
