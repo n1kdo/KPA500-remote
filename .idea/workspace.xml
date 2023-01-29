@@ -7,11 +7,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="4e64a78b-8e71-496b-87ac-41648ca07843" name="Changes" comment="eliminate redundant redundancy">
+    <list default="true" id="4e64a78b-8e71-496b-87ac-41648ca07843" name="Changes" comment="static analyzer fixes">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/diagnasties/client.py" beforeDir="false" afterPath="$PROJECT_DIR$/diagnasties/client.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kpa500-remote/kpa500.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/kpa500-remote/kpa500.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/kpa500-remote/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/kpa500-remote/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/loader/loader.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/loader/loader.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -75,7 +74,7 @@
       <recent name="C:\Users\Jeff\KPA500-remote\src" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.main">
+  <component name="RunManager" selected="Python.loader">
     <configuration name="loader" type="PythonConfigurationType" factoryName="Python" nameIsGenerated="true">
       <module name="KPA500-remote" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -141,7 +140,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="save something" />
     <MESSAGE value="save something else" />
     <MESSAGE value="stays connected now." />
     <MESSAGE value="power on off kind of works." />
@@ -166,7 +164,8 @@
     <MESSAGE value="minor cleanups, take out ntp." />
     <MESSAGE value="more kpa500 encapsulation" />
     <MESSAGE value="eliminate redundant redundancy" />
-    <option name="LAST_COMMIT_MESSAGE" value="eliminate redundant redundancy" />
+    <MESSAGE value="static analyzer fixes" />
+    <option name="LAST_COMMIT_MESSAGE" value="static analyzer fixes" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -185,9 +184,9 @@
     </breakpoint-manager>
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
-    <SUITE FILE_PATH="coverage/KPA500_remote$loader.coverage" NAME="loader Coverage Results" MODIFIED="1673537610942" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src/loader" />
+    <SUITE FILE_PATH="coverage/KPA500_remote$loader.coverage" NAME="loader Coverage Results" MODIFIED="1674850834757" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src/loader" />
     <SUITE FILE_PATH="coverage/KPA500_remote$kpa500_server.coverage" NAME="kpa500_server Coverage Results" MODIFIED="1671825709019" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src" />
-    <SUITE FILE_PATH="coverage/KPA500_remote$main.coverage" NAME="main Coverage Results" MODIFIED="1673482399374" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src/kpa500-remote" />
+    <SUITE FILE_PATH="coverage/KPA500_remote$main.coverage" NAME="main Coverage Results" MODIFIED="1674001556102" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src/kpa500-remote" />
     <SUITE FILE_PATH="coverage/KPA500_remote$serial_listener.coverage" NAME="serial-listener Coverage Results" MODIFIED="1671825079201" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/diagnasties" />
   </component>
 </project>

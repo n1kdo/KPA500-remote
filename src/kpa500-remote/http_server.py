@@ -108,7 +108,7 @@ class HttpServer:
         except OSError:
             content_length = -1
         if content_length < 0:
-            response = b'<html><body><p>404.  Means &quot;no got&quot;.</p></body></html>'
+            response = b'<html><body><p>404 -- File not found.</p></body></html>'
             http_status = 404
             return self.send_simple_response(writer, http_status, self.CT_TEXT_HTML, response), http_status
         else:
@@ -126,7 +126,7 @@ class HttpServer:
                         if len(buffer) < self.BUFFER_SIZE:
                             break
             except Exception as e:
-                print(type(e), e)
+                print('Exception in serve_content: ', type(e), e)
             return content_length, http_status
 
     def start_response(self, writer, http_status=200, content_type=None, response_size=0, extra_headers=None):

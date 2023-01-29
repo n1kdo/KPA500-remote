@@ -126,6 +126,7 @@ def read_config():
             config = json.load(config_file)
     except Exception as ex:
         print('failed to load configuration!', type(ex), ex)
+        raise ex
     return config
 
 
@@ -181,8 +182,9 @@ def connect_to_network(config):
         if hostname is not None:
             try:
                 wlan.config(hostname=hostname)
-            except ValueError:
+            except ValueError as ve:
                 print(f'hostname is still not supported on Pico W')
+                raise ve
 
         # wlan.ifconfig(('10.0.0.1', '255.255.255.0', '0.0.0.0', '0.0.0.0'))
 
@@ -211,8 +213,9 @@ def connect_to_network(config):
         if hostname is not None:
             try:
                 wlan.config(hostname=hostname)
-            except ValueError:
+            except ValueError as ve:
                 print(f'hostname is still not supported on Pico W')
+                raise ve
 
         is_dhcp = config.get('dhcp') or True
         if not is_dhcp:
@@ -263,6 +266,7 @@ async def read_network_client(reader):
     except Exception as ex:
         print(ex)
         print(f'exception in read_network_client: {str(ex)}')
+        raise ex
     return None
 
 
@@ -270,7 +274,7 @@ async def serve_network_client(reader, writer):
     """
     this provides KPA500-Remote compatible control.
     """
-    verbosity = 1
+    verbosity = 3  # 3 is info, 4 is debug, 5 is trace, or something like that.
     t0 = milliseconds()
     extra = writer.get_extra_info('peername')
     client_name = f'{extra[0]}:{extra[1]}'
@@ -278,7 +282,7 @@ async def serve_network_client(reader, writer):
     client_data.update_list.extend((7, 16, 6, 0, 1, 2, 3, 4, 8, 5, 9, 10, 11, 12, 13, 14, 15, 17, 18))  # items to send.
     kpa500.network_clients.append(client_data)
     if verbosity > 2:
-        print('network client connected from {}'.format(extra[0]))
+        print(f'client {client_name} connected')
 
     try:
         while client_data.connected:
@@ -289,7 +293,7 @@ async def serve_network_client(reader, writer):
                 message = None
                 timed_out = True
             if message is not None and not timed_out:
-                client_data.last_receive = milliseconds()
+                client_data.last_activity = milliseconds()
                 if len(message) == 0:  # keepalive?
                     if verbosity > 3:
                         print(f'{get_timestamp()}: RECEIVED keepalive FROM client {client_name}')
@@ -305,7 +309,7 @@ async def serve_network_client(reader, writer):
                         response = b'server::login::valid\n'
                         client_data.authorized = True
                     writer.write(response)
-                    client_data.last_send = milliseconds
+                    client_data.last_activity = milliseconds()
                     if verbosity > 3:
                         print(f'sending "{response.decode().strip()}"')
                 else:
@@ -357,7 +361,8 @@ async def serve_network_client(reader, writer):
                             print(f'unhandled message "{message}"')
             else:  # response was None
                 if not timed_out:
-                    print('response was None')
+                    if verbosity > 2:
+                        print(f'client {client_data} response was None, setting connected=false')
                     client_data.connected = False
 
             # send any outstanding data back...
@@ -367,36 +372,29 @@ async def serve_network_client(reader, writer):
                 payload = f'::{kpa500.kpa500_data[index]}\n'.encode()
                 writer.write(payload)
                 await writer.drain()
-                client_data.last_send = milliseconds()
+                client_data.last_activity = milliseconds()
                 if verbosity > 3:
                     print(f'sent "{kpa500.key_names[index].decode()}{payload.decode().strip()}"')
 
-            receive_delta = milliseconds() - client_data.last_receive
-            send_delta = milliseconds() - client_data.last_send
-
-            if send_delta > 15000:
+            since_last_activity = milliseconds() - client_data.last_activity
+            if since_last_activity > 15000:
                 writer.write(b'\n')
                 await writer.drain()
-                client_data.last_send = milliseconds()
+                client_data.last_activity = milliseconds()
                 if verbosity > 3:
                     print(f'{get_timestamp()}: SENT keepalive TO client {client_name}')
-            if receive_delta > 300000:  # 10 minutes no activity timeout.
-                if verbosity > 2:
-                    print(f'client {client_name} no activity timeout {receive_delta/1000:6.1f}, closing connection')
-                client_data.connected = False
 
             gc.collect()
 
         # connection closing
-        print(f'connection from {client_data.client_name} closing...')
+        print(f'client {client_name} connection closing...')
         writer.close()
         await writer.wait_closed()
-
     except Exception as ex:
-        print('exception in serve_network_client:', type(ex), ex)
+        print(f'client {client_name} exception in serve_network_client:', type(ex), ex)
         raise ex
     finally:
-        print(f'client {client_data.client_name} disconnected')
+        print(f'client {client_name} disconnected')
         found_network_client = None
         for network_client in kpa500.network_clients:
             if network_client.client_name == client_data.client_name:
@@ -404,10 +402,9 @@ async def serve_network_client(reader, writer):
                 break
         if found_network_client is not None:
             kpa500.network_clients.remove(found_network_client)
-            print(f'network client removed {client_name}')
-
+            print(f'client {client_name} removed from network_clients list.')
     tc = milliseconds()
-    print('network client disconnected, elapsed time {:6.3f} seconds'.format((tc - t0) / 1000.0))
+    print(f'client {client_name} disconnected, elapsed time {((tc - t0) / 1000.0):6.3f} seconds')
 
 
 async def slash_callback(http, verb, args, reader, writer, request_headers=None):  # callback for '/'
@@ -808,6 +805,7 @@ async def main():
         except Exception as ex:
             connected = False
             print(type(ex), ex)
+            raise ex
 
     if upython:
         asyncio.create_task(morse_code_sender.morse_sender())

@@ -45,8 +45,7 @@ class ClientData:
         self.update_list = []
         self.authorized = False
         self.connected = True
-        self.last_receive = 0
-        self.last_send = 0
+        self.last_activity = 0
 
 
 class BufferAndLength:
