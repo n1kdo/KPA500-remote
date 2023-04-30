@@ -142,8 +142,8 @@ class KPA500:
         self.amp_port = SerialPort(baudrate=38400, timeout=0)  # timeout is zero because we do not want to block
 
     def band_label_to_number(self, label):
-        for i in range(len(self.band_number_to_name)):
-            if label == self.band_number_to_name[i]:
+        for i, band_name in enumerate(self.band_number_to_name):
+            if label == band_name:
                 return i
         return None
 

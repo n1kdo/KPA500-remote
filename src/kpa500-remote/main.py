@@ -143,8 +143,7 @@ def safe_int(value, default=-1):
 def milliseconds():
     if upython:
         return time.ticks_ms()
-    else:
-        return int(time.time() * 1000)
+    return int(time.time() * 1000)
 
 
 def valid_filename(filename):
