@@ -27,6 +27,9 @@ __copyright__ = 'Copyright 2022, J. B. Otterson N1KDO.'
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
+# disable pylint import error
+# pylint: disable=E0401
+
 import gc
 import json
 import os
@@ -49,7 +52,7 @@ else:
     import asyncio
     from asyncio.exceptions import TimeoutError
 
-    class Machine(object):
+    class Machine:
         """
         fake micropython stuff
         """
@@ -62,7 +65,7 @@ else:
         def reset():
             print('Machine.reset()')
 
-        class Pin(object):
+        class Pin:
             OUT = 1
             IN = 0
             PULL_UP = 0
@@ -71,11 +74,9 @@ else:
                 self.name = name
                 self.options = options
                 self.state = value
-                pass
 
             def on(self):
                 self.state = 1
-                pass
 
             def off(self):
                 self.state = 0
@@ -116,7 +117,7 @@ morse_code_sender = MorseCode(morse_led)
 def get_timestamp(tt=None):
     if tt is None:
         tt = time.gmtime()
-    return '{:04d}-{:02d}-{:02d} {:02d}:{:02d}:{:02d}Z'.format(tt[0], tt[1], tt[2], tt[3], tt[4], tt[5])
+    return f'{tt[0]:04d}-{tt[1]:02d}-{tt[2]:02d} {tt[3]:02d}:{tt[4]:02d}:{tt[5]:02d}Z'
 
 
 def read_config():
@@ -133,11 +134,10 @@ def save_config(config):
         json.dump(config, config_file)
 
 
-def safe_int(s, default=-1):
-    if type(s) == int:
-        return s
-    else:
-        return int(s) if s.isdigit() else default
+def safe_int(value, default=-1):
+    if isinstance(value, int):
+        return value
+    return int(value) if value.isdigit() else default
 
 
 def milliseconds():
@@ -198,7 +198,7 @@ def connect_to_network(config):
         wlan.config(ssid=ssid, key=secret, security=security)
         wlan.active(True)
         print(wlan.active())
-        print('ssid={}'.format(wlan.config('ssid')))
+        print(f'ssid={ssid}')
     else:
         print('Connecting to WLAN...')
         wlan = network.WLAN(network.STA_IF)
@@ -232,7 +232,7 @@ def connect_to_network(config):
             if status < 0 or status >= 3:
                 break
             max_wait -= 1
-            print('Waiting for connection to come up, status={}'.format(status))
+            print(f'Waiting for connection to come up, status={status}')
             time.sleep(1)
         if wlan.status() != network.STAT_GOT_IP:
             morse_code_sender.set_message('ERR')
@@ -241,7 +241,7 @@ def connect_to_network(config):
 
     status = wlan.ifconfig()
     ip_address = status[0]
-    message = 'AP {}  '.format(ip_address) if access_point_mode else '{} '.format(ip_address)
+    message = f'AP {ip_address}  ' if access_point_mode else f'{ip_address} '
     message = message.replace('.', ' ')
     morse_code_sender.set_message(message)
     print(message)
@@ -463,12 +463,12 @@ async def api_config_callback(http, verb, args, reader, writer, request_headers=
                 errors = True
         ap_mode_arg = args.get('ap_mode')
         if ap_mode_arg is not None:
-            ap_mode = True if ap_mode_arg == '1' else False
+            ap_mode = ap_mode_arg == '1'
             config['ap_mode'] = ap_mode
             dirty = True
         dhcp_arg = args.get('dhcp')
         if dhcp_arg is not None:
-            dhcp = True if dhcp_arg == 1 else False
+            dhcp = dhcp_arg == 1
             config['dhcp'] = dhcp
             dirty = True
         ip_address = args.get('ip_address')
@@ -548,9 +548,7 @@ async def api_upload_file_callback(http, verb, args, reader, writer, request_hea
             while more_bytes:
                 # print('waiting for read')
                 buffer = await reader.read(BUFFER_SIZE)
-                # print('read {} bytes of max {}'.format(len(buffer), BUFFER_SIZE))
                 remaining_content_length -= len(buffer)
-                # print('remaining content length {}'.format(remaining_content_length))
                 if remaining_content_length == 0:  # < BUFFER_SIZE:
                     more_bytes = False
                 if len(leftover_bytes) != 0:
@@ -582,14 +580,13 @@ async def api_upload_file_callback(http, verb, args, reader, writer, request_hea
                                 leftover_bytes = buffer[-3:]
                                 buffer = buffer[:-3]
                                 end -= 3
-                        # print('writing buffer[{}:{}] buffer size={}'.format(start, end, BUFFER_SIZE))
                         output_file.write(buffer[start:end])
                         if not writing_file:
                             # print('closing file')
                             state = http.MP_END_BOUND
                             output_file.close()
                             output_file = None
-                            response = 'Uploaded {} successfully'.format(filename).encode('utf-8')
+                            response = f'Uploaded {filename} successfully'.encode('utf-8')
                             http_status = 201
                         start = end + 2
                     else:  # must be reading headers or boundary
@@ -626,7 +623,7 @@ async def api_upload_file_callback(http, verb, args, reader, writer, request_hea
                                 print('expecting end boundary, got ' + line)
                         else:
                             http_status = 500
-                            response = 'unmanaged state {}'.format(state).encode('utf-8')
+                            response = f'unmanaged state {state}'.encode('utf-8')
         bytes_sent = http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
     else:
         response = b'PUT only.'
@@ -719,7 +716,7 @@ async def api_set_fan_speed_callback(http, verb, args, reader, writer, request_h
 # noinspection PyUnusedLocal
 async def api_set_operate_callback(http, verb, args, reader, writer, request_headers=None):
     state = args.get('state')
-    if state == '0' or state == '1':
+    if state in ('0', '1'):
         command = f'^OS{state};^OS;'.encode()
         kpa500.enqueue_command(command)
         response = b'ok\r\n'
@@ -734,7 +731,7 @@ async def api_set_operate_callback(http, verb, args, reader, writer, request_hea
 # noinspection PyUnusedLocal
 async def api_set_power_callback(http, verb, args, reader, writer, request_headers=None):
     state = args.get('state')
-    if state == '0' or state == '1':
+    if state in ('0', '1'):
         command = f'^ON{state};'.encode()
         kpa500.enqueue_command(command)
         response = b'ok\r\n'
@@ -749,7 +746,7 @@ async def api_set_power_callback(http, verb, args, reader, writer, request_heade
 # noinspection PyUnusedLocal
 async def api_set_speaker_alarm_callback(http, verb, args, reader, writer, request_headers=None):
     state = args.get('state')
-    if state == '0' or state == '1':
+    if state in ('0', '1'):
         command = f'^SP{state};^SP;'.encode()
         kpa500.enqueue_command(command)
         response = b'ok\r\n'
@@ -813,9 +810,9 @@ async def main():
     if upython:
         asyncio.create_task(morse_code_sender.morse_sender())
     if connected:
-        print('Starting web service on port {}'.format(web_port))
+        print(f'Starting web service on port {web_port}')
         asyncio.create_task(asyncio.start_server(http_server.serve_http_client, '0.0.0.0', web_port))
-        print('Starting tcp service on port {}'.format(tcp_port))
+        print(f'Starting tcp service on port {tcp_port}')
         asyncio.create_task(asyncio.start_server(serve_network_client, '0.0.0.0', tcp_port))
     else:
         print('no network connection')

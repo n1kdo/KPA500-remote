@@ -1,5 +1,5 @@
 #
-# KPA500 & KPA-500 Remote client data 
+# KPA500 & KPA-500 Remote client data
 #
 # Copyright 2023, J. B. Otterson N1KDO.
 #
@@ -23,6 +23,8 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
+# disable pylint import error
+# pylint: disable=E0401
 
 import sys
 from serialport import SerialPort
@@ -55,14 +57,14 @@ class BufferAndLength:
         return self.buffer[:self.bytes_received]
 
 
-async def kpa500_send_receive(amp_port, message, bl, timeout=0.05):
+async def kpa500_send_receive(amp_port, message, buf_and_length, timeout=0.05):
     # should the read buffer be flushed? can only read to drain
     while len(amp_port.read()) > 0:
         pass
     amp_port.write(message)
     amp_port.flush()
     await asyncio.sleep(timeout)
-    bl.bytes_received = amp_port.readinto(bl.buffer)
+    buf_and_length.bytes_received = amp_port.readinto(buf_and_length.buffer)
 
 
 class KPA500:
@@ -156,8 +158,7 @@ class KPA500:
     def dequeue_command(self):
         if len(self.kpa500_command_queue) == 0:
             return None
-        else:
-            return self.kpa500_command_queue.pop(0)
+        return self.kpa500_command_queue.pop(0)
 
     def get_fault_text(self, fault_code):
         if fault_code.isdigit():
@@ -251,7 +252,7 @@ class KPA500:
             for network_client in self.network_clients:
                 if index not in network_client.update_list:
                     network_client.update_list.append(index)
-    
+
     # KPA500 amplifier polling code
     async def kpa500_server(self, verbosity=3):
         """
