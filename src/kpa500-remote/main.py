@@ -120,14 +120,12 @@ def get_timestamp(tt=None):
 
 
 def read_config():
-    config = {}
     try:
         with open(CONFIG_FILE, 'r') as config_file:
-            config = json.load(config_file)
+            return json.load(config_file)
     except Exception as ex:
         print('failed to load configuration!', type(ex), ex)
         raise ex
-    return config
 
 
 def save_config(config):
@@ -164,6 +162,7 @@ def valid_filename(filename):
 
 
 def connect_to_network(config):
+    network.country('US')
     ssid = config.get('SSID') or ''
     if len(ssid) == 0 or len(ssid) > 64:
         ssid = DEFAULT_SSID
@@ -180,11 +179,7 @@ def connect_to_network(config):
 
         hostname = config.get('hostname')
         if hostname is not None:
-            try:
-                wlan.config(hostname=hostname)
-            except ValueError as ve:
-                print(f'hostname is still not supported on Pico W')
-                raise ve
+            network.hostname(hostname)
 
         # wlan.ifconfig(('10.0.0.1', '255.255.255.0', '0.0.0.0', '0.0.0.0'))
 
@@ -211,11 +206,7 @@ def connect_to_network(config):
 
         hostname = config.get('hostname')
         if hostname is not None:
-            try:
-                wlan.config(hostname=hostname)
-            except ValueError as ve:
-                print(f'hostname is still not supported on Pico W')
-                raise ve
+            network.hostname(hostname)
 
         is_dhcp = config.get('dhcp') or True
         if not is_dhcp:
@@ -407,12 +398,14 @@ async def serve_network_client(reader, writer):
     print(f'client {client_name} disconnected, elapsed time {((tc - t0) / 1000.0):6.3f} seconds')
 
 
+# noinspection PyUnusedLocal
 async def slash_callback(http, verb, args, reader, writer, request_headers=None):  # callback for '/'
     http_status = 301
     bytes_sent = http.send_simple_response(writer, http_status, None, None, ['Location: /kpa500.html'])
     return bytes_sent, http_status
 
 
+# noinspection PyUnusedLocal
 async def api_config_callback(http, verb, args, reader, writer, request_headers=None):  # callback for '/api/config'
     if verb == 'GET':
         payload = read_config()
@@ -511,6 +504,7 @@ async def api_config_callback(http, verb, args, reader, writer, request_headers=
     return bytes_sent, http_status
 
 
+# noinspection PyUnusedLocal
 async def api_get_files_callback(http, verb, args, reader, writer, request_headers=None):
     if verb == 'GET':
         payload = os.listdir(http.content_dir)
@@ -524,6 +518,7 @@ async def api_get_files_callback(http, verb, args, reader, writer, request_heade
     return bytes_sent, http_status
 
 
+# noinspection PyUnusedLocal
 async def api_upload_file_callback(http, verb, args, reader, writer, request_headers=None):
     if verb == 'POST':
         boundary = None
@@ -640,6 +635,7 @@ async def api_upload_file_callback(http, verb, args, reader, writer, request_hea
     return bytes_sent, http_status
 
 
+# noinspection PyUnusedLocal
 async def api_rename_file_callback(http, verb, args, reader, writer, request_headers=None):
     filename = args.get('filename')
     newname = args.get('newname')
@@ -664,6 +660,7 @@ async def api_rename_file_callback(http, verb, args, reader, writer, request_hea
     return bytes_sent, http_status
 
 
+# noinspection PyUnusedLocal
 async def api_restart_callback(http, verb, args, reader, writer, request_headers=None):
     global restart
     if upython:
@@ -679,6 +676,7 @@ async def api_restart_callback(http, verb, args, reader, writer, request_headers
 
 
 # KPA500 specific APIs
+# noinspection PyUnusedLocal
 async def api_clear_fault_callback(http, verb, args, reader, writer, request_headers=None):
     kpa500.enqueue_command(b'^FLC;')
     response = b'ok\r\n'
@@ -687,6 +685,7 @@ async def api_clear_fault_callback(http, verb, args, reader, writer, request_hea
     return bytes_sent, http_status
 
 
+# noinspection PyUnusedLocal
 async def api_set_band_callback(http, verb, args, reader, writer, request_headers=None):
     band_name = args.get('band')
     band_number = kpa500.band_label_to_number(band_name)
@@ -702,6 +701,7 @@ async def api_set_band_callback(http, verb, args, reader, writer, request_header
     return bytes_sent, http_status
 
 
+# noinspection PyUnusedLocal
 async def api_set_fan_speed_callback(http, verb, args, reader, writer, request_headers=None):
     speed = safe_int(args.get('speed', -1))
     if 0 <= speed <= 6:
@@ -716,6 +716,7 @@ async def api_set_fan_speed_callback(http, verb, args, reader, writer, request_h
     return bytes_sent, http_status
 
 
+# noinspection PyUnusedLocal
 async def api_set_operate_callback(http, verb, args, reader, writer, request_headers=None):
     state = args.get('state')
     if state == '0' or state == '1':
@@ -730,6 +731,7 @@ async def api_set_operate_callback(http, verb, args, reader, writer, request_hea
     return bytes_sent, http_status
 
 
+# noinspection PyUnusedLocal
 async def api_set_power_callback(http, verb, args, reader, writer, request_headers=None):
     state = args.get('state')
     if state == '0' or state == '1':
@@ -744,6 +746,7 @@ async def api_set_power_callback(http, verb, args, reader, writer, request_heade
     return bytes_sent, http_status
 
 
+# noinspection PyUnusedLocal
 async def api_set_speaker_alarm_callback(http, verb, args, reader, writer, request_headers=None):
     state = args.get('state')
     if state == '0' or state == '1':
@@ -758,6 +761,7 @@ async def api_set_speaker_alarm_callback(http, verb, args, reader, writer, reque
     return bytes_sent, http_status
 
 
+# noinspection PyUnusedLocal
 async def api_status_callback(http, verb, args, reader, writer, request_headers=None):  # callback for '/api/status'
     payload = {'kpa500_data': kpa500.kpa500_data}
     response = json.dumps(payload).encode('utf-8')
@@ -803,7 +807,6 @@ async def main():
             ip_address = connect_to_network(config)
             connected = ip_address is not None
         except Exception as ex:
-            connected = False
             print(type(ex), ex)
             raise ex
 

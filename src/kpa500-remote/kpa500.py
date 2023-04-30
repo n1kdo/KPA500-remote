@@ -1,8 +1,6 @@
 #
 # KPA500 & KPA-500 Remote client data 
 #
-
-#
 # Copyright 2023, J. B. Otterson N1KDO.
 #
 # Redistribution and use in source and binary forms, with or without modification,
@@ -26,9 +24,9 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
+import sys
 from serialport import SerialPort
 
-import sys
 impl_name = sys.implementation.name
 if impl_name == 'cpython':
     import asyncio
@@ -296,7 +294,7 @@ class KPA500:
                     self.update_kpa500_data(6, 'AMP ON')
                     self.enqueue_command(self.initial_queries)
                     if verbosity > 3:
-                        print(f'amp state 1-->3')
+                        print('amp state 1-->3')
                 elif bl.bytes_received == 4 and bl.buffer[3] == 59:  # ';', amp connected but off.
                     amp_state = 2
                     self.update_kpa500_data(4, '0')
@@ -333,7 +331,7 @@ class KPA500:
                         self.update_kpa500_data(6, 'AMP ON')
                         self.enqueue_command(self.initial_queries)
                         if verbosity > 3:
-                            print(f'amp state 2-->3')
+                            print('amp state 2-->3')
                     elif bl.bytes_received == 4 and bl.buffer[3] == 59:  # ';', amp connected but off.
                         pass  # this is the expected result when amp is off
                     else:
@@ -369,4 +367,3 @@ class KPA500:
                 run_loop = False
 
             await asyncio.sleep(0.025)  # 40/sec
-

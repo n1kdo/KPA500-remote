@@ -1,11 +1,32 @@
 #!/bin/env python3
 __author__ = 'J. B. Otterson'
-__copyright__ = 'Copyright 2022, J. B. Otterson N1KDO.'
+__copyright__ = """
+Copyright 2022, J. B. Otterson N1KDO.
+Redistribution and use in source and binary forms, with or without modification, 
+are permitted provided that the following conditions are met:
+  1. Redistributions of source code must retain the above copyright notice, 
+     this list of conditions and the following disclaimer.
+  2. Redistributions in binary form must reproduce the above copyright notice, 
+     this list of conditions and the following disclaimer in the documentation 
+     and/or other materials provided with the distribution.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, 
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE 
+OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+OF THE POSSIBILITY OF SUCH DAMAGE.
+"""
 
 import os
-import pyboard
+import sys
+
 import serial
 from serial.tools.list_ports import comports
+import pyboard
 BAUD_RATE = 115200
 
 SRC_DIR = '../kpa500-remote/'
@@ -33,7 +54,8 @@ def get_ports_list():
     return sorted(ports_list, key=lambda k: int(k[3:]))
 
 
-def put_file_progress_callback(a, b):
+# noinspection PyUnusedLocal
+def put_file_progress_callback(bytes_so_far, bytes_total):
     print('.', end='')
 
 
@@ -43,19 +65,19 @@ def put_file(filename, target):
         filename = filename[:-1]
         try:
             target.fs_mkdir(filename)
-            print('created directory {}'.format(filename))
-        except Exception as e:
-            if 'EEXIST' not in str(e):
-                print('failed to create directory {}'.format(filename))
-                print(type(e), e)
+            print(f'created directory {filename}')
+        except pyboard.PyboardError as exc:
+            if 'EEXIST' not in str(exc):
+                print(f'failed to create directory {filename}')
+                print(type(exc), exc)
     else:
         try:
             os.stat(src_file_name)
-            print('sending file {} '.format(filename), end='')
+            print(f'sending file {filename} ', end='')
             target.fs_put(src_file_name, filename, progress_callback=put_file_progress_callback)
             print()
         except OSError:
-            print('cannot find source file {}'.format(src_file_name))
+            print(f'cannot find source file {src_file_name}')
 
 
 def load_device(port):
@@ -80,30 +102,27 @@ def load_device(port):
 
 
 def main():
-    try:
-        print('Disconnect the Pico-W if it is connected.')
-        input('(press enter to continue...)')
-        ports_1 = get_ports_list()
-        print('Detected serial ports: ' + ' '.join(ports_1))
-        print('\nConnect the Pico-W to USB port. Wait for the "connected" sound.')
-        input('(press enter to continue...)')
-        ports_2 = get_ports_list()
-        print('Detected serial ports: ' + ' '.join(ports_2))
+    print('Disconnect the Pico-W if it is connected.')
+    input('(press enter to continue...)')
+    ports_1 = get_ports_list()
+    print('Detected serial ports: ' + ' '.join(ports_1))
+    print('\nConnect the Pico-W to USB port. Wait for the USB connected sound.')
+    input('(press enter to continue...)')
+    ports_2 = get_ports_list()
+    print('Detected serial ports: ' + ' '.join(ports_2))
 
-        picow_port = None
-        for port in ports_2:
-            if port not in ports_1:
-                picow_port = port
-                break
+    picow_port = None
+    for port in ports_2:
+        if port not in ports_1:
+            picow_port = port
+            break
 
-        if picow_port is None:
-            print('Could not identify Pico-W communications port.  Exiting.')
-            exit(1)
+    if picow_port is None:
+        print('Could not identify Pico-W communications port.  Exiting.')
+        sys.exit(1)
 
-        print('\nAttempting to load device on port {}'.format(picow_port))
-        load_device(picow_port)
-    except KeyboardInterrupt:
-        print('\n\nBye.')
+    print(f'\nAttempting to load device on port {picow_port}')
+    load_device(picow_port)
 
 
 if __name__ == "__main__":
