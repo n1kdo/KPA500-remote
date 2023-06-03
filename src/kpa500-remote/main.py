@@ -48,9 +48,21 @@ if upython:
     import network
     import uasyncio as asyncio
     from uasyncio import TimeoutError
+
+    network_status_map = {
+        network.STAT_IDLE: 'no connection and no activity',  # 0
+        network.STAT_CONNECTING: 'connecting in progress',  # 1
+        network.STAT_CONNECTING + 1: 'connected no IP address',  # 2, this is undefined, but returned.
+        network.STAT_GOT_IP: 'connection successful',  # 3
+        network.STAT_WRONG_PASSWORD: 'failed due to incorrect password',  # -3
+        network.STAT_NO_AP_FOUND: 'failed because no access point replied',  # -2
+        network.STAT_CONNECT_FAIL: 'failed due to other problems',  # -1
+    }
+
 else:
     import asyncio
     from asyncio.exceptions import TimeoutError
+
 
     class Machine:
         """
@@ -84,13 +96,13 @@ else:
             def value(self):
                 return self.state
 
+
     machine = Machine()
 
 onboard = machine.Pin('LED', machine.Pin.OUT, value=0)
 onboard.on()
 morse_led = machine.Pin(2, machine.Pin.OUT, value=0)  # status LED
 reset_button = machine.Pin(3, machine.Pin.IN, machine.Pin.PULL_UP)
-
 
 BUFFER_SIZE = 4096
 CONFIG_FILE = 'data/config.json'
@@ -126,6 +138,20 @@ def read_config():
             return json.load(config_file)
     except Exception as ex:
         print('failed to load configuration!', type(ex), ex)
+        config = {
+            'SSID': 'wifi ssid',
+            'secret': 'wifi secret',
+            'username': 'admin',
+            'password': 'admin',
+            'dhcp': True,
+            'hostname': 'kpa500',
+            'ip_address': '192.168.1.73',
+            'netmask': '255.255.255.0',
+            'gateway': '192.168.1.1',
+            'dns_server': '8.8.8.8',
+            'tcp_port': '4626',
+            'web_port': '80',
+        }
         raise ex
 
 
@@ -178,7 +204,10 @@ def connect_to_network(config):
 
         hostname = config.get('hostname')
         if hostname is not None:
-            network.hostname(hostname)
+            try:
+                network.hostname(hostname)
+            except ValueError:
+                print('could not set hostname.')
 
         # wlan.ifconfig(('10.0.0.1', '255.255.255.0', '0.0.0.0', '0.0.0.0'))
 
@@ -197,7 +226,7 @@ def connect_to_network(config):
         wlan.config(ssid=ssid, key=secret, security=security)
         wlan.active(True)
         print(wlan.active())
-        print(f'ssid={ssid}')
+        print(f'ssid={wlan.config("ssid")}')
     else:
         print('Connecting to WLAN...')
         wlan = network.WLAN(network.STA_IF)
@@ -205,7 +234,11 @@ def connect_to_network(config):
 
         hostname = config.get('hostname')
         if hostname is not None:
-            network.hostname(hostname)
+            try:
+                print(f'setting hostname {hostname}')
+                network.hostname(hostname)
+            except ValueError:
+                print('hostname is still not supported on Pico W')
 
         is_dhcp = config.get('dhcp') or True
         if not is_dhcp:
@@ -214,7 +247,7 @@ def connect_to_network(config):
             gateway = config.get('gateway')
             dns_server = config.get('dns_server')
             if ip_address is not None and netmask is not None and gateway is not None and dns_server is not None:
-                print('setting up static IP')
+                print('configuring network with static IP')
                 wlan.ifconfig((ip_address, netmask, gateway, dns_server))
             else:
                 print('cannot use static IP, data is missing, configuring network with DHCP')
@@ -224,27 +257,31 @@ def connect_to_network(config):
             # wlan.ifconfig('dhcp')  #  this does not work.  network does not come up.  no errors, either.
 
         wlan.active(True)
-        wlan.connect(ssid, secret)
         max_wait = 10
+        wl_status = wlan.status()
+        print('connecting...')
+        wlan.connect(ssid, secret)
         while max_wait > 0:
-            status = wlan.status()
-            if status < 0 or status >= 3:
+            wl_status = wlan.status()
+            st = network_status_map.get(wl_status) or 'undefined'
+            print(f'network status: {wl_status} {st}')
+            if wl_status < 0 or wl_status >= 3:
                 break
             max_wait -= 1
-            print(f'Waiting for connection to come up, status={status}')
             time.sleep(1)
-        if wlan.status() != network.STAT_GOT_IP:
+        if wl_status != network.STAT_GOT_IP:
             morse_code_sender.set_message('ERR')
             # return None
-            raise RuntimeError('Network connection failed')
+            raise RuntimeError(f'Network connection failed, status={wl_status}')
 
-    status = wlan.ifconfig()
-    ip_address = status[0]
-    message = f'AP {ip_address}  ' if access_point_mode else f'{ip_address} '
+    wl_config = wlan.ifconfig()
+    ip_address = wl_config[0]
+    netmask = wl_config[1]
+    message = f'AP {ip_address} ' if access_point_mode else f'{ip_address} '
     message = message.replace('.', ' ')
     morse_code_sender.set_message(message)
     print(message)
-    return ip_address
+    return ip_address, netmask
 
 
 async def read_network_client(reader):
@@ -290,10 +327,10 @@ async def serve_network_client(reader, writer):
                 elif message.startswith('server::login::'):
                     up_list = message[15:].split('::')
                     if up_list[0] != username:
-                        response = b'server::login::invalid::Invalid username provided. '\
+                        response = b'server::login::invalid::Invalid username provided. ' \
                                    b'Remote control will not be allowed.\n'
                     elif up_list[1] != password:
-                        response = b'server::login::invalid::Invalid password provided. '\
+                        response = b'server::login::invalid::Invalid password provided. ' \
                                    b'Remote control will not be allowed.\n'
                     else:
                         response = b'server::login::valid\n'
@@ -470,6 +507,13 @@ async def api_config_callback(http, verb, args, reader, writer, request_headers=
             dhcp = dhcp_arg == 1
             config['dhcp'] = dhcp
             dirty = True
+        hostname = args.get('hostname')
+        if hostname is not None:
+            if 1 <= len(hostname) <= 16:
+                config['hostname'] = hostname
+                dirty = True
+            else:
+                errors = True
         ip_address = args.get('ip_address')
         if ip_address is not None:
             config['ip_address'] = ip_address
@@ -800,7 +844,7 @@ async def main():
     connected = True
     if upython:
         try:
-            ip_address = connect_to_network(config)
+            ip_address, netmask = connect_to_network(config)
             connected = ip_address is not None
         except Exception as ex:
             print(type(ex), ex)
