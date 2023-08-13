@@ -1,6 +1,8 @@
-# Raspberry Pi Pico W IOT Thing for Elecraft KPA500 Amplifier
+# Raspberry Pi Pico W Web Remote for Elecraft KPA500 Amplifier and KAT500 autotuner
 
-I wanted to Internet-enable my KPA500 amplifier and KAT500 auto-tuner
+I wanted to Internet-enable my KPA500 amplifier and KAT500 auto-tuner.  This project
+provides a Web Client for both the KPA500 and KAT500.  In addition, it also works
+as a server for the KPA-500 Remote and KAT-500 Remote software from Elecraft.
 
 This runs on the [Pico-W-Dual-Serial](https://github.com/n1kdo/pico-w-dual-serial) board.
 
@@ -10,12 +12,9 @@ The hardware is a Raspberry Pi "Pico W" with a MAX3232 RS-232 interface IC.
 Pretty simple.  As usual, the simplicity of the hardware is made up for by
 the complexity of the software.
 
-This has a Web Client, accessible from most browsers, and it also
-provides a servers compatible with the KPA-500 Remote and KAT-500 Remote software from Elecraft.
-
 ## Web Client
 
-The KPA500-remote IOT thing provides a web client for the amplifier.
+The KPA500-remote provides a web client for the amplifier and the auto-tuner.
 
 The web client is modeled on the Elecraft KPA500-Remote windows client,
 more or less.  The fundamental difference is that the web client will
@@ -24,7 +23,9 @@ is selected.  Note that the on every activity, the auto-refresh is
 engaged for three one-second updates regardless of the update settings.
 This is to allow the changes made from the UI to be reflected on the page.
 
-![](WebConsole.png "View of Web Console for KPA500 Amplifier")
+![](KPA500-web.png "View of Web Console for KPA500 Amplifier")
+
+![](KAT500-web.png "View of Web Console for KAT500 Amplifier")
 
 ## Elecraft "KPA-500 Remote" server and "KAT-500 Remote" server
 
