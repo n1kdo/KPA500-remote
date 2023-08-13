@@ -2,10 +2,10 @@
 <html xmlns="http://www.w3.org/1999/html" lang="en">
 <!-- Copyright 2022, J. B. Otterson N1KDO. -->
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=0.8, minimum-scale=0.5, maximum-scale=2.0">
+    <meta name="viewport" content="width=device-width, initial-scale=0.75, minimum-scale=0.6, maximum-scale=1.5">
     <!--<link rel="shortcut icon" href="favicon.png" type="image/png">-->
 
-    <title>KPA500 Console</title>
+    <title>KPA500 Web Remote</title>
 </head>
 <style>
     body {
@@ -29,6 +29,20 @@
     .author a:link, .author a:visited, .author a:hover {
         color: black;
         text-decoration: none;
+    }
+    .bottom_links {
+        font-size: 8pt;
+        font-weight: bold;
+        color: black;
+        text-align: left;
+        position: absolute;
+        top: 340px;
+        width: 120px;
+    }
+    .bottom_links a:link, .bottom_links a:visited, .bottom_links a:hover {
+        color: blue;
+        text-decoration: none;
+        padding-right: 4px;
     }
     .data_table {
         display: grid;
@@ -76,19 +90,6 @@
     }
     #operate_radio_button, #standby_radio_button {
         margin: 3px 10px 0 0;
-    }
-    .setup {
-        font-size: 8pt;
-        font-weight: bold;
-        color: black;
-        text-align: left;
-        position: absolute;
-        top: 340px;
-        width: 32px;
-    }
-    .setup a:link, .setup a:visited, .setup a:hover {
-        color: blue;
-        text-decoration: none;
     }
     .three_columns {
         display: grid;
@@ -138,7 +139,7 @@
             payload = "state=1";
         }
         auto_updates = 5;
-        post_request("/api/set_power", payload);
+        post_request("/api/kpa_set_power", payload);
     }
 
     function toggle_operate() {
@@ -149,21 +150,21 @@
             state = "1";
         }
         let payload = "state=" + state;
-        post_request("/api/set_operate", payload);
+        post_request("/api/kpa_set_operate", payload);
     }
 
     function radio_operate(state) {
-        post_request("/api/set_operate", "state=" + state.toString());
+        post_request("/api/kpa_set_operate", "state=" + state.toString());
     }
 
     function select_band_changed() {
         let selected_band = document.getElementById("select_band").value;
-        post_request("/api/set_band", "band=" + selected_band);
+        post_request("/api/kpa_set_band", "band=" + selected_band);
     }
 
     function fan_speed_change() {
         let fan_speed = document.getElementById("fan_range").value;
-        post_request("/api/set_fan_speed", "speed="+ fan_speed.toString());
+        post_request("/api/kpa_set_fan_speed", "speed="+ fan_speed.toString());
     }
 
     function speaker_alarm_button_click() {
@@ -173,11 +174,11 @@
         } else {
             state = "1";
         }
-        post_request("/api/set_speaker_alarm", "state=" + state);
+        post_request("/api/kpa_set_speaker_alarm", "state=" + state);
     }
 
     function clear_fault_button_click() {
-        post_request("/api/clear_fault", "");
+        post_request("/api/kpa_clear_fault", "");
     }
 
     function process_get_status_response(message) {
@@ -318,7 +319,7 @@
                 process_get_status_response(xmlHttp.responseText);
             }
         }
-        xmlHttp.open("GET", "/api/status", true);
+        xmlHttp.open("GET", "/api/kpa_status", true);
         xmlHttp.send();
     }
 
@@ -336,7 +337,7 @@
 
 </script>
 <body onload="page_load()">
-<div class="header">KPA500 Console</div>
+<div class="header">KPA500 Web Remote</div>
 <div class="three_columns">
     <div>
         <input type="button" id="power_button" value="Power" onclick="toggle_power()">
@@ -434,8 +435,11 @@
         </div>
     </div>
 <div class="row">
-        <div class="setup"><a href="setup.html">Setup</a></div>
-        <div class="author"><a href="https://www.n1kdo.com" target="_blank">N1KDO</a> 20230108</div>
+        <div class="bottom_links">
+            <a href="kat500.html">KAT500</a>
+            <a href="setup.html">Setup</a>
+        </div>
+        <div class="author"><a href="https://www.n1kdo.com" target="_blank">N1KDO</a> 20230813</div>
 </div>
 </body>
 </html>

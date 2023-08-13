@@ -26,48 +26,20 @@
 # disable pylint import error
 # pylint: disable=E0401
 
-import sys
-from serialport import SerialPort
+import gc
+from kdevice import KDevice, ClientData, BufferAndLength
+from utils import upython, milliseconds, get_timestamp
 
-impl_name = sys.implementation.name
-if impl_name == 'cpython':
-    import asyncio
-else:
+
+if upython:
     import uasyncio as asyncio
+    from uasyncio import TimeoutError
+else:
+    import asyncio
+    from asyncio.exceptions import TimeoutError
 
 
-class ClientData:
-    """
-    class holds data for each KPA500-Remote (Elecraft) client.
-    """
-    def __init__(self, client_name):
-        self.client_name = client_name
-        self.update_list = []
-        self.authorized = False
-        self.connected = True
-        self.last_activity = 0
-
-
-class BufferAndLength:
-    def __init__(self, buffer):
-        self.buffer = buffer
-        self.bytes_received = 0
-
-    def data(self):
-        return self.buffer[:self.bytes_received]
-
-
-async def kpa500_send_receive(amp_port, message, buf_and_length, timeout=0.05):
-    # should the read buffer be flushed? can only read to drain
-    while len(amp_port.read()) > 0:
-        pass
-    amp_port.write(message)
-    amp_port.flush()
-    await asyncio.sleep(timeout)
-    buf_and_length.bytes_received = amp_port.readinto(buf_and_length.buffer)
-
-
-class KPA500:
+class KPA500(KDevice):
     band_number_to_name = ('160m', '80m', '60m', '40m', '30m', '20m', '17m', '15m', '12m', '10m', '6m')
     # noinspection SpellCheckingInspection
     key_names = (
@@ -112,9 +84,9 @@ class KPA500:
 
     initial_queries = (b';',  # attention!
                        b'^RVM;',  # get version
-                       b'^SN;',  # Serial Number
-                       b'^ON;',  # on/off status
-                       b'^FC;')  # minimum fan speed.
+                       b'^SN;',   # Serial Number
+                       b'^ON;',   # on/off status
+                       b'^FC;')   # minimum fan speed.
 
     normal_queries = (b'^FL;',  # faults
                       b'^WS;',  # watts/swr
@@ -125,40 +97,25 @@ class KPA500:
                       b'^SP;',  # speaker
                       )
 
-    def __init__(self):
-        self.kpa500_data = ['0'] * 19
-        self.kpa500_command_queue = []
+    def __init__(self, username=None, password=None, port_name=None):
+        super().__init__(username, password, port_name)
 
-        self.kpa500_data[1] = '1'
-        self.kpa500_data[8] = '160m,80m,60m,40m,30m,20m,17m,15m,12m,10m,6m'
-        self.kpa500_data[9] = '000'
-        self.kpa500_data[10] = '000'
-        self.kpa500_data[11] = '000'
-        self.kpa500_data[13] = '00'
-        self.kpa500_data[14] = '0,6,0'
-        self.kpa500_data[15] = '0,10,0'
-        self.kpa500_data[18] = '4'
-        self.network_clients = []
-        self.amp_port = SerialPort(baudrate=38400, timeout=0)  # timeout is zero because we do not want to block
+        self.device_data = ['0'] * 19
+        self.device_data[1] = '1'
+        self.device_data[8] = '160m,80m,60m,40m,30m,20m,17m,15m,12m,10m,6m'
+        self.device_data[9] = '000'
+        self.device_data[10] = '000'
+        self.device_data[11] = '000'
+        self.device_data[13] = '00'
+        self.device_data[14] = '0,6,0'
+        self.device_data[15] = '0,10,0'
+        self.device_data[18] = '4'
 
     def band_label_to_number(self, label):
         for i, band_name in enumerate(self.band_number_to_name):
             if label == band_name:
                 return i
         return None
-
-    def enqueue_command(self, command):
-        if isinstance(command, bytes):
-            self.kpa500_command_queue.append(command)
-        elif isinstance(command, tuple):
-            self.kpa500_command_queue.extend(command)
-        else:
-            print(f'enqueue command received command of type {type(command)} which was not processed.')
-
-    def dequeue_command(self):
-        if len(self.kpa500_command_queue) == 0:
-            return None
-        return self.kpa500_command_queue.pop(0)
 
     def get_fault_text(self, fault_code):
         if fault_code.isdigit():
@@ -186,30 +143,30 @@ class KPA500:
             band_num = int(cmd_data)
             if band_num <= 10:
                 band_name = self.band_number_to_name[band_num]
-                self.update_kpa500_data(5, band_name)
+                self.update_device_data(5, band_name)
         elif cmd == 'FC':  # fan minimum speed
             fan_min = int(cmd_data)
-            self.update_kpa500_data(17, str(fan_min))
+            self.update_device_data(17, str(fan_min))
         elif cmd == 'FL':
             fault = self.get_fault_text(cmd_data)
-            self.update_kpa500_data(6, fault)
+            self.update_device_data(6, fault)
             # self.update_kpa500_data(2, '0' if cmd_data == '00' else '1')
         elif cmd == 'ON':
-            self.update_kpa500_data(4, cmd_data)
+            self.update_device_data(4, cmd_data)
         elif cmd == 'OS':
             operate = cmd_data
             standby = '1' if cmd_data == '0' else '0'
-            self.update_kpa500_data(0, operate)
-            self.update_kpa500_data(1, standby)
+            self.update_device_data(0, operate)
+            self.update_device_data(1, standby)
         elif cmd == 'RVM':  # version
-            self.update_kpa500_data(7, cmd_data)
+            self.update_device_data(7, cmd_data)
         elif cmd == 'SN':  # serial number
-            self.update_kpa500_data(16, cmd_data)
+            self.update_device_data(16, cmd_data)
         elif cmd == 'SP':  # speaker on/off
-            self.update_kpa500_data(3, cmd_data)
+            self.update_device_data(3, cmd_data)
         elif cmd == 'TM':  # temp
             temp = int(cmd_data)
-            self.update_kpa500_data(12, str(temp))
+            self.update_device_data(12, str(temp))
         elif cmd == 'VI':  # volts
             split_cmd_data = cmd_data.split(' ')
             if len(split_cmd_data) == 2:
@@ -217,8 +174,8 @@ class KPA500:
                 amps = split_cmd_data[1]  # int(split_cmd_data[1])  # int breaks Elecraft client "Current: PTT OFF"
                 if amps != '000' and amps[0] == '0':
                     amps = amps[1:]
-                self.update_kpa500_data(13, str(volts))
-                self.update_kpa500_data(9, str(amps))
+                self.update_device_data(13, str(volts))
+                self.update_device_data(9, str(amps))
         elif cmd == 'WS':  # watts/power & swr
             split_cmd_data = cmd_data.split(' ')
             if len(split_cmd_data) == 2:
@@ -226,32 +183,25 @@ class KPA500:
                 if watts != '000':
                     while len(watts) > 1 and watts[0] == '0':
                         watts = watts[1:]
-                self.update_kpa500_data(10, str(watts))
+                self.update_device_data(10, str(watts))
                 swr = split_cmd_data[1]
                 if swr != '000' and swr[0] == '0':
                     swr = swr[1:]
-                self.update_kpa500_data(11, str(swr))
+                self.update_device_data(11, str(swr))
         else:
             print(f'unprocessed command {cmd} with data {cmd_data}')
 
     def set_amp_off_data(self):
         # reset all the indicators when the amp is turned off.
-        self.update_kpa500_data(0, '0')  # OPER button
-        self.update_kpa500_data(1, '1')  # STBY button
-        self.update_kpa500_data(4, '0')  # POWER button
-        self.update_kpa500_data(9, '000')  # CURRENT meter
-        self.update_kpa500_data(10, '000')  # POWER meter
-        self.update_kpa500_data(11, '000')  # SWR meter
-        self.update_kpa500_data(12, '0')  # TEMPERATURE meter
-        self.update_kpa500_data(13, '00')  # VOLTAGE meter
-        self.update_kpa500_data(17, '0')  # Fan Minimum speed slider
-
-    def update_kpa500_data(self, index, value):
-        if self.kpa500_data[index] != value:
-            self.kpa500_data[index] = value
-            for network_client in self.network_clients:
-                if index not in network_client.update_list:
-                    network_client.update_list.append(index)
+        self.update_device_data(0, '0')  # OPER button
+        self.update_device_data(1, '1')  # STBY button
+        self.update_device_data(4, '0')  # POWER button
+        self.update_device_data(9, '000')  # CURRENT meter
+        self.update_device_data(10, '000')  # POWER meter
+        self.update_device_data(11, '000')  # SWR meter
+        self.update_device_data(12, '0')  # TEMPERATURE meter
+        self.update_device_data(13, '00')  # VOLTAGE meter
+        self.update_device_data(17, '0')  # Fan Minimum speed slider
 
     # KPA500 amplifier polling code
     async def kpa500_server(self, verbosity=3):
@@ -269,37 +219,37 @@ class KPA500:
         while run_loop:
             if amp_state == 0:  # unknown / no response state
                 # poke at the amplifier -- is it connected?
-                await kpa500_send_receive(self.amp_port, b';', bl)
+                await self.device_send_receive(b';', bl)
                 # connected will return a ';' here
                 if bl.bytes_received != 1 or bl.buffer[0] != 59:
-                    self.update_kpa500_data(6, 'NO AMP')
+                    self.update_device_data(6, 'NO AMP')
                 else:
                     amp_state = 1
                     if verbosity > 3:
                         print('amp state 0-->1')
             elif amp_state == 1:  # apparently connected
                 # ask if it is turned on.
-                await kpa500_send_receive(self.amp_port, b'^ON;', bl)  # hi there.
+                await self.device_send_receive(b'^ON;', bl)  # hi there.
                 # is b'^ON1;' when amp is on.
                 # is b'^ON;' when amp is off
                 # is b'' when amp is not found.
                 if bl.bytes_received == 0:
                     amp_state = 0
-                    self.update_kpa500_data(4, '0')  # not powered
-                    self.update_kpa500_data(6, 'NO AMP')
+                    self.update_device_data(4, '0')  # not powered
+                    self.update_device_data(6, 'NO AMP')
                     if verbosity > 3:
                         print('1: no response, amp state 1-->0')
                 elif bl.bytes_received == 5 and bl.buffer[3] == 49:  # '1', amp appears on
                     amp_state = 3  # amp is powered on.
-                    self.update_kpa500_data(4, '1')
-                    self.update_kpa500_data(6, 'AMP ON')
+                    self.update_device_data(4, '1')
+                    self.update_device_data(6, 'AMP ON')
                     self.enqueue_command(self.initial_queries)
                     if verbosity > 3:
                         print('amp state 1-->3')
                 elif bl.bytes_received == 4 and bl.buffer[3] == 59:  # ';', amp connected but off.
                     amp_state = 2
-                    self.update_kpa500_data(4, '0')
-                    self.update_kpa500_data(6, 'AMP OFF')
+                    self.update_device_data(4, '0')
+                    self.update_device_data(6, 'AMP OFF')
                     if verbosity > 3:
                         print('amp state 1-->2')
                 else:
@@ -309,27 +259,27 @@ class KPA500:
                 query = self.dequeue_command()
                 # throw away any queries except the ON command.
                 if query is not None and query == b'^ON1;':  # turn on amplifier
-                    await kpa500_send_receive(self.amp_port, b'P', bl)
-                    self.update_kpa500_data(6, 'Powering On')
+                    await self.device_send_receive(b'P', bl)
+                    self.update_device_data(6, 'Powering On')
                     await asyncio.sleep(1.50)
                     amp_state = 0  # test state again.
                     if verbosity > 3:
                         print('amp state 2-->0')
                 else:
-                    await kpa500_send_receive(self.amp_port, b'^ON;', bl, timeout=1.5)  # hi there.
+                    await self.device_send_receive(b'^ON;', bl, timeout=1.5)  # hi there.
                     # is b'^ON1;' when amp is on.
                     # is b'^ON;' when amp is off
                     # is b'' when amp is not found.
                     if bl.bytes_received == 0:
                         amp_state = 1
-                        self.update_kpa500_data(4, '0')  # not powered
-                        self.update_kpa500_data(6, 'NO AMP')
+                        self.update_device_data(4, '0')  # not powered
+                        self.update_device_data(6, 'NO AMP')
                         if verbosity > 3:
                             print('no data, amp state 2-->1')
                     elif bl.bytes_received == 5 and bl.buffer[3] == 49:  # '1', amp appears on
                         amp_state = 3  # amp is powered on.
-                        self.update_kpa500_data(4, '1')
-                        self.update_kpa500_data(6, 'AMP ON')
+                        self.update_device_data(4, '1')
+                        self.update_device_data(6, 'AMP ON')
                         self.enqueue_command(self.initial_queries)
                         if verbosity > 3:
                             print('amp state 2-->3')
@@ -346,12 +296,12 @@ class KPA500:
                         next_command = 0
                     else:
                         next_command += 1
-                await kpa500_send_receive(self.amp_port, query, bl)
+                await self.device_send_receive(query, bl)
                 if query == b'^ON0;':
                     amp_state = 1
                     if verbosity > 3:
                         print('power off command, amp state 3-->1')
-                    self.update_kpa500_data(6, 'PWR OFF')
+                    self.update_device_data(6, 'PWR OFF')
                     self.set_amp_off_data()
                     await asyncio.sleep(1.50)
                 else:
@@ -359,7 +309,7 @@ class KPA500:
                         self.process_kpa500_message(bl.data().decode())
                     else:
                         amp_state = 0
-                        self.update_kpa500_data(6, 'NO AMP')
+                        self.update_device_data(6, 'NO AMP')
                         self.set_amp_off_data()
                         if verbosity > 3:
                             print('no response, amp state 3-->0')
@@ -368,3 +318,136 @@ class KPA500:
                 run_loop = False
 
             await asyncio.sleep(0.025)  # 40/sec
+
+    async def serve_kpa500_remote_client(self, reader, writer):
+        """
+        this provides KPA500-Remote compatible control.
+        """
+        verbosity = 3  # 3 is info, 4 is debug, 5 is trace, or something like that.
+        t0 = milliseconds()
+        extra = writer.get_extra_info('peername')
+        client_name = f'{extra[0]}:{extra[1]}'
+        client_data = ClientData(client_name)
+        client_data.update_list.extend((7, 16, 6, 0, 1, 2, 3, 4, 8, 5, 9, 10, 11, 12, 13, 14, 15, 17, 18))  # items to send.
+        self.network_clients.append(client_data)
+        if verbosity > 2:
+            print(f'client {client_name} connected')
+        try:
+            while client_data.connected:
+                try:
+                    message = await asyncio.wait_for(self.read_network_client(reader), 0.05)
+                    timed_out = False
+                except TimeoutError:
+                    message = None
+                    timed_out = True
+                if message is not None and not timed_out:
+                    client_data.last_activity = milliseconds()
+                    if len(message) == 0:  # keepalive?
+                        if verbosity > 3:
+                            print(f'{get_timestamp()}: RECEIVED keepalive FROM client {client_name}')
+                    elif message.startswith('server::login::'):
+                        up_list = message[15:].split('::')
+                        if up_list[0] != self.username:
+                            response = b'server::login::invalid::Invalid username provided. ' \
+                                       b'Remote control will not be allowed.\n'
+                        elif up_list[1] != self.password:
+                            response = b'server::login::invalid::Invalid password provided. ' \
+                                       b'Remote control will not be allowed.\n'
+                        else:
+                            response = b'server::login::valid\n'
+                            client_data.authorized = True
+                        writer.write(response)
+                        client_data.last_activity = milliseconds()
+                        if verbosity > 3:
+                            print(f'sending "{response.decode().strip()}"')
+                    else:
+                        if client_data.authorized:
+                            # noinspection SpellCheckingInspection
+                            if message.startswith('amp::button::CLEAR::'):
+                                self.enqueue_command(b'^FLC;')
+                            elif message.startswith('amp::button::OPER::'):
+                                value = message[19:]
+                                if value == '1':
+                                    command = b'^OS1;^OS;'
+                                else:
+                                    command = b'^OS0;^OS;'
+                                self.enqueue_command(command)
+                            elif message.startswith('amp::button::STBY::'):
+                                value = message[19:]
+                                if value == '0':
+                                    command = b'^OS1;^OS;'
+                                else:
+                                    command = b'^OS0;^OS;'
+                                self.enqueue_command(command)
+                            elif message.startswith('amp::button::PWR::'):
+                                # print(message)
+                                value = message[18:]
+                                if value == '1':
+                                    command = b'^ON1;'
+                                else:
+                                    command = b'^ON0;'
+                                self.enqueue_command(command)
+                            elif message.startswith('amp::button::SPKR::'):
+                                value = message[19:]
+                                if value == '1':
+                                    command = b'^SP1;'
+                                else:
+                                    command = b'^SP0;'
+                                self.enqueue_command(command)
+                            elif message.startswith('amp::dropdown::Band::'):
+                                value = message[21:]
+                                band_number = self.band_label_to_number(value)
+                                if band_number is not None:
+                                    command = f'^BN{band_number:02d};'.encode()
+                                    self.enqueue_command(command)
+                            elif message.startswith('amp::slider::Fan Speed::'):
+                                value = message[24:]
+                                command = f'^FC{value};^FC;'.encode()
+                                self.enqueue_command(command)
+                            else:
+                                print(f'unhandled message "{message}"')
+                else:  # response was None
+                    if not timed_out:
+                        if verbosity > 2:
+                            print(f'client {client_data} response was None, setting connected=false')
+                        client_data.connected = False
+
+                # send any outstanding data back...
+                if len(client_data.update_list) > 0:
+                    index = client_data.update_list.pop(0)
+                    writer.write(self.key_names[index])
+                    payload = f'::{self.device_data[index]}\n'.encode()
+                    writer.write(payload)
+                    await writer.drain()
+                    client_data.last_activity = milliseconds()
+                    if verbosity > 3:
+                        print(f'sent "{self.key_names[index].decode()}{payload.decode().strip()}"')
+
+                since_last_activity = milliseconds() - client_data.last_activity
+                if since_last_activity > 15000:
+                    writer.write(b'\n')
+                    await writer.drain()
+                    client_data.last_activity = milliseconds()
+                    if verbosity > 3:
+                        print(f'{get_timestamp()}: SENT keepalive TO client {client_name}')
+                gc.collect()
+
+            # connection closing
+            print(f'client {client_name} connection closing...')
+            writer.close()
+            await writer.wait_closed()
+        except Exception as ex:
+            print(f'client {client_name} exception in serve_network_client:', type(ex), ex)
+            raise ex
+        finally:
+            print(f'client {client_name} disconnected')
+            found_network_client = None
+            for network_client in self.network_clients:
+                if network_client.client_name == client_data.client_name:
+                    found_network_client = network_client
+                    break
+            if found_network_client is not None:
+                self.network_clients.remove(found_network_client)
+                print(f'client {client_name} removed from network_clients list.')
+        tc = milliseconds()
+        print(f'client {client_name} disconnected, elapsed time {((tc - t0) / 1000.0):6.3f} seconds')

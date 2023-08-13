@@ -1,8 +1,8 @@
 #
-# main.py -- this is the web server for the Raspberry Pi Pico W Web IOT thing.
+# main.py -- this is the Raspberry Pi Pico W KAT500 & KPA500 Network Server.
 #
 __author__ = 'J. B. Otterson'
-__copyright__ = 'Copyright 2022, J. B. Otterson N1KDO.'
+__copyright__ = 'Copyright 2023, J. B. Otterson N1KDO.'
 
 #
 # Copyright 2023, J. B. Otterson N1KDO.
@@ -30,24 +30,22 @@ __copyright__ = 'Copyright 2022, J. B. Otterson N1KDO.'
 # disable pylint import error
 # pylint: disable=E0401
 
-import gc
 import json
 import os
 import re
-import sys
 import time
 
 from http_server import HttpServer
-from kpa500 import ClientData, KPA500
+from kpa500 import KPA500
+from kat500 import KAT500
 from morse_code import MorseCode
+from utils import upython, safe_int
 
-upython = sys.implementation.name == 'micropython'
 
 if upython:
     import machine
     import network
     import uasyncio as asyncio
-    from uasyncio import TimeoutError
 
     network_status_map = {
         network.STAT_IDLE: 'no connection and no activity',  # 0
@@ -61,7 +59,6 @@ if upython:
 
 else:
     import asyncio
-    from asyncio.exceptions import TimeoutError
 
 
     class Machine:
@@ -109,12 +106,14 @@ CONFIG_FILE = 'data/config.json'
 DANGER_ZONE_FILE_NAMES = (
     'config.html',
     'files.html',
+    'kat500.html',
     'kpa500.html',
 )
 # noinspection SpellCheckingInspection
 DEFAULT_SECRET = 'elecraft'
 DEFAULT_SSID = 'kpa500'
-DEFAULT_TCP_PORT = 4626
+DEFAULT_KPA500_TCP_PORT = 4626
+DEFAULT_KAT500_TCP_PORT = 4627
 DEFAULT_WEB_PORT = 80
 
 # globals...
@@ -122,25 +121,21 @@ restart = False
 username = ''
 password = ''
 http_server = HttpServer(content_dir='content/')
-kpa500 = KPA500()
+kpa500 = None
+kat500 = None
+
 morse_code_sender = MorseCode(morse_led)
-
-
-def get_timestamp(tt=None):
-    if tt is None:
-        tt = time.gmtime()
-    return f'{tt[0]:04d}-{tt[1]:02d}-{tt[2]:02d} {tt[3]:02d}:{tt[4]:02d}:{tt[5]:02d}Z'
 
 
 def read_config():
     try:
         with open(CONFIG_FILE, 'r') as config_file:
-            return json.load(config_file)
+            config = json.load(config_file)
     except Exception as ex:
         print('failed to load configuration!', type(ex), ex)
         config = {
-            'SSID': 'wifi ssid',
-            'secret': 'wifi secret',
+            'SSID': DEFAULT_SSID,
+            'secret': DEFAULT_SSID,
             'username': 'admin',
             'password': 'admin',
             'dhcp': True,
@@ -149,27 +144,16 @@ def read_config():
             'netmask': '255.255.255.0',
             'gateway': '192.168.1.1',
             'dns_server': '8.8.8.8',
-            'tcp_port': '4626',
-            'web_port': '80',
+            'kpa_tcp_port': str(DEFAULT_KPA500_TCP_PORT),
+            'kat_tcp_port': str(DEFAULT_KAT500_TCP_PORT),
+            'web_port': str(DEFAULT_WEB_PORT),
         }
-        raise ex
+    return config
 
 
 def save_config(config):
     with open(CONFIG_FILE, 'w') as config_file:
         json.dump(config, config_file)
-
-
-def safe_int(value, default=-1):
-    if isinstance(value, int):
-        return value
-    return int(value) if value.isdigit() else default
-
-
-def milliseconds():
-    if upython:
-        return time.ticks_ms()
-    return int(time.time() * 1000)
 
 
 def valid_filename(filename):
@@ -282,156 +266,6 @@ def connect_to_network(config):
     morse_code_sender.set_message(message)
     print(message)
     return ip_address, netmask
-
-
-async def read_network_client(reader):
-    try:
-        data = await reader.readline()
-        return data.decode().strip()
-    except ConnectionResetError as cre:
-        print(f'ConnectionResetError in read_network_client: {str(cre)}')
-    except Exception as ex:
-        print(ex)
-        print(f'exception in read_network_client: {str(ex)}')
-        raise ex
-    return None
-
-
-async def serve_network_client(reader, writer):
-    """
-    this provides KPA500-Remote compatible control.
-    """
-    verbosity = 3  # 3 is info, 4 is debug, 5 is trace, or something like that.
-    t0 = milliseconds()
-    extra = writer.get_extra_info('peername')
-    client_name = f'{extra[0]}:{extra[1]}'
-    client_data = ClientData(client_name)
-    client_data.update_list.extend((7, 16, 6, 0, 1, 2, 3, 4, 8, 5, 9, 10, 11, 12, 13, 14, 15, 17, 18))  # items to send.
-    kpa500.network_clients.append(client_data)
-    if verbosity > 2:
-        print(f'client {client_name} connected')
-
-    try:
-        while client_data.connected:
-            try:
-                message = await asyncio.wait_for(read_network_client(reader), 0.05)
-                timed_out = False
-            except TimeoutError:
-                message = None
-                timed_out = True
-            if message is not None and not timed_out:
-                client_data.last_activity = milliseconds()
-                if len(message) == 0:  # keepalive?
-                    if verbosity > 3:
-                        print(f'{get_timestamp()}: RECEIVED keepalive FROM client {client_name}')
-                elif message.startswith('server::login::'):
-                    up_list = message[15:].split('::')
-                    if up_list[0] != username:
-                        response = b'server::login::invalid::Invalid username provided. ' \
-                                   b'Remote control will not be allowed.\n'
-                    elif up_list[1] != password:
-                        response = b'server::login::invalid::Invalid password provided. ' \
-                                   b'Remote control will not be allowed.\n'
-                    else:
-                        response = b'server::login::valid\n'
-                        client_data.authorized = True
-                    writer.write(response)
-                    client_data.last_activity = milliseconds()
-                    if verbosity > 3:
-                        print(f'sending "{response.decode().strip()}"')
-                else:
-                    if client_data.authorized:
-                        # noinspection SpellCheckingInspection
-                        if message.startswith('amp::button::CLEAR::'):
-                            kpa500.enqueue_command(b'^FLC;')
-                        elif message.startswith('amp::button::OPER::'):
-                            value = message[19:]
-                            if value == '1':
-                                command = b'^OS1;^OS;'
-                            else:
-                                command = b'^OS0;^OS;'
-                            kpa500.enqueue_command(command)
-                        elif message.startswith('amp::button::STBY::'):
-                            value = message[19:]
-                            if value == '0':
-                                command = b'^OS1;^OS;'
-                            else:
-                                command = b'^OS0;^OS;'
-                            kpa500.enqueue_command(command)
-                        elif message.startswith('amp::button::PWR::'):
-                            # print(message)
-                            value = message[18:]
-                            if value == '1':
-                                command = b'^ON1;'
-                            else:
-                                command = b'^ON0;'
-                            kpa500.enqueue_command(command)
-
-                        elif message.startswith('amp::button::SPKR::'):
-                            value = message[19:]
-                            if value == '1':
-                                command = b'^SP1;'
-                            else:
-                                command = b'^SP0;'
-                            kpa500.enqueue_command(command)
-                        elif message.startswith('amp::dropdown::Band::'):
-                            value = message[21:]
-                            band_number = kpa500.band_label_to_number(value)
-                            if band_number is not None:
-                                command = f'^BN{band_number:02d};'.encode()
-                                kpa500.enqueue_command(command)
-                        elif message.startswith('amp::slider::Fan Speed::'):
-                            value = message[24:]
-                            command = f'^FC{value};^FC;'.encode()
-                            kpa500.enqueue_command(command)
-                        else:
-                            print(f'unhandled message "{message}"')
-            else:  # response was None
-                if not timed_out:
-                    if verbosity > 2:
-                        print(f'client {client_data} response was None, setting connected=false')
-                    client_data.connected = False
-
-            # send any outstanding data back...
-            if len(client_data.update_list) > 0:
-                index = client_data.update_list.pop(0)
-                writer.write(kpa500.key_names[index])
-                payload = f'::{kpa500.kpa500_data[index]}\n'.encode()
-                writer.write(payload)
-                await writer.drain()
-                client_data.last_activity = milliseconds()
-                if verbosity > 3:
-                    print(f'sent "{kpa500.key_names[index].decode()}{payload.decode().strip()}"')
-
-            since_last_activity = milliseconds() - client_data.last_activity
-            if since_last_activity > 15000:
-                writer.write(b'\n')
-                await writer.drain()
-                client_data.last_activity = milliseconds()
-                if verbosity > 3:
-                    print(f'{get_timestamp()}: SENT keepalive TO client {client_name}')
-
-            gc.collect()
-
-        # connection closing
-        print(f'client {client_name} connection closing...')
-        writer.close()
-        await writer.wait_closed()
-    except Exception as ex:
-        print(f'client {client_name} exception in serve_network_client:', type(ex), ex)
-        raise ex
-    finally:
-        print(f'client {client_name} disconnected')
-        found_network_client = None
-        for network_client in kpa500.network_clients:
-            if network_client.client_name == client_data.client_name:
-                found_network_client = network_client
-                break
-        if found_network_client is not None:
-            kpa500.network_clients.remove(found_network_client)
-            print(f'client {client_name} removed from network_clients list.')
-    tc = milliseconds()
-    print(f'client {client_name} disconnected, elapsed time {((tc - t0) / 1000.0):6.3f} seconds')
 
 
 # noinspection PyUnusedLocal
@@ -717,7 +551,7 @@ async def api_restart_callback(http, verb, args, reader, writer, request_headers
 
 # KPA500 specific APIs
 # noinspection PyUnusedLocal
-async def api_clear_fault_callback(http, verb, args, reader, writer, request_headers=None):
+async def api_kpa_clear_fault_callback(http, verb, args, reader, writer, request_headers=None):
     kpa500.enqueue_command(b'^FLC;')
     response = b'ok\r\n'
     http_status = 200
@@ -726,7 +560,7 @@ async def api_clear_fault_callback(http, verb, args, reader, writer, request_hea
 
 
 # noinspection PyUnusedLocal
-async def api_set_band_callback(http, verb, args, reader, writer, request_headers=None):
+async def api_kpa_set_band_callback(http, verb, args, reader, writer, request_headers=None):
     band_name = args.get('band')
     band_number = kpa500.band_label_to_number(band_name)
     if band_number is not None:
@@ -742,7 +576,7 @@ async def api_set_band_callback(http, verb, args, reader, writer, request_header
 
 
 # noinspection PyUnusedLocal
-async def api_set_fan_speed_callback(http, verb, args, reader, writer, request_headers=None):
+async def api_kpa_set_fan_speed_callback(http, verb, args, reader, writer, request_headers=None):
     speed = safe_int(args.get('speed', -1))
     if 0 <= speed <= 6:
         command = f'^FC{speed};^FC;'.encode()
@@ -757,7 +591,7 @@ async def api_set_fan_speed_callback(http, verb, args, reader, writer, request_h
 
 
 # noinspection PyUnusedLocal
-async def api_set_operate_callback(http, verb, args, reader, writer, request_headers=None):
+async def api_kpa_set_operate_callback(http, verb, args, reader, writer, request_headers=None):
     state = args.get('state')
     if state in ('0', '1'):
         command = f'^OS{state};^OS;'.encode()
@@ -772,7 +606,7 @@ async def api_set_operate_callback(http, verb, args, reader, writer, request_hea
 
 
 # noinspection PyUnusedLocal
-async def api_set_power_callback(http, verb, args, reader, writer, request_headers=None):
+async def api_kpa_set_power_callback(http, verb, args, reader, writer, request_headers=None):
     state = args.get('state')
     if state in ('0', '1'):
         command = f'^ON{state};'.encode()
@@ -787,7 +621,7 @@ async def api_set_power_callback(http, verb, args, reader, writer, request_heade
 
 
 # noinspection PyUnusedLocal
-async def api_set_speaker_alarm_callback(http, verb, args, reader, writer, request_headers=None):
+async def api_kpa_set_speaker_alarm_callback(http, verb, args, reader, writer, request_headers=None):
     state = args.get('state')
     if state in ('0', '1'):
         command = f'^SP{state};^SP;'.encode()
@@ -802,42 +636,169 @@ async def api_set_speaker_alarm_callback(http, verb, args, reader, writer, reque
 
 
 # noinspection PyUnusedLocal
-async def api_status_callback(http, verb, args, reader, writer, request_headers=None):  # callback for '/api/status'
-    payload = {'kpa500_data': kpa500.kpa500_data}
+async def api_kpa_status_callback(http, verb, args, reader, writer, request_headers=None):  # '/api/kpa_status'
+    payload = {'kpa500_data': kpa500.device_data}
     response = json.dumps(payload).encode('utf-8')
     http_status = 200
     bytes_sent = http.send_simple_response(writer, http_status, http.CT_APP_JSON, response)
     return bytes_sent, http_status
 
 
+# KAT500 specific APIs
+# noinspection PyUnusedLocal
+async def api_kat_status_callback(http, verb, args, reader, writer, request_headers=None):  # '/api/kpa_status'
+    payload = {'kat500_data': kat500.device_data}
+    response = json.dumps(payload).encode('utf-8')
+    http_status = 200
+    bytes_sent = http.send_simple_response(writer, http_status, http.CT_APP_JSON, response)
+    return bytes_sent, http_status
+
+
+async def api_kat_set_power_callback(http, verb, args, reader, writer, request_headers=None):
+    state = args.get('state')
+    if state in ('0', '1'):
+        command = f'PS{state};PS;'.encode()
+        kat500.enqueue_command(command)
+        response = b'ok\r\n'
+        http_status = 200
+    else:
+        response = b'bad state parameter\r\n'
+        http_status = 400
+    bytes_sent = http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
+    return bytes_sent, http_status
+
+
+async def api_kat_set_antenna_callback(http, verb, args, reader, writer, request_headers=None):
+    antenna = args.get('antenna')
+    if antenna in ('0', '1', '2', '3'):
+        command = f'AN{antenna};AN;'.encode()
+        kat500.enqueue_command(command)
+        response = b'ok\r\n'
+        http_status = 200
+    else:
+        response = b'bad antenna parameter\r\n'
+        http_status = 400
+    bytes_sent = http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
+    return bytes_sent, http_status
+
+
+async def api_kat_set_mode_callback(http, verb, args, reader, writer, request_headers=None):
+    mode = args.get('mode')
+    if mode in ('A', 'M', 'B'):
+        command = f'MD{mode};MD;'.encode()
+        kat500.enqueue_command(command)
+        response = b'ok\r\n'
+        http_status = 200
+    else:
+        response = b'bad mode parameter\r\n'
+        http_status = 400
+    bytes_sent = http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
+    return bytes_sent, http_status
+
+
+async def api_kat_set_tune_callback(http, verb, args, reader, writer, request_headers=None):
+    state = args.get('state')
+    if state in ('0', '1'):
+        if state == '1':
+            command = f'FT;TP;'.encode()
+        else:
+            command = f'CT;TP;'.encode()
+        kat500.enqueue_command(command)
+        response = b'ok\r\n'
+        http_status = 200
+    else:
+        response = b'bad state parameter\r\n'
+        http_status = 400
+    bytes_sent = http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
+    return bytes_sent, http_status
+
+
+async def api_kat_clear_fault_callback(http, verb, args, reader, writer, request_headers=None):
+    kat500.enqueue_command(b'FLTC;FLT;')
+    response = b'ok\r\n'
+    http_status = 200
+    bytes_sent = http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
+    return bytes_sent, http_status
+
+
+async def api_kat_set_ampi_callback(http, verb, args, reader, writer, request_headers=None):
+    state = args.get('state')
+    if state in ('0', '1'):
+        command = f'AMPI{state};AMPI;'.encode()
+        kat500.enqueue_command(command)
+        response = b'ok\r\n'
+        http_status = 200
+    else:
+        response = b'bad state parameter\r\n'
+        http_status = 400
+    bytes_sent = http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
+    return bytes_sent, http_status
+
+
+async def api_kat_set_attn_callback(http, verb, args, reader, writer, request_headers=None):
+    state = args.get('state')
+    if state in ('0', '1'):
+        command = f'ATTN{state};ATTN;'.encode()
+        kat500.enqueue_command(command)
+        response = b'ok\r\n'
+        http_status = 200
+    else:
+        response = b'bad state parameter\r\n'
+        http_status = 400
+    bytes_sent = http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
+    return bytes_sent, http_status
+
+
+async def api_kat_set_bypass_callback(http, verb, args, reader, writer, request_headers=None):
+    state = args.get('state')
+    if state in ('0', '1'):
+        if state == '1':
+            command = b'BYPB;BYP;'
+        else:
+            command = b'BYPN;BYP;'
+        kat500.enqueue_command(command)
+        response = b'ok\r\n'
+        http_status = 200
+    else:
+        response = b'bad state parameter\r\n'
+        http_status = 400
+    bytes_sent = http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
+    return bytes_sent, http_status
+
+
 async def main():
-    global restart, username, password
+    global restart, username, password, kpa500, kat500
     config = read_config()
     username = config.get('username')
     password = config.get('password')
 
-    http_server.add_uri_callback('/', slash_callback)
-    http_server.add_uri_callback('/api/config', api_config_callback)
-    http_server.add_uri_callback('/api/get_files', api_get_files_callback)
-    http_server.add_uri_callback('/api/upload_file', api_upload_file_callback)
-    http_server.add_uri_callback('/api/rename_file', api_rename_file_callback)
-    http_server.add_uri_callback('/api/restart', api_restart_callback)
+    kpa500_tcp_port_s = config.get('kpa_tcp_port')
+    if kpa500_tcp_port_s is None:
+        kpa500_tcp_port_s = str(DEFAULT_KPA500_TCP_PORT)
+        config['kpa_tcp_port'] = kpa500_tcp_port_s
+    kat500_tcp_port_s = config.get('kat_tcp_port')
+    if kat500_tcp_port_s is None:
+        kat500_tcp_port_s = str(DEFAULT_KAT500_TCP_PORT)
+        config['kpa_kat_port'] = kat500_tcp_port_s
 
-    # now KPA500 specific
-    http_server.add_uri_callback('/api/clear_fault', api_clear_fault_callback)
-    http_server.add_uri_callback('/api/set_band', api_set_band_callback)
-    http_server.add_uri_callback('/api/set_fan_speed', api_set_fan_speed_callback)
-    http_server.add_uri_callback('/api/set_operate', api_set_operate_callback)
-    http_server.add_uri_callback('/api/set_power', api_set_power_callback)
-    http_server.add_uri_callback('/api/set_speaker_alarm', api_set_speaker_alarm_callback)
-    http_server.add_uri_callback('/api/status', api_status_callback)
+    kpa500_tcp_port = safe_int(kpa500_tcp_port_s)
+    if kpa500_tcp_port < 0 or kpa500_tcp_port > 65535:
+        kpa500_tcp_port = DEFAULT_KPA500_TCP_PORT
+    kat500_tcp_port = safe_int(kat500_tcp_port_s)
+    if kat500_tcp_port < 0 or kat500_tcp_port > 65535:
+        kat500_tcp_port = DEFAULT_KAT500_TCP_PORT
 
-    tcp_port = safe_int(config.get('tcp_port') or DEFAULT_TCP_PORT, DEFAULT_TCP_PORT)
-    if tcp_port < 0 or tcp_port > 65535:
-        tcp_port = DEFAULT_TCP_PORT
+    if upython:
+        kat500_port = '1'
+        kpa500_port = '0'
+    else:
+        kat500_port = 'com1'
+        kpa500_port = 'com2'
+
     web_port = safe_int(config.get('web_port') or DEFAULT_WEB_PORT, DEFAULT_WEB_PORT)
     if web_port < 0 or web_port > 65535:
         web_port = DEFAULT_WEB_PORT
+        config['web_port'] = str(web_port)
 
     ap_mode = config.get('ap_mode', False)
 
@@ -850,17 +811,52 @@ async def main():
             print(type(ex), ex)
             raise ex
 
-    if upython:
         asyncio.create_task(morse_code_sender.morse_sender())
+
     if connected:
+        http_server.add_uri_callback('/', slash_callback)
+        http_server.add_uri_callback('/api/config', api_config_callback)
+        http_server.add_uri_callback('/api/get_files', api_get_files_callback)
+        http_server.add_uri_callback('/api/upload_file', api_upload_file_callback)
+        http_server.add_uri_callback('/api/rename_file', api_rename_file_callback)
+        http_server.add_uri_callback('/api/restart', api_restart_callback)
+
+        # KPA500 specific
+        if kpa500_tcp_port != 0:
+            kpa500 = KPA500(username=username, password=password, port_name=kpa500_port)
+            http_server.add_uri_callback('/api/kpa_clear_fault', api_kpa_clear_fault_callback)
+            http_server.add_uri_callback('/api/kpa_set_band', api_kpa_set_band_callback)
+            http_server.add_uri_callback('/api/kpa_set_fan_speed', api_kpa_set_fan_speed_callback)
+            http_server.add_uri_callback('/api/kpa_set_operate', api_kpa_set_operate_callback)
+            http_server.add_uri_callback('/api/kpa_set_power', api_kpa_set_power_callback)
+            http_server.add_uri_callback('/api/kpa_set_speaker_alarm', api_kpa_set_speaker_alarm_callback)
+            http_server.add_uri_callback('/api/kpa_status', api_kpa_status_callback)
+            print(f'Starting KPA500 tcp service on port {kpa500_tcp_port}')
+            asyncio.create_task(asyncio.start_server(kpa500.serve_kpa500_remote_client, '0.0.0.0', kpa500_tcp_port))
+            # this task talks to the amplifier hardware.
+            asyncio.create_task(kpa500.kpa500_server(3))
+
+        # KAT500 specific
+        if kat500_tcp_port != 0:
+            kat500 = KAT500(username=username, password=password, port_name=kat500_port)
+            http_server.add_uri_callback('/api/kat_status', api_kat_status_callback)
+            http_server.add_uri_callback('/api/kat_set_power', api_kat_set_power_callback)
+            http_server.add_uri_callback('/api/kat_set_tune', api_kat_set_tune_callback)
+            http_server.add_uri_callback('/api/kat_set_antenna', api_kat_set_antenna_callback)
+            http_server.add_uri_callback('/api/kat_set_mode', api_kat_set_mode_callback)
+            http_server.add_uri_callback('/api/kat_set_ampi', api_kat_set_ampi_callback)
+            http_server.add_uri_callback('/api/kat_set_attn', api_kat_set_attn_callback)
+            http_server.add_uri_callback('/api/kat_set_bypass', api_kat_set_bypass_callback)
+            http_server.add_uri_callback('/api/kat_clear_fault', api_kat_clear_fault_callback)
+            print(f'Starting KAT500 tcp service on port {kat500_tcp_port}')
+            asyncio.create_task(asyncio.start_server(kat500.serve_kat500_remote_client, '0.0.0.0', kat500_tcp_port))
+            # this task talks to the tuner hardware.
+            asyncio.create_task(kat500.kat500_server(5))
+
         print(f'Starting web service on port {web_port}')
         asyncio.create_task(asyncio.start_server(http_server.serve_http_client, '0.0.0.0', web_port))
-        print(f'Starting tcp service on port {tcp_port}')
-        asyncio.create_task(asyncio.start_server(serve_network_client, '0.0.0.0', tcp_port))
     else:
         print('no network connection')
-
-    asyncio.create_task(kpa500.kpa500_server(3))
 
     reset_button_pressed_count = 0
 

@@ -52,6 +52,12 @@ class SerialPort:
         elif impl_name == 'micropython':
             if name == '':
                 name = '0'
+            if name == '0':
+                tx_pin = machine.Pin(0)
+                rx_pin = machine.Pin(1)
+            elif name == '1':
+                tx_pin = machine.Pin(4)
+                rx_pin = machine.Pin(5)
             timeout_msec = int(timeout * 1000)
             self.port = machine.UART(int(name),
                                      baudrate=baudrate,
@@ -59,8 +65,8 @@ class SerialPort:
                                      stop=1,
                                      timeout=timeout_msec,
                                      timeout_char=timeout_msec,
-                                     tx=machine.Pin(0),
-                                     rx=machine.Pin(1))
+                                     tx=tx_pin,
+                                     rx=rx_pin)
         else:
             raise RuntimeError(f'no support for {impl_name}.')
 

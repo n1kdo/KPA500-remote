@@ -2,21 +2,22 @@
 <project version="4">
   <component name="AnalysisUIOptions">
     <option name="ANALYZE_INJECTED_CODE" value="false" />
-    <option name="SCOPE_TYPE" value="8" />
+    <option name="SCOPE_TYPE" value="3" />
     <option name="CUSTOM_SCOPE_NAME" value="all but pyboard" />
   </component>
   <component name="AutoImportSettings">
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="4e64a78b-8e71-496b-87ac-41648ca07843" name="Changes" comment="memory efficiency">
+    <list default="true" id="4e64a78b-8e71-496b-87ac-41648ca07843" name="Changes" comment="kat500 mostly (all?) there.">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kpa500-remote/http_server.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/kpa500-remote/http_server.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kpa500-remote/kpa500.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/kpa500-remote/kpa500.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kpa500-remote/content/files.html" beforeDir="false" afterPath="$PROJECT_DIR$/src/kpa500-remote/content/files.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kpa500-remote/content/kat500.html" beforeDir="false" afterPath="$PROJECT_DIR$/src/kpa500-remote/content/kat500.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kpa500-remote/content/kpa500.html" beforeDir="false" afterPath="$PROJECT_DIR$/src/kpa500-remote/content/kpa500.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kpa500-remote/content/setup.html" beforeDir="false" afterPath="$PROJECT_DIR$/src/kpa500-remote/content/setup.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kpa500-remote/data/config.json" beforeDir="false" afterPath="$PROJECT_DIR$/src/kpa500-remote/data/config.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kpa500-remote/kat500.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/kpa500-remote/kat500.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/kpa500-remote/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/kpa500-remote/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kpa500-remote/morse_code.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/kpa500-remote/morse_code.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kpa500-remote/serialport.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/kpa500-remote/serialport.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/loader/loader.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/loader/loader.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -31,6 +32,11 @@
     </option>
   </component>
   <component name="Git.Settings">
+    <option name="RECENT_BRANCH_BY_REPOSITORY">
+      <map>
+        <entry key="$PROJECT_DIR$" value="master" />
+      </map>
+    </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
     <option name="SET_USER_NAME_GLOBALLY" value="false" />
   </component>
@@ -55,28 +61,31 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "RunOnceActivity.OpenProjectViewOnStart": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "WebServerToolWindowFactoryState": "true",
-    "ignore.virus.scanning.warn.message": "true",
-    "last_opened_file_path": "C:/Users/Jeff/rotator/src/loader/loader.py",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "run.code.analysis.last.selected.profile": "pProject Default",
-    "settings.editor.selected.configurable": "org.tonybaloney.security.pycharm-security.settings.SecuritySettingsConfigurable",
-    "two.files.diff.last.used.file": "C:/Users/Jeff/rotator/src/loader/loader.py",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;WebServerToolWindowFactoryState&quot;: &quot;true&quot;,
+    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/Jeff/KPA500-remote/src/kpa500-remote/content&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;run.code.analysis.last.selected.profile&quot;: &quot;pProject Default&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;reference.idesettings.debugger.python&quot;,
+    &quot;two.files.diff.last.used.file&quot;: &quot;C:/Users/Jeff/rotator/src/loader/loader.py&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="PyDebuggerOptionsProvider">
     <option name="mySupportQtDebugging" value="false" />
   </component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
+      <recent name="C:\Users\Jeff\KPA500-remote\src\kpa500-remote\content" />
+      <recent name="C:\Users\Jeff\KPA500-remote\diagnasties" />
+      <recent name="C:\Users\Jeff\KPA500-remote\src\kpa500-remote" />
       <recent name="C:\Users\Jeff\KPA500-remote\src" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
@@ -85,7 +94,51 @@
       <recent name="C:\Users\Jeff\KPA500-remote\src" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.loader">
+  <component name="RunManager" selected="Python.main">
+    <configuration name="kat-listener" type="PythonConfigurationType" factoryName="Python">
+      <module name="KPA500-remote" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/src/loader" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/diagnasties/kat500-serial-listener.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="kat500-remote-client" type="PythonConfigurationType" factoryName="Python">
+      <module name="KPA500-remote" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/src/loader" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/diagnasties/kat500-remote-client.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
     <configuration name="loader" type="PythonConfigurationType" factoryName="Python" nameIsGenerated="true">
       <module name="KPA500-remote" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -114,6 +167,7 @@
       <option name="PARENT_ENVS" value="true" />
       <envs>
         <env name="PYTHONUNBUFFERED" value="1" />
+        <env name="PYDEVD_USE_FRAME_EVAL" value="NO" />
       </envs>
       <option name="SDK_HOME" value="" />
       <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/src/kpa500-remote" />
@@ -132,6 +186,8 @@
     </configuration>
     <list>
       <item itemvalue="Python.loader" />
+      <item itemvalue="Python.kat-listener" />
+      <item itemvalue="Python.kat500-remote-client" />
       <item itemvalue="Python.main" />
     </list>
   </component>
@@ -151,17 +207,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="power on off kind of works." />
-    <MESSAGE value="better handling when client goes away" />
-    <MESSAGE value="believe power on sync is fixed&#10;&#10;by giving amp more time to power up." />
-    <MESSAGE value="web form working, output only so far." />
-    <MESSAGE value="web controls working now." />
-    <MESSAGE value="readme" />
-    <MESSAGE value="add license" />
-    <MESSAGE value="adjust timeout for kpa500-remote clients" />
-    <MESSAGE value="scale SWR meter properly" />
-    <MESSAGE value="cleanups" />
-    <MESSAGE value="adjust logging" />
     <MESSAGE value="add static ip config, make work on pico-w again." />
     <MESSAGE value="app compatability.&#10;&#10;try to make this work in a manner that is compatible with the &#10;elecraft kpa500-server application.&#10;&#10;adjust web meter ranges.&#10;adjust web data readouts.&#10;somewhat ameliorate the control flash, particularly on the fan slider.&#10;adjust data sent to network clients.&#10;&amp; etc." />
     <MESSAGE value="make amplifier data collection more robust" />
@@ -176,28 +221,46 @@
     <MESSAGE value="static analyzer fixes" />
     <MESSAGE value="stability of client connections" />
     <MESSAGE value="memory efficiency" />
-    <option name="LAST_COMMIT_MESSAGE" value="memory efficiency" />
+    <MESSAGE value="code cleanups" />
+    <MESSAGE value="more code cleanups" />
+    <MESSAGE value="even more code cleanups" />
+    <MESSAGE value="hostname support" />
+    <MESSAGE value="started with KAT500" />
+    <MESSAGE value="2nd serial working on pico-w" />
+    <MESSAGE value="KAT500-remote functionality" />
+    <MESSAGE value="refactoring common kdevice code" />
+    <MESSAGE value="kat500 web ui page laid out, not done." />
+    <MESSAGE value="kat500 web ui status updates" />
+    <MESSAGE value="kat500 mostly (all?) there." />
+    <option name="LAST_COMMIT_MESSAGE" value="kat500 mostly (all?) there." />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
       <breakpoints>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/diagnasties/serial-listener.py</url>
+          <url>file://$PROJECT_DIR$/diagnasties/kpa500-serial-listener.py</url>
           <line>281</line>
           <option name="timeStamp" value="1" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/diagnasties/client.py</url>
+          <url>file://$PROJECT_DIR$/diagnasties/kap500_remote_client.py</url>
           <line>62</line>
           <option name="timeStamp" value="5" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="javascript">
+          <url>file://$PROJECT_DIR$/src/kpa500-remote/content/kat500.html</url>
+          <line>422</line>
+          <option name="timeStamp" value="42" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
-    <SUITE FILE_PATH="coverage/KPA500_remote$loader.coverage" NAME="loader Coverage Results" MODIFIED="1682192913576" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src/loader" />
     <SUITE FILE_PATH="coverage/KPA500_remote$kpa500_server.coverage" NAME="kpa500_server Coverage Results" MODIFIED="1671825709019" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src" />
+    <SUITE FILE_PATH="coverage/KPA500_remote$kat_listener.coverage" NAME="kat-listener Coverage Results" MODIFIED="1691003552805" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src/loader" />
+    <SUITE FILE_PATH="coverage/KPA500_remote$main.coverage" NAME="main Coverage Results" MODIFIED="1691949752686" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src/kpa500-remote" />
     <SUITE FILE_PATH="coverage/KPA500_remote$serial_listener.coverage" NAME="serial-listener Coverage Results" MODIFIED="1671825079201" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/diagnasties" />
-    <SUITE FILE_PATH="coverage/KPA500_remote$main.coverage" NAME="main Coverage Results" MODIFIED="1675025681341" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src/kpa500-remote" />
+    <SUITE FILE_PATH="coverage/KPA500_remote$loader.coverage" NAME="loader Coverage Results" MODIFIED="1690742163170" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src/loader" />
+    <SUITE FILE_PATH="coverage/KPA500_remote$kat500_remote_client.coverage" NAME="kat500-remote-client Coverage Results" MODIFIED="1690748884655" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src/loader" />
   </component>
 </project>

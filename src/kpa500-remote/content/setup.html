@@ -36,23 +36,24 @@
     }
 
     .config_form {
-        padding: 4px 75px;
+        padding: 0 75px;
         width: 350px;
     }
 
-    .files_link {
+    .bottom_links {
         font-size: 8pt;
         font-weight: bold;
         color: black;
         text-align: left;
         position: absolute;
         top: 340px;
-        width: 50px;
+        width: 200px;
     }
 
-    .files_link a:link, .files_link a:visited, .files_link a:hover {
+    .bottom_links a:link, .bottom_links a:visited, .bottom_links a:hover {
         color: blue;
         text-decoration: none;
+        padding-right: 4px;
     }
 
     form {
@@ -65,7 +66,7 @@
 
     .header {
         text-align: center;
-        font-size: 24pt;
+        font-size: 18pt;
         font-weight: bold;
     }
 
@@ -135,7 +136,8 @@
             secret = config.secret;
         }
         document.getElementById("secret_input").value = secret;
-        document.getElementById("tcp_port_input").value = config.tcp_port;
+        document.getElementById("kpa_tcp_port_input").value = config.kpa_tcp_port;
+        document.getElementById("kat_tcp_port_input").value = config.kat_tcp_port;
         document.getElementById("web_port_input").value = config.web_port;
         document.getElementById("username_input").value = config.username;
         document.getElementById("password_input").value = config.password;
@@ -159,7 +161,8 @@
     function set_config() {
         let ssid = document.getElementById("ssid_input").value;
         let secret = document.getElementById("secret_input").value;
-        let tcp_port = document.getElementById("tcp_port_input").value;
+        let kpa_tcp_port = document.getElementById("kpa_tcp_port_input").value;
+        let kat_tcp_port = document.getElementById("kat_tcp_port_input").value;
         let web_port = document.getElementById("web_port_input").value;
         let username = document.getElementById("username_input").value;
         let password = document.getElementById("username_input").value;
@@ -178,9 +181,14 @@
             alert("Invalid Secret");
             return;
         }
-        let x = parseInt(tcp_port);
+        let x = parseInt(kpa_tcp_port);
         if (x < 0 || x > 65535) {
-            alert("Invalid TCP Port");
+            alert("Invalid KPA TCP Port");
+            return;
+        }
+        x = parseInt(kat_tcp_port);
+        if (x < 0 || x > 65535) {
+            alert("Invalid KAT TCP Port");
             return;
         }
         x = parseInt(web_port);
@@ -222,7 +230,8 @@
         let config = {};
         config.SSID = ssid;
         config.secret = secret;
-        config.tcp_port = tcp_port;
+        config.kpa_tcp_port = kpa_tcp_port;
+        config.kat_tcp_port = kat_tcp_port;
         config.web_port = web_port;
         config.username = username;
         config.password = password;
@@ -298,8 +307,12 @@
                 <input type="password" id="secret_input" maxlength="64">
             </p>
             <p>
-                <label for="tcp_port_input">TCP Port:</label>
-                <input type="number" id="tcp_port_input" min="0" max="65535">
+                <label for="kpa_tcp_port_input">KPA TCP Port:</label>
+                <input type="number" id="kpa_tcp_port_input" min="0" max="65535">
+            </p>
+            <p>
+                <label for="kat_tcp_port_input">KAT TCP Port:</label>
+                <input type="number" id="kat_tcp_port_input" min="0" max="65535">
             </p>
             <p>
                 <label for="web_port_input">Web Port:</label>
@@ -339,8 +352,6 @@
             </p>
         </form>
         <div class="button_bar">
-            <input type="button" id="cancel_button" value="Cancel" title="Back to Rotator Control"
-                   onclick="cancel_page()"/>
             <input type="button" id="reset_button" value="Reset" title="Reload Configuration"
                    onclick="get_config()"/>
             <input type="button" id="rstart_button" value="Restart" title="Restart Controller to use new setup"
@@ -349,7 +360,11 @@
                    onclick="set_config()"/>
         </div>
 </div>
-<div class="files_link"><a href="files.html">Files</a></div>
-<div class="author"><a href="https://www.n1kdo.com" target="_blank">N1KDO</a> 20230603</div>
+<div class="bottom_links">
+    <a href="kpa500.html">KPA500</a>
+    <a href="kat500.html">KAT500</a>
+    <a href="files.html">Files</a>
+</div>
+<div class="author"><a href="https://www.n1kdo.com" target="_blank">N1KDO</a> 20230813</div>
 </body>
 </html>

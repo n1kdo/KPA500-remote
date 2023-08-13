@@ -11,8 +11,9 @@
         font-weight: bold;
         text-align: right;
         position: absolute;
+        left: 410px;
         top: 340px;
-        width: 498px;
+        width: 90px;
     }
 
     .author a:link, .author a:visited, .author a:hover {
@@ -27,6 +28,21 @@
         margin: 0;
         height: 350px;
         width: 500px;
+    }
+
+    .bottom_links {
+        font-size: 8pt;
+        font-weight: bold;
+        text-align: left;
+        position: absolute;
+        top: 340px;
+        width: 200px;
+    }
+
+    .bottom_links a:link, .bottom_link a:visited, .bottom_link a:hover {
+        color: blue;
+        text-decoration: none;
+        padding-right: 4px;
     }
 
     .centered {
@@ -176,10 +192,6 @@
         get_files();
     }
 
-    function cancel_page() {
-        window.location.href = "/";
-    }
-
     function file_changed() {
         document.getElementById("upload_button").disabled = false;
     }
@@ -250,8 +262,6 @@
         </p>
         <div class="centered">
             <p>
-                <input type="button" id="cancel_button" class="form_button" value="Cancel" title="Back to Rotator Control"
-                       onclick="cancel_page()"/>
                 <input type="button" id="reset_button" class="form_button" value="Reset" title="Reload Configuration"
                        onclick="get_files()"/>
                 <input type="button" id="upload_button" class="form_button" value="Upload" title="Upload File" onclick="upload()"/>
@@ -259,6 +269,11 @@
         </div>
     </div>
 </div>
-<div class="author"><a href="https://www.n1kdo.com" target="_blank">N1KDO</a> 20221226</div>
+<div class="bottom_links">
+    <a href="kpa500.html">KPA500</a>
+    <a href="kat500.html">KAT500</a>
+    <a href="setup.html">Setup</a>
+</div>
+<div class="author"><a href="https://www.n1kdo.com" target="_blank">N1KDO</a> 20230813</div>
 </body>
 </html>

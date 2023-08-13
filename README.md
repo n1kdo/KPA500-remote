@@ -1,18 +1,17 @@
 # Raspberry Pi Pico W IOT Thing for Elecraft KPA500 Amplifier
 
-I wanted to Internet-enable my KPA500 amplifier.
+I wanted to Internet-enable my KPA500 amplifier and KAT500 auto-tuner
 
-I re-used the same electronic design that I used for the [Ham-IV Rotator 
-Controller-Controller](https://github.com/n1kdo/rotator-controller-controller).
-This is now the _fourth_ project I have made with that hardware.  
-I also re-used the web server code from that project here.
+This runs on the [Pico-W-Dual-Serial](https://github.com/n1kdo/pico-w-dual-serial) board.
+
+This project uses a lot of the same code as my [Antenna Rotator Controller Controller](https://github.com/n1kdo/rotator-controller-controller)
 
 The hardware is a Raspberry Pi "Pico W" with a MAX3232 RS-232 interface IC.
 Pretty simple.  As usual, the simplicity of the hardware is made up for by
 the complexity of the software.
 
-This has a Web Client, accessible from most (all?) browsers, and it also
-provides a server compatible with the KPA-500 Remote software from Elecraft.
+This has a Web Client, accessible from most browsers, and it also
+provides a servers compatible with the KPA-500 Remote and KAT-500 Remote software from Elecraft.
 
 ## Web Client
 
@@ -27,13 +26,15 @@ This is to allow the changes made from the UI to be reflected on the page.
 
 ![](WebConsole.png "View of Web Console for KPA500 Amplifier")
 
-## Elecraft "KPA-500 Remote" server
+## Elecraft "KPA-500 Remote" server and "KAT-500 Remote" server
 
-The KPA500-remote IOT thing also provides a network server that is 
-compatible with the KPA-500 remote client.
+The KPA500-remote also provides a network server that is 
+compatible with the KPA-500 remote client, and a network server
+that is compatible with the KAT-500 remote client.
 
 This means that you don't need a dedicated computer to serve the amplifier
-to the network, the KPA500-remote IOT thing (this application) does that
-already.
+and tuner to the network, the KPA500-remote (this application) does that for you.
 
-n1kdo 20221231
+No need to run a PC at your remote station!
+
+n1kdo 20230813
