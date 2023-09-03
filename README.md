@@ -38,4 +38,5 @@ and tuner to the network, the KPA500-remote (this application) does that for you
 
 No need to run a PC at your remote station!
 
-n1kdo 20230813
+See [Installation and Setup](Installation-and-Setup.md) for (duh) Installation and Setup
+instructions.
