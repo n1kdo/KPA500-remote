@@ -86,6 +86,8 @@ Here's a brief guide to what all code is...
 
 ### Application files:
 
+This table describes what the source modules do.
+
 | Filename                              | Description                                                                      |
 |---------------------------------------|----------------------------------------------------------------------------------|
 | src/kpa500-remote/http_server.py      | this is a lightweight HTTP ("web") server.                                       |
@@ -111,7 +113,22 @@ software.
 
 ### Additional Stuff
 
-| Filename                         | Description                                                                       |
-|----------------------------------|-----------------------------------------------------------------------------------|
-| loader/loader.py                 | tool to more easily install Python code on Pico W                                 |
-| loader/pyboard.py                | code to allow communication and control of MicroPython boards, used by loader.py. |
+Here's the code that makes up the "Easy Loader".
+
+| Filename              | Description                                                                       |
+|-----------------------|-----------------------------------------------------------------------------------|
+| src/loader/loader.py  | tool to more easily install Python code on Pico W                                 |
+| src/loader/pyboard.py | code to allow communication and control of MicroPython boards, used by loader.py. |
+
+### Development Diagnostics & etc.
+
+The KAT500-Remote and KPA500-Remote network wire protocols have no public documentation, so I wrote some tools to help
+me reverse engineer them. (I did start with [Wireshark](https://www.wireshark.org/)...)  These are included for 
+completeness.
+
+| Filename                              | Description                                                                     |
+|---------------------------------------|---------------------------------------------------------------------------------|
+| diagnasties/kat500-remote-client.py   | a tool I made to help reverse-engineer the KAT500 remote network wire protocol. |
+| diagnasties/kat500-serial-listener.py | a tool I made to help reverse-engineer the KAT500 remote serial wire protocol.  |
+| diagnasties/kpa500-remote-client.py   | a tool I made to help reverse-engineer the KPA500 remote network wire protocol. |
+| diagnasties/kpa500-serial-listener.py | a tool I mare to help reverse-engineer the KPA500 remote serial wire protocol.  |
