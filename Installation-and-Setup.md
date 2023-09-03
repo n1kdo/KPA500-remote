@@ -28,8 +28,8 @@ on macOS or Linux.  I have no Macs, so I cannot test this.
 
 1. Download Python 3 from https://www.python.org/downloads/ and install it.  Make sure to select "Add 
    Python 3 to Path."
-2. Download the contents of this GitHub repository as a zip.  Use this URL: 
-   `https://github.com/n1kdo/KPA500-remote/archive/refs/heads/master.zip`
+2. Download the contents of this GitHub repository as a zip.  Use
+   [this URL](https://github.com/n1kdo/KPA500-remote/archive/refs/heads/master.zip)
 3. Unpack that zip file somewhere. 
 4. Open a command prompt.  (your choice.  Could be PowerShell, could be good old CMD.)
 5. From the command line, execute the following command: `pip install pyserial` -- this will install the Python 
@@ -52,7 +52,7 @@ devices will complain that this network does not offer Internet access--that is 
 You may need to check a box to keep your device connected to this network.
 
 Once connected to the "kpa500" network, open the device's web page by accessing http://192.168.4.1 – from here you
-can click the "Setup" link and configure network. After you enter your network’s SSID and secret, click the "Apply"
+can click the "Setup" link and configure the network. After you enter your network’s SSID and secret, click the "Apply"
 button to save the configuration, and then press the "Restart" button to return the device to normal mode.
 
 Access point mode can also be used in locations where there is no Wi-Fi service, the device is completely 
@@ -86,22 +86,22 @@ Here's a brief guide to what all code is...
 
 ### Application files:
 
-| Filename                         | Description                                                                      |
-|----------------------------------|----------------------------------------------------------------------------------|
-| src/kpa500-remote/http_server.py | this is a lightweight HTTP ("web") server.                                       |
-| src/kat500.py                    | code to support KAT500.                                                          |
-| src/kdevice.py                   | code that provides commom support for both KAT500 and KPA500.                    |
-| src/kpa500.py                    | code to support KPA500.                                                          |
-| src/main.py                      | mainline program.                                                                |
-| src/morse_code.py                | code to send morse code on the LED.  Not all letters are included to save space. |
-| src/serialport.py                | cross-platform serial port abstraction, works on MicroPython and Python.         |
-| src/utils.py                     | common code                                                                      |
-| content/favicon.ico              | Icon for web site                                                                |
-| content/files.html               | files page                                                                       |
-| content/kat500.html              | KAT 500 web interface page                                                       |
-| content/kpa500.html              | KPA 500 web interface page                                                       |
-| content/setup.html               | setup page                                                                       |
-| data/config.json                 | configuration file for device.                                                   |
+| Filename                              | Description                                                                      |
+|---------------------------------------|----------------------------------------------------------------------------------|
+| src/kpa500-remote/http_server.py      | this is a lightweight HTTP ("web") server.                                       |
+| src/kpa500-remote/kat500.py           | code to support KAT500.                                                          |
+| src/kpa500-remote/kdevice.py          | code that provides commom support for both KAT500 and KPA500.                    |
+| src/kpa500-remote/kpa500.py           | code to support KPA500.                                                          |
+| src/kpa500-remote/main.py             | mainline program.                                                                |
+| src/kpa500-remote/morse_code.py       | code to send morse code on the LED.  Not all letters are included to save space. |
+| src/kpa500-remote/serialport.py       | cross-platform serial port abstraction, works on MicroPython and Python.         |
+| src/kpa500-remote/utils.py            | common code                                                                      |
+| src/kpa500-remote/content/favicon.ico | Icon for web site                                                                |
+| src/kpa500-remote/content/files.html  | files page                                                                       |
+| src/kpa500-remote/content/kat500.html | KAT 500 web interface page                                                       |
+| src/kpa500-remote/content/kpa500.html | KPA 500 web interface page                                                       |
+| src/kpa500-remote/content/setup.html  | setup page                                                                       |
+| src/kpa500-remote/data/config.json    | configuration file for device.                                                   |
 
 Note that it is possible to modify any of the User Interface pages.  The software wants to protect these files, you
 will need to upload them using a different name, and then rename them.
