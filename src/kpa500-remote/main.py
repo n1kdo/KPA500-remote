@@ -254,9 +254,9 @@ def connect_to_network(config):
             max_wait -= 1
             time.sleep(1)
         if wl_status != network.STAT_GOT_IP:
+            print('Network did not connect!')
             morse_code_sender.set_message('ERR')
-            # return None
-            raise RuntimeError(f'Network connection failed, status={wl_status}')
+            return None, None
 
     wl_config = wlan.ifconfig()
     ip_address = wl_config[0]
@@ -808,8 +808,7 @@ async def main():
             ip_address, netmask = connect_to_network(config)
             connected = ip_address is not None
         except Exception as ex:
-            print(type(ex), ex)
-            raise ex
+            print(f'Network did not connect, {ex}')
 
         asyncio.create_task(morse_code_sender.morse_sender())
 

@@ -55,7 +55,7 @@ def get_ports_list():
     ports_list = []
     for port in ports:
         ports_list.append(port.device)
-    return sorted(ports_list, key=lambda k: int(k[3:]))
+    return sorted(ports_list)
 
 
 # noinspection PyUnusedLocal
