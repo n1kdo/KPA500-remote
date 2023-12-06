@@ -214,6 +214,7 @@ def connect_to_network(config):
     else:
         print('Connecting to WLAN...')
         wlan = network.WLAN(network.STA_IF)
+        wlan.active(False)
         wlan.config(pm=0xa11140)  # disable power save, this is a server.
 
         hostname = config.get('hostname')
@@ -224,7 +225,9 @@ def connect_to_network(config):
             except ValueError:
                 print('hostname is still not supported on Pico W')
 
-        is_dhcp = config.get('dhcp') or True
+        is_dhcp = config.get('dhcp')
+        if is_dhcp is None:
+            is_dhcp = True
         if not is_dhcp:
             ip_address = config.get('ip_address')
             netmask = config.get('netmask')
@@ -238,7 +241,7 @@ def connect_to_network(config):
                 wlan.ifconfig('dhcp')
         else:
             print('configuring network with DHCP')
-            # wlan.ifconfig('dhcp')  #  this does not work.  network does not come up.  no errors, either.
+            wlan.ifconfig('dhcp')
 
         wlan.active(True)
         max_wait = 10
@@ -874,7 +877,7 @@ async def main():
                 reset_button_pressed_count = 0
 
             if restart:
-                machine.reset()
+                machine.soft_reset()
         else:
             await asyncio.sleep(10.0)
 
