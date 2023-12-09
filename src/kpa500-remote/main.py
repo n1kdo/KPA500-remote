@@ -216,7 +216,6 @@ def connect_to_network(config):
         wlan = network.WLAN(network.STA_IF)
         wlan.active(False)
         wlan.config(pm=0xa11140)  # disable power save, this is a server.
-        print(f'  current ifconfig={wlan.ifconfig()}')
 
         hostname = config.get('hostname')
         if hostname is not None:
@@ -225,25 +224,6 @@ def connect_to_network(config):
                 network.hostname(hostname)
             except ValueError:
                 print('Failed to set hostname.')
-
-        is_dhcp = config.get('dhcp')
-        if is_dhcp is None:
-            is_dhcp = True
-        if not is_dhcp:
-            ip_address = config.get('ip_address')
-            netmask = config.get('netmask')
-            gateway = config.get('gateway')
-            dns_server = config.get('dns_server')
-            if ip_address is not None and netmask is not None and gateway is not None and dns_server is not None:
-                print('Configuring network with static IP')
-                wlan.ifconfig((ip_address, netmask, gateway, dns_server))
-            else:
-                print('Cannot use static IP, data is missing.')
-                print('Configuring network with DHCP')
-                wlan.ifconfig('dhcp')
-        else:
-            print('Configuring network with DHCP')
-            wlan.ifconfig('dhcp')
 
         wlan.active(True)
         max_wait = 10
@@ -263,6 +243,27 @@ def connect_to_network(config):
             print('Network did not connect!')
             morse_code_sender.set_message('ERR')
             return None, None
+
+        print(f'  connected, ifconfig={wlan.ifconfig()}')
+
+        is_dhcp = config.get('dhcp')
+        if is_dhcp is None:
+            is_dhcp = True
+        if not is_dhcp:
+            ip_address = config.get('ip_address')
+            netmask = config.get('netmask')
+            gateway = config.get('gateway')
+            dns_server = config.get('dns_server')
+            if ip_address is not None and netmask is not None and gateway is not None and dns_server is not None:
+                print('Configuring network with static IP')
+                wlan.ifconfig((ip_address, netmask, gateway, dns_server))
+            else:
+                print('Cannot use static IP, data is missing.')
+                print('Configuring network with DHCP....')
+                wlan.ifconfig('dhcp')
+        else:
+            print('Configuring network with DHCP...')
+            wlan.ifconfig('dhcp')
 
     wl_config = wlan.ifconfig()
     ip_address = wl_config[0]
@@ -836,7 +837,7 @@ async def main():
             http_server.add_uri_callback('/api/kpa_set_power', api_kpa_set_power_callback)
             http_server.add_uri_callback('/api/kpa_set_speaker_alarm', api_kpa_set_speaker_alarm_callback)
             http_server.add_uri_callback('/api/kpa_status', api_kpa_status_callback)
-            print(f'Starting KPA500 tcp service on port {kpa500_tcp_port}')
+            print(f'Starting KPA500 TCP service on port {kpa500_tcp_port}')
             asyncio.create_task(asyncio.start_server(kpa500.serve_kpa500_remote_client, '0.0.0.0', kpa500_tcp_port))
             # this task talks to the amplifier hardware.
             asyncio.create_task(kpa500.kpa500_server(3))
@@ -853,7 +854,7 @@ async def main():
             http_server.add_uri_callback('/api/kat_set_attn', api_kat_set_attn_callback)
             http_server.add_uri_callback('/api/kat_set_bypass', api_kat_set_bypass_callback)
             http_server.add_uri_callback('/api/kat_clear_fault', api_kat_clear_fault_callback)
-            print(f'Starting KAT500 tcp service on port {kat500_tcp_port}')
+            print(f'Starting KAT500 TCP service on port {kat500_tcp_port}')
             asyncio.create_task(asyncio.start_server(kat500.serve_kat500_remote_client, '0.0.0.0', kat500_tcp_port))
             # this task talks to the tuner hardware.
             asyncio.create_task(kat500.kat500_server(5))
