@@ -189,11 +189,10 @@ def connect_to_network(config):
         hostname = config.get('hostname')
         if hostname is not None:
             try:
+                print(f'  setting hostname "{hostname}"')
                 network.hostname(hostname)
             except ValueError:
-                print('could not set hostname.')
-
-        # wlan.ifconfig(('10.0.0.1', '255.255.255.0', '0.0.0.0', '0.0.0.0'))
+                print('Failed to set hostname.')
 
         """
         #define CYW43_AUTH_OPEN (0)                     ///< No authorisation required (open)
@@ -209,21 +208,23 @@ def connect_to_network(config):
             security = 0x00400004  # CYW43_AUTH_WPA2_AES_PSK
         wlan.config(ssid=ssid, key=secret, security=security)
         wlan.active(True)
-        print(wlan.active())
-        print(f'ssid={wlan.config("ssid")}')
+        print(f'  wlan.active()={wlan.active()}')
+        print(f'  ssid={wlan.config("ssid")}')
+        print(f'  ifconfig={wlan.ifconfig()}')
     else:
         print('Connecting to WLAN...')
         wlan = network.WLAN(network.STA_IF)
         wlan.active(False)
         wlan.config(pm=0xa11140)  # disable power save, this is a server.
+        print(f'  current ifconfig={wlan.ifconfig()}')
 
         hostname = config.get('hostname')
         if hostname is not None:
             try:
-                print(f'setting hostname {hostname}')
+                print(f'  setting hostname "{hostname}"')
                 network.hostname(hostname)
             except ValueError:
-                print('hostname is still not supported on Pico W')
+                print('Failed to set hostname.')
 
         is_dhcp = config.get('dhcp')
         if is_dhcp is None:
@@ -234,24 +235,26 @@ def connect_to_network(config):
             gateway = config.get('gateway')
             dns_server = config.get('dns_server')
             if ip_address is not None and netmask is not None and gateway is not None and dns_server is not None:
-                print('configuring network with static IP')
+                print('Configuring network with static IP')
                 wlan.ifconfig((ip_address, netmask, gateway, dns_server))
             else:
-                print('cannot use static IP, data is missing, configuring network with DHCP')
+                print('Cannot use static IP, data is missing.')
+                print('Configuring network with DHCP')
                 wlan.ifconfig('dhcp')
         else:
-            print('configuring network with DHCP')
+            print('Configuring network with DHCP')
             wlan.ifconfig('dhcp')
 
         wlan.active(True)
         max_wait = 10
         wl_status = wlan.status()
-        print('connecting...')
+        print(f'  ifconfig={wlan.ifconfig()}')
+        print(f'  connecting to "{ssid}"...')
         wlan.connect(ssid, secret)
         while max_wait > 0:
             wl_status = wlan.status()
             st = network_status_map.get(wl_status) or 'undefined'
-            print(f'network status: {wl_status} {st}')
+            print(f'  network status: {wl_status} {st}')
             if wl_status < 0 or wl_status >= 3:
                 break
             max_wait -= 1
