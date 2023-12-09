@@ -97,7 +97,6 @@ else:
     machine = Machine()
 
 onboard = machine.Pin('LED', machine.Pin.OUT, value=0)
-onboard.on()
 morse_led = machine.Pin(2, machine.Pin.OUT, value=0)  # status LED
 reset_button = machine.Pin(3, machine.Pin.IN, machine.Pin.PULL_UP)
 
@@ -183,8 +182,12 @@ def connect_to_network(config):
     if access_point_mode:
         print('Starting setup WLAN...')
         wlan = network.WLAN(network.AP_IF)
-        wlan.active(False)
-        wlan.config(pm=0xa11140)  # disable power save, this is a server.
+        wlan.deinit()
+        wlan.config(pm=wlan.PM_NONE)  # disable power save, this is a server.
+        # wlan.deinit turns off the onboard LED because it is connected to the CYW43
+        # turn it on again.
+        onboard = machine.Pin('LED', machine.Pin.OUT, value=0)
+        onboard.on()
 
         hostname = config.get('hostname')
         if hostname is not None:
@@ -214,8 +217,33 @@ def connect_to_network(config):
     else:
         print('Connecting to WLAN...')
         wlan = network.WLAN(network.STA_IF)
-        wlan.active(False)
-        wlan.config(pm=0xa11140)  # disable power save, this is a server.
+        wlan.deinit()
+        # wlan.deinit turns off the onboard LED because it is connected to the CYW43
+        # turn it on again.
+        onboard = machine.Pin('LED', machine.Pin.OUT, value=0)
+        onboard.on()
+
+        wlan.active(True)
+        wlan.config(pm=wlan.PM_NONE)  # disable power save, this is a server.
+        
+        is_dhcp = config.get('dhcp')
+        if is_dhcp is None:
+            is_dhcp = True
+        if not is_dhcp:
+            ip_address = config.get('ip_address')
+            netmask = config.get('netmask')
+            gateway = config.get('gateway')
+            dns_server = config.get('dns_server')
+            if ip_address is not None and netmask is not None and gateway is not None and dns_server is not None:
+                print('Configuring network with static IP')
+                wlan.ifconfig((ip_address, netmask, gateway, dns_server))
+            else:
+                print('Cannot use static IP, data is missing.')
+                print('Configuring network with DHCP....')
+                #wlan.ifconfig('dhcp')
+        else:
+            print('Configuring network with DHCP...')
+            #wlan.ifconfig('dhcp')
 
         hostname = config.get('hostname')
         if hostname is not None:
@@ -225,7 +253,8 @@ def connect_to_network(config):
             except ValueError:
                 print('Failed to set hostname.')
 
-        wlan.active(True)
+        # print(f'ifconfig={wlan.ifconfig()}')
+
         max_wait = 10
         wl_status = wlan.status()
         print(f'  ifconfig={wlan.ifconfig()}')
@@ -243,28 +272,9 @@ def connect_to_network(config):
             print('Network did not connect!')
             morse_code_sender.set_message('ERR')
             return None, None
-
         print(f'  connected, ifconfig={wlan.ifconfig()}')
 
-        is_dhcp = config.get('dhcp')
-        if is_dhcp is None:
-            is_dhcp = True
-        if not is_dhcp:
-            ip_address = config.get('ip_address')
-            netmask = config.get('netmask')
-            gateway = config.get('gateway')
-            dns_server = config.get('dns_server')
-            if ip_address is not None and netmask is not None and gateway is not None and dns_server is not None:
-                print('Configuring network with static IP')
-                wlan.ifconfig((ip_address, netmask, gateway, dns_server))
-            else:
-                print('Cannot use static IP, data is missing.')
-                print('Configuring network with DHCP....')
-                wlan.ifconfig('dhcp')
-        else:
-            print('Configuring network with DHCP...')
-            wlan.ifconfig('dhcp')
-
+    onboard.on()  # turn on the LED, WAN is up.
     wl_config = wlan.ifconfig()
     ip_address = wl_config[0]
     netmask = wl_config[1]
