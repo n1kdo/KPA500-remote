@@ -52,7 +52,7 @@ def main():
         # create login message
         cmd = f'server::login::{kpa500_remote_username}::{kpa500_remote_password}\n'
         # send login message
-        print(f'TX: {cmd}')
+        print('TX: server::login::(redacted)')
         skt.send(cmd.encode())
 
         # wait for response
