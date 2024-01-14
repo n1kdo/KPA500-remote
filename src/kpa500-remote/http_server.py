@@ -28,18 +28,11 @@ __version__ = '0.9.0'
 import gc
 import json
 import os
-import sys
-import time
-impl_name = sys.implementation.name
-
-
-def milliseconds():
-    # disable pylint no-member, time.ticks_ms() is only Micropython.
-    # pylint: disable=E1101
-
-    if impl_name == 'cpython':
-        return int(time.time() * 1000)
-    return time.ticks_ms()
+from utils import milliseconds, safe_int, upython
+if upython:
+    import micro_logging as logging
+else:
+    import logging
 
 
 class HttpServer:
@@ -87,7 +80,6 @@ class HttpServer:
 
     def __init__(self, content_dir):
         self.content_dir = content_dir
-        self.verbosity = 3
         self.uri_map = {}
         self.buffer = bytearray(self.BUFFER_SIZE)
 
@@ -98,11 +90,7 @@ class HttpServer:
         filename = self.content_dir + filename
         try:
             content_length = os.stat(filename)[6]
-            if not isinstance(content_length, int):
-                if content_length.isdigit():
-                    content_length = int(content_length)
-                else:
-                    content_length = -1
+            content_length = safe_int(content_length, -1)
         except OSError:
             content_length = -1
         if content_length < 0:
@@ -123,7 +111,7 @@ class HttpServer:
                     if len(buffer) < self.BUFFER_SIZE:
                         break
         except Exception as exc:
-            print(f'[HTTP_SERVER] {type(exc)} {exc}')
+            logging.info('{type(exc)} {exc}', 'http_server:serve_content')
         return content_length, http_status
 
     def start_response(self, writer, http_status=200, content_type=None, response_size=0, extra_headers=None):
@@ -162,13 +150,10 @@ class HttpServer:
         http_status = 418  # can only make tea, sorry.
         bytes_sent = 0
         partner = writer.get_extra_info('peername')[0]
-        vb = self.verbosity
-        if vb >= 4:
-            print(f'[HTTP_SERVER] web client connected from {partner}')
+        logging.debug('web client connected from {partner}', 'http_server:serve_http_client')
         request_line = await reader.readline()
         request = request_line.decode().strip()
-        if vb >= 4:
-            print(f'[HTTP_SERVER] {request}')
+        logging.debug(f'request: {request}', 'http_server:serve_http_client')
         pieces = request.split(' ')
         if len(pieces) != 3:  # does the http request line look approximately correct?
             http_status = 400
@@ -231,6 +216,7 @@ class HttpServer:
                 else:  # bad request
                     http_status = 400
                     response = b'only GET and POST are supported'
+                    logging.warning(response, 'http_server:serve_http_client')
                     bytes_sent = self.send_simple_response(writer, http_status, self.CT_TEXT_TEXT, response)
 
                 if verb in ('GET', 'POST'):
@@ -246,9 +232,9 @@ class HttpServer:
         await writer.wait_closed()
         elapsed = milliseconds() - t0
         if http_status == 200:
-            if vb> 2:
-                print(f'[HTTP_SERVER] {partner} {request} {http_status} {bytes_sent} {elapsed} ms')
+            logging.info(f'{partner} {request} {http_status} {bytes_sent} {elapsed} ms',
+                         'http_server:serve_http_client')
         else:
-            if vb >= 1:
-                print(f'[HTTP_SERVER] {partner} {request} {http_status} {bytes_sent} {elapsed} ms')
+            logging.info(f'{partner} {request} {http_status} {bytes_sent} {elapsed} ms',
+                         'http_server:serve_http_client')
         gc.collect()

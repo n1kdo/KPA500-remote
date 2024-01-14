@@ -39,6 +39,7 @@ FILES_LIST = [
     'kat500.py',
     'kpa500.py',
     'main.py',
+    'micro_logging.py',
     'utils.py',
     'morse_code.py',
     'serialport.py',

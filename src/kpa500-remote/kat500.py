@@ -30,13 +30,15 @@ __version__ = '0.9.0'
 import gc
 
 from kdevice import KDevice, ClientData, BufferAndLength
-from utils import upython, milliseconds, get_timestamp, safe_int
+from utils import upython, milliseconds, safe_int
 
 if upython:
     import uasyncio as asyncio
+    import micro_logging as logging
     from uasyncio import TimeoutError
 else:
     import asyncio
+    import logging
     from asyncio.exceptions import TimeoutError
 
 
@@ -122,11 +124,11 @@ class KAT500(KDevice):
 
     def process_kat500_message(self, msg):
         if msg is None or len(msg) == 0:
-            print('[KAT500] empty message')
+            logging.warning('empty message', 'kat500:process_kat500_message')
         if msg == ';':
             return
         if msg[-1] != ';':
-            print(f'[KAT500] bad data: {msg}')
+            logging.warning(f'bad data: {msg}' 'kat500:process_kat500_message')
             return
         lm = len(msg)
         if lm >= 7:  # check for 6 letter message names
@@ -182,7 +184,7 @@ class KAT500(KDevice):
                 return
         if lm >= 3:  # check for 2 letter message names. AN BN MD PS RV SL SN TP
             fragment = msg[0:2]
-            # print(f'fragment "{fragment}"')
+            # logging.warning(f'fragment "{fragment}"', 'kat500:process_kat500_message')
             if lm > 3:
                 data = msg[2:-1]
             else:
@@ -210,21 +212,21 @@ class KAT500(KDevice):
                 return
             if fragment == 'RV':
                 if data is None:
-                    print('[KAT500] Revision Query')
+                    logging.info('Revision Query', 'kat500:process_kat500_message')
                 else:
-                    print(f'[KAT500] Revision {data}')
+                    logging.info(f'Revision {data}', 'kat500:process_kat500_message')
                 return
             if fragment == 'SL':
                 if data is None:
-                    print('[KAT500] SLeep Query')
+                    logging.info('SLeep Query', 'kat500:process_kat500_message')
                 else:
-                    print(f'[KAT500] SLeep query {data}')
+                    logging.info(f'SLeep query {data}', 'kat500:process_kat500_message')
                 return
             if fragment == 'SN':
                 if data is None:
-                    print('[KAT500] Serial Number Query')
+                    logging.info('Serial Number Query', 'kat500:process_kat500_message')
                 else:
-                    print(f'[KAT500] Serial Number {data}')
+                    logging.info(f'Serial Number {data}', 'kat500:process_kat500_message')
                 return
             if fragment == 'TP':
                 if data is not None:
@@ -232,7 +234,7 @@ class KAT500(KDevice):
                 return
         if lm >= 2:  # check for 1 letter message names. F
             fragment = msg[0:1]
-            # print(f'fragment "{fragment}"')
+            # logging.warning(f'fragment "{fragment}"', 'kat500:process_kat500_message')
             if lm > 1:
                 data = msg[2:-1]
             else:
@@ -241,7 +243,7 @@ class KAT500(KDevice):
                 if data is not None:
                     self.update_device_data(10, data)
                 return
-        print(f'[KAT500] ***** unhandled: {msg} len {lm} *****')
+        logging.error(f'unhandled: {msg} len {lm}', 'kat500:process_kat500_message')
 
     def set_tuner_off_data(self):
         # reset all the indicators when the amp is turned off.
@@ -249,10 +251,9 @@ class KAT500(KDevice):
         self.update_device_data(9, '0')  # set FAULT to not faulted
 
     # KAT500 tuner polling code
-    async def kat500_server(self, verbosity=3):
+    async def kat500_server(self):
         """
         this manages the connection to the physical tuner
-        :param verbosity: how much logging?
         :return: None
         """
 
@@ -270,8 +271,7 @@ class KAT500(KDevice):
                     self.update_device_data(9, '5')
                 else:
                     tuner_state = 1
-                    if verbosity > 3:
-                        print('[KAT500] tuner state 0-->1')
+                    logging.info('tuner state 0-->1', 'kat500:kat500_server')
             elif tuner_state == 1:  # apparently connected
                 # ask if it is turned on.
                 await self.device_send_receive(b'PS;', bl)  # power up.
@@ -282,24 +282,20 @@ class KAT500(KDevice):
                     tuner_state = 0
                     self.update_device_data(4, '0')  # set POWER to not powered
                     self.update_device_data(9, '5')  # set FAULT to NO TUNER
-                    if verbosity > 3:
-                        print('[KAT500] 1: no response, amp state 1-->0')
+                    logging.info('1: no response, amp state 1-->0', 'kat500:kat500_server')
                 elif bl.bytes_received == 4 and bl.buffer[2] == 49:  # '1', tuner appears on
                     tuner_state = 3  # tuner is powered on.
                     self.update_device_data(4, '1')  # set POWER to POWERED
                     self.update_device_data(9, '0')  # set FAULT to no fault
                     self.enqueue_command(self.initial_queries)
-                    if verbosity > 3:
-                        print('[KAT500] tuner state 1-->3')
+                    logging.info('tuner state 1-->3', 'kat500:kat500_server')
                 elif bl.bytes_received == 4 and bl.buffer[2] == 48:  # '0', tuner connected but off.
                     tuner_state = 2
                     self.update_device_data(4, '0')  # set POWER to not powered
                     self.update_device_data(9, '0')  # set FAULT to no fault
-                    if verbosity > 3:
-                        print('[KAT500] tuner state 1-->2')
+                    logging.info('tuner state 1-->2', 'kat500:kat500_server')
                 else:
-                    if verbosity > 1:
-                        print(f'[KAT500] 1: unexpected data {bl.buffer[:bl.bytes_received]}')
+                        logging.warning(f'1: unexpected data {bl.buffer[:bl.bytes_received]}', 'kat500:kat500_server')
             elif tuner_state == 2:  # connected, power off.
                 query = self.dequeue_command()
                 # throw away any queries except the ON command.
@@ -308,8 +304,7 @@ class KAT500(KDevice):
                     self.update_device_data(9, '6')  # set FAULT to powering up
                     await asyncio.sleep(1.50)
                     tuner_state = 0  # test state again.
-                    if verbosity > 3:
-                        print('[KAT500] tuner state 2-->0')
+                    logging.info('tuner state 2-->0', 'kat500:kat500_server')
                 else:
                     await self.device_send_receive(b'PS1;', bl, timeout=1.5)  # hi there.
                     # is b'PS1;' when tuner is on.
@@ -319,20 +314,17 @@ class KAT500(KDevice):
                         tuner_state = 1
                         self.update_device_data(4, '0')  # set POWER to not powered
                         self.update_device_data(9, '5')  # set FAULT to not found
-                        if verbosity > 3:
-                            print('[KAT500] no data, tuner state 2-->1')
+                        logging.info('no data, tuner state 2-->1', 'kat500:kat500_server')
                     elif bl.bytes_received == 4 and bl.buffer[2] == 49:  # '1', tuner appears on
                         tuner_state = 3  # tuner is powered on.
                         self.update_device_data(4, '1')  # set POWER to powered on
                         self.update_device_data(9, '0')  # set FAULT to no fault
                         self.enqueue_command(self.initial_queries)
-                        if verbosity > 3:
-                            print('[KAT500] tuner state 2-->3')
+                        logging.info('tuner state 2-->3', 'kat500:kat500_server')
                     elif bl.bytes_received == 4 and bl.buffer[2] == 48:  # '0', tuner connected but off.
                         pass  # this is the expected result when tuner is off
                     else:
-                        if verbosity > 3:
-                            print(f'[KAT500] 2: unexpected data {bl.buffer[:bl.bytes_received]}')
+                        logging.info(f'2: unexpected data {bl.buffer[:bl.bytes_received]}', 'kat500:kat500_server')
             elif tuner_state == 3:  # connected, power on.
                 query = self.dequeue_command()
                 if query is None:
@@ -346,8 +338,7 @@ class KAT500(KDevice):
                 await self.device_send_receive(query, bl)
                 if query == b'PS0;':
                     tuner_state = 1
-                    if verbosity > 3:
-                        print('[KAT500] power off command, tuner state 3-->1')
+                    logging.info('power off command, tuner state 3-->1', 'kat500:kat500_server')
                     self.update_device_data(4, '0')  # set POWER to not powered
                     self.update_device_data(9, '0')  # set FAULT  to no fault
                     self.set_tuner_off_data()
@@ -359,10 +350,9 @@ class KAT500(KDevice):
                         tuner_state = 0
                         self.update_device_data(9, '5')  # set FAULT to NO TUNER
                         self.set_tuner_off_data()
-                        if verbosity > 3:
-                            print(f'[KAT500] no response to command {query}, tuner state 3-->0')
+                        logging.info(f'no response to command {query}, tuner state 3-->0', 'kat500:kat500_server')
             else:
-                print(f'[KAT500] invalid tuner state: {tuner_state}, bye bye.')
+                logging.error(f'invalid tuner state: {tuner_state}, bye bye.', 'kat500:kat500_server')
                 run_loop = False
 
             await asyncio.sleep(0.025)  # 40/sec
@@ -378,8 +368,7 @@ class KAT500(KDevice):
         client_data = ClientData(client_name)
         client_data.update_list.extend((9, 4, 5, 0, 1, 2, 3, 6, 8, 7, 13, 14, 11, 12, 10))  # items to send.
         self.network_clients.append(client_data)
-        if verbosity > 2:
-            print(f'[KAT500] client {client_name} connected')
+        logging.info(f'client {client_name} connected', 'kat500:serve_kat500_remote_client')
 
         try:
             while client_data.connected:
@@ -391,11 +380,12 @@ class KAT500(KDevice):
                     timed_out = True
                 if message is not None and not timed_out:
                     client_data.last_activity = milliseconds()
-                    if verbosity > 3 and len(message) > 0:
-                        print(f'[KAT500] {get_timestamp()}: RECEIVED "{message}" FROM client {client_name}')
+                    if len(message) > 0:
+                        logging.debug(f'RECEIVED "{message}" FROM client {client_name}',
+                                      'kat500:serve_kat500_remote_client')
                     if len(message) == 0:  # keepalive?
-                        if verbosity > 3:
-                            print(f'[KAT500] {get_timestamp()}: RECEIVED keepalive FROM client {client_name}')
+                        logging.debug(f'RECEIVED keepalive FROM client {client_name}',
+                                      'kat500:serve_kat500_remote_client')
                     elif message.startswith('server::login::'):
                         up_list = message[15:].split('::')
                         if up_list[0] != self.username:
@@ -409,8 +399,7 @@ class KAT500(KDevice):
                             client_data.authorized = True
                         writer.write(response)
                         client_data.last_activity = milliseconds()
-                        if verbosity > 3:
-                            print(f'[KAT500] sending "{response.decode().strip()}"')
+                        logging.debug(f'sending "{response.decode().strip()}"', 'kat500:serve_kat500_remote_client')
                     else:
                         if client_data.authorized:
                             if message.startswith('tuner::button::clear::'):
@@ -435,7 +424,8 @@ class KAT500(KDevice):
                                 elif value == 'Three':
                                     command = b'AN3;AN;'
                                 else:
-                                    print(f'[KAT500] confused; antenna dropdown value {value}')
+                                    logging.error(f'confused; antenna dropdown value {value}',
+                                                  'kat500:serve_kat500_remote_client')
                                 if command is not None:
                                     self.enqueue_command(command)
                             elif message.startswith('tuner::button::AMPI::'):
@@ -472,11 +462,12 @@ class KAT500(KDevice):
                                     command = b'FT;TP;'
                                     self.enqueue_command(command)
                             else:
-                                print(f'[KAT500] unhandled message from client "{message}"')
+                                logging.info(f'unhandled message from client "{message}"',
+                                             'kat500:serve_kat500_remote_client')
                 else:  # response was None
                     if not timed_out:
-                        if verbosity > 2:
-                            print(f'[KAT500] client {client_data} response was None, setting connected=false')
+                        logging.info(f'client {client_data} response was None, setting connected=false',
+                                     'kat500:serve_kat500_remote_client')
                         client_data.connected = False
 
                 # send any outstanding data back...
@@ -487,29 +478,28 @@ class KAT500(KDevice):
                     writer.write(payload)
                     await writer.drain()
                     client_data.last_activity = milliseconds()
-                    if verbosity > 3:
-                        print(f'[KAT500] sent "{self.key_names[index].decode()}{payload.decode().strip()}"')
+                    logging.debug(f'sent "{self.key_names[index].decode()}{payload.decode().strip()}"',
+                                  'kat500:serve_kat500_remote_client')
 
                 since_last_activity = milliseconds() - client_data.last_activity
                 if since_last_activity > 15000:
                     writer.write(b'\n')
                     await writer.drain()
                     client_data.last_activity = milliseconds()
-                    if verbosity > 3:
-                        print(f'[KAT500] {get_timestamp()}: SENT keepalive TO client {client_name}')
-
+                    logging.debug(f'SENT keepalive TO client {client_name}', 'kat500:serve_kat500_remote_client')
                 gc.collect()
 
             # connection closing
-            print(f'[KAT500] client {client_name} connection closing...')
+            logging.info(f'client {client_name} connection closing...', 'kat500:serve_kat500_remote_client')
             writer.close()
             await writer.wait_closed()
         except ConnectionAbortedError as ex:
-            print(f'[KAT500] client {client_name} connection aborted.')
+            logging.warning(f'client {client_name} connection aborted.', 'kat500:serve_kat500_remote_client')
         except Exception as ex:
-            print(f'[KAT500] client {client_name} exception in serve_network_client:', type(ex), ex)
+            logging.error(f'client {client_name} exception in serve_network_client: {type(ex)} {ex}',
+                          'kat500:serve_kat500_remote_client')
         finally:
-            print(f'[KAT500] client {client_name} disconnected')
+            logging.info(f'client {client_name} disconnected', 'kat500:serve_kat500_remote_client')
             found_network_client = None
             for network_client in self.network_clients:
                 if network_client.client_name == client_data.client_name:
@@ -517,6 +507,8 @@ class KAT500(KDevice):
                     break
             if found_network_client is not None:
                 self.network_clients.remove(found_network_client)
-                print(f'[KAT500] client {client_name} removed from network_clients list.')
+                logging.info(f'client {client_name} removed from network_clients list.',
+                             'kat500:serve_kat500_remote_client')
         tc = milliseconds()
-        print(f'[KAT500] client {client_name} disconnected, elapsed time {((tc - t0) / 1000.0):6.3f} seconds')
+        logging.info(f'client {client_name} disconnected, elapsed time {((tc - t0) / 1000.0):6.3f} seconds',
+                     'kat500:serve_kat500_remote_client')

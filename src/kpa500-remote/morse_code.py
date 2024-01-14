@@ -32,8 +32,10 @@ import sys
 impl_name = sys.implementation.name
 if impl_name == 'cpython':
     import asyncio
+    import logging
 else:
     import uasyncio as asyncio
+    import micro_logging as logging
 
 
 class MorseCode:
@@ -73,6 +75,7 @@ class MorseCode:
         self.message = ''
 
     def set_message(self, message):
+        logging.info(f'set_message("{message}")', 'morse_code:set_message')
         self.message = message
 
     async def morse_sender(self):
@@ -85,10 +88,12 @@ class MorseCode:
 
         while True:
             msg = self.message
+            logging.debug(f'sending new message "{msg}"', 'morse_code:morse_sender')
             for morse_letter in msg:
                 blink_pattern = patterns.get(morse_letter)
                 if blink_pattern is None:
-                    print(f'[MORSE_CODE] Warning: no pattern for letter {morse_letter}')
+                    logging.error(f'[MORSE_CODE] Warning: no pattern for letter {morse_letter}',
+                                  'morse_code:morse_sender')
                     blink_pattern = patterns.get(' ')
                 blink_list = list(blink_pattern)
                 while len(blink_list) > 0:

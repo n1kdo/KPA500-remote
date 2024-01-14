@@ -28,9 +28,11 @@ from serialport import SerialPort
 from utils import upython
 
 if upython:
+    import micro_logging as logging
     import uasyncio as asyncio
 else:
     import asyncio
+    import logging
 
 
 class ClientData:
@@ -71,7 +73,8 @@ class KDevice:
         elif isinstance(command, tuple):
             dcq.extend(command)
         else:
-            print(f'[KDEVICE] enqueue command received command of type {type(command)} which was not processed.')
+            logging.warning(f'enqueue command received command of type {type(command)} which was not processed.',
+                            'enqueue_command')
 
     def dequeue_command(self):
         dcq = self.device_command_queue
@@ -102,9 +105,8 @@ class KDevice:
             data = await reader.readline()
             return data.decode().strip()
         except ConnectionResetError as cre:
-            print(f'[KDEVICE] ConnectionResetError in read_network_client: {str(cre)}')
+            logging.warning(f'ConnectionResetError in read_network_client: {str(cre)}', 'read_network_client')
         except Exception as ex:
-            print(ex)
-            print(f'[KDEVICE] exception in read_network_client: {str(ex)}')
+            logging.error(f'exception in read_network_client: {str(ex)}', 'read_network_client')
             raise ex
         return None

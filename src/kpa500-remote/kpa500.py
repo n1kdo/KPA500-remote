@@ -29,14 +29,16 @@ __version__ = '0.9.0'
 
 import gc
 from kdevice import KDevice, ClientData, BufferAndLength
-from utils import upython, milliseconds, get_timestamp
+from utils import upython, milliseconds
 
 
 if upython:
+    import micro_logging as logging
     import uasyncio as asyncio
     from uasyncio import TimeoutError
 else:
     import asyncio
+    import logging
     from asyncio.exceptions import TimeoutError
 
 
@@ -126,11 +128,11 @@ class KPA500(KDevice):
 
     def process_kpa500_message(self, msg):
         if msg is None or len(msg) == 0:
-            print('[KPA500] empty message')
+            logging.warning('empty message', 'process_kpa500_message')
         if msg == ';':
             return
         if msg[0] != '^':
-            print(f'[KPA500] bad data: {msg}')
+            logging.warning(f'bad data: {msg}', 'process_kpa500_message')
             return
         command_length = 3  # including the ^
         if msg[command_length] >= 'A':  # there is another letter
@@ -189,7 +191,7 @@ class KPA500(KDevice):
                     swr = swr[1:]
                 self.update_device_data(11, str(swr))
         else:
-            print(f'[KPA500] unprocessed command {cmd} with data {cmd_data}')
+            logging.warning(f'unprocessed command {cmd} with data {cmd_data}', 'process_kpa500_message')
 
     def set_amp_off_data(self):
         # reset all the indicators when the amp is turned off.
@@ -205,10 +207,9 @@ class KPA500(KDevice):
         udd(17, '0')  # Fan Minimum speed slider
 
     # KPA500 amplifier polling code
-    async def kpa500_server(self, verbosity=3):
+    async def kpa500_server(self):
         """
         this manages the connection to the physical amplifier
-        :param verbosity: how much logging?
         :return: None
         """
 
@@ -226,8 +227,7 @@ class KPA500(KDevice):
                     self.update_device_data(6, 'NO AMP')
                 else:
                     amp_state = 1
-                    if verbosity > 3:
-                        print('[KPA500] amp state 0-->1')
+                    logging.debug('amp state 0-->1', 'kpa500_server')
             elif amp_state == 1:  # apparently connected
                 # ask if it is turned on.
                 await self.device_send_receive(b'^ON;', bl)  # hi there.
@@ -238,24 +238,20 @@ class KPA500(KDevice):
                     amp_state = 0
                     self.update_device_data(4, '0')  # not powered
                     self.update_device_data(6, 'NO AMP')
-                    if verbosity > 3:
-                        print('[KPA500] 1: no response, amp state 1-->0')
+                    logging.debug('1: no response, amp state 1-->0', 'kpa500_server')
                 elif bl.bytes_received == 5 and bl.buffer[3] == 49:  # '1', amp appears on
                     amp_state = 3  # amp is powered on.
                     self.update_device_data(4, '1')
                     self.update_device_data(6, 'AMP ON')
                     self.enqueue_command(self.initial_queries)
-                    if verbosity > 3:
-                        print('[KPA500] amp state 1-->3')
+                    logging.debug('amp state 1-->3', 'kpa500_server')
                 elif bl.bytes_received == 4 and bl.buffer[3] == 59:  # ';', amp connected but off.
                     amp_state = 2
                     self.update_device_data(4, '0')
                     self.update_device_data(6, 'AMP OFF')
-                    if verbosity > 3:
-                        print('[KPA500] amp state 1-->2')
+                    logging.debug('amp state 1-->2', 'kpa500_server')
                 else:
-                    if verbosity > 1:
-                        print(f'[KPA500] 1: unexpected data {bl.buffer[:bl.bytes_received]}')
+                    logging.warning(f'1: unexpected data {bl.buffer[:bl.bytes_received]}', 'kpa500_server')
             elif amp_state == 2:  # connected, power off.
                 query = self.dequeue_command()
                 # throw away any queries except the ON command.
@@ -264,8 +260,7 @@ class KPA500(KDevice):
                     self.update_device_data(6, 'Powering On')
                     await asyncio.sleep(1.50)
                     amp_state = 0  # test state again.
-                    if verbosity > 3:
-                        print('[KPA500] amp state 2-->0')
+                    logging.debug('amp state 2-->0', 'kpa500_server')
                 else:
                     await self.device_send_receive(b'^ON;', bl, timeout=1.5)  # hi there.
                     # is b'^ON1;' when amp is on.
@@ -275,20 +270,17 @@ class KPA500(KDevice):
                         amp_state = 1
                         self.update_device_data(4, '0')  # not powered
                         self.update_device_data(6, 'NO AMP')
-                        if verbosity > 3:
-                            print('[KPA500] no data, amp state 2-->1')
+                        logging.debug('no data, amp state 2-->1', 'kpa500_server')
                     elif bl.bytes_received == 5 and bl.buffer[3] == 49:  # '1', amp appears on
                         amp_state = 3  # amp is powered on.
                         self.update_device_data(4, '1')
                         self.update_device_data(6, 'AMP ON')
                         self.enqueue_command(self.initial_queries)
-                        if verbosity > 3:
-                            print('[KPA500] amp state 2-->3')
+                        logging.debug('amp state 2-->3', 'kpa500_server')
                     elif bl.bytes_received == 4 and bl.buffer[3] == 59:  # ';', amp connected but off.
                         pass  # this is the expected result when amp is off
                     else:
-                        if verbosity > 3:
-                            print(f'[KPA500] 2: unexpected data {bl.buffer[:bl.bytes_received]}')
+                        logging.debug(f'2: unexpected data {bl.buffer[:bl.bytes_received]}', 'kpa500_server')
             elif amp_state == 3:  # connected, power on.
                 query = self.dequeue_command()
                 if query is None:
@@ -300,8 +292,7 @@ class KPA500(KDevice):
                 await self.device_send_receive(query, bl)
                 if query == b'^ON0;':
                     amp_state = 1
-                    if verbosity > 3:
-                        print('[KPA500] power off command, amp state 3-->1')
+                    logging.debug('power off command, amp state 3-->1', 'kpa500_server')
                     self.update_device_data(6, 'PWR OFF')
                     self.set_amp_off_data()
                     await asyncio.sleep(1.50)
@@ -312,15 +303,14 @@ class KPA500(KDevice):
                         amp_state = 0
                         self.update_device_data(6, 'NO AMP')
                         self.set_amp_off_data()
-                        if verbosity > 3:
-                            print('[KPA500] no response, amp state 3-->0')
+                        logging.debug('no response, amp state 3-->0', 'kpa500_server')
             else:
-                print(f'[KPA500] invalid amp state: {amp_state}, bye bye.')
+                logging.error(f'invalid amp state: {amp_state}, bye bye.', 'kpa500_server')
                 run_loop = False
 
             await asyncio.sleep(0.025)  # 40/sec
 
-    async def serve_kpa500_remote_client(self, reader, writer, verbosity=3):
+    async def serve_kpa500_remote_client(self, reader, writer):
         """
         this provides KPA500-Remote compatible control.
         """
@@ -331,8 +321,7 @@ class KPA500(KDevice):
         client_data = ClientData(client_name)
         client_data.update_list.extend((7, 16, 6, 0, 1, 2, 3, 4, 8, 5, 9, 10, 11, 12, 13, 14, 15, 17, 18))  # items to send.
         self.network_clients.append(client_data)
-        if verbosity > 2:
-            print(f'[KPA500] client {client_name} connected')
+        logging.info(f'client {client_name} connected', 'kpa500:serve_kpa500_remote_client')
         try:
             while client_data.connected:
                 try:
@@ -344,8 +333,8 @@ class KPA500(KDevice):
                 if message is not None and not timed_out:
                     client_data.last_activity = milliseconds()
                     if len(message) == 0:  # keepalive?
-                        if verbosity > 3:
-                            print(f'[KPA500] {get_timestamp()}: RECEIVED keepalive FROM client {client_name}')
+                        logging.debug(f'RECEIVED keepalive FROM client {client_name}',
+                                      'kpa500:serve_kpa500_remote_client')
                     elif message.startswith('server::login::'):
                         up_list = message[15:].split('::')
                         if up_list[0] != self.username:
@@ -359,8 +348,7 @@ class KPA500(KDevice):
                             client_data.authorized = True
                         writer.write(response)
                         client_data.last_activity = milliseconds()
-                        if verbosity > 3:
-                            print(f'[KPA500] sending "{response.decode().strip()}"')
+                        logging.info(f'sending "{response.decode().strip()}"', 'kpa500:serve_kpa500_remote_client')
                     else:
                         if client_data.authorized:
                             # noinspection SpellCheckingInspection
@@ -381,7 +369,6 @@ class KPA500(KDevice):
                                     command = b'^OS0;^OS;'
                                 self.enqueue_command(command)
                             elif message.startswith('amp::button::PWR::'):
-                                # print(message)
                                 value = message[18:]
                                 if value == '1':
                                     command = b'^ON1;'
@@ -406,11 +393,11 @@ class KPA500(KDevice):
                                 command = f'^FC{value};^FC;'.encode()
                                 self.enqueue_command(command)
                             else:
-                                print(f'[KPA500] unhandled message "{message}"')
+                                logging.info(f'unhandled message "{message}"', 'kpa500:serve_kpa500_remote_client')
                 else:  # response was None
                     if not timed_out:
-                        if verbosity > 2:
-                            print(f'[KPA500] client {client_data} response was None, setting connected=false')
+                        logging.info(f'client {client_data} response was None, setting connected=false',
+                                     'kpa500:serve_kpa500_remote_client')
                         client_data.connected = False
 
                 # send any outstanding data back...
@@ -421,27 +408,28 @@ class KPA500(KDevice):
                     writer.write(payload)
                     await writer.drain()
                     client_data.last_activity = milliseconds()
-                    if verbosity > 3:
-                        print(f'[KPA500] sent "{self.key_names[index].decode()}{payload.decode().strip()}"')
+                    logging.debug(f'sent "{self.key_names[index].decode()}{payload.decode().strip()}"',
+                                  'serve_kpa500_remote_client')
 
                 since_last_activity = milliseconds() - client_data.last_activity
                 if since_last_activity > 15000:
                     writer.write(b'\n')
                     await writer.drain()
                     client_data.last_activity = milliseconds()
-                    if verbosity > 3:
-                        print(f'[KPA500] {get_timestamp()}: SENT keepalive TO client {client_name}')
+                    logging.debug(f'SENT keepalive TO client {client_name}',
+                                 'kpa500:serve_kpa500_remote_client')
                 gc.collect()
 
             # connection closing
-            print(f'[KPA500] client {client_name} connection closing...')
+            logging.info(f'client {client_name} connection closing...', 'serve_kpa500_remote_client')
             writer.close()
             await writer.wait_closed()
         except Exception as ex:
-            print(f'[KPA500] client {client_name} exception in serve_network_client:', type(ex), ex)
+            logging.error(f'client {client_name} exception in serve_network_client: {type(ex)} {ex}',
+                          'kpa500:serve_kpa500_remote_client')
             raise ex
         finally:
-            print(f'[KPA500] client {client_name} disconnected')
+            logging.info(f'client {client_name} disconnected', 'serve_kpa500_remote_client')
             found_network_client = None
             for network_client in self.network_clients:
                 if network_client.client_name == client_data.client_name:
@@ -449,6 +437,7 @@ class KPA500(KDevice):
                     break
             if found_network_client is not None:
                 self.network_clients.remove(found_network_client)
-                print(f'[KPA500] client {client_name} removed from network_clients list.')
+                logging.info(f'client {client_name} removed from network_clients list.', 'kpa500:serve_kpa500_remote_client')
         tc = milliseconds()
-        print(f'[KPA500] client {client_name} disconnected, elapsed time {((tc - t0) / 1000.0):6.3f} seconds')
+        logging.info(f'client {client_name} disconnected, elapsed time {((tc - t0) / 1000.0):6.3f} seconds',
+                     'kpa500:serve_kpa500_remote_client')

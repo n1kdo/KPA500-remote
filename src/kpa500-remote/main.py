@@ -45,6 +45,7 @@ from utils import upython, safe_int
 
 if upython:
     import machine
+    import micro_logging as logging
     import network
     import uasyncio as asyncio
 
@@ -60,6 +61,7 @@ if upython:
 
 else:
     import asyncio
+    import logging
 
 
     class Machine:
@@ -69,11 +71,11 @@ else:
 
         @staticmethod
         def soft_reset():
-            print('Machine.soft_reset()')
+            logging.debug('Machine.soft_reset()', 'main:Machine.soft_reset()')
 
         @staticmethod
         def reset():
-            print('Machine.reset()')
+            logging.debug('Machine.reset()', 'main:Machine.reset()')
 
         class Pin:
             OUT = 1
@@ -132,7 +134,7 @@ def read_config():
         with open(CONFIG_FILE, 'r') as config_file:
             config = json.load(config_file)
     except Exception as ex:
-        print('failed to load configuration!', type(ex), ex)
+        logging.error(f'failed to load configuration! {type(ex)} {ex}', 'main:read_config')
         config = {
             'SSID': DEFAULT_SSID,
             'secret': DEFAULT_SSID,
@@ -181,7 +183,7 @@ def connect_to_network(config):
     access_point_mode = config.get('ap_mode') or False
 
     if access_point_mode:
-        print('Starting setup WLAN...')
+        logging.info('Starting setup WLAN...', 'main:connect_to_network')
         wlan = network.WLAN(network.AP_IF)
         wlan.deinit()
         wlan.config(pm=wlan.PM_NONE)  # disable power save, this is a server.
@@ -193,10 +195,10 @@ def connect_to_network(config):
         hostname = config.get('hostname')
         if hostname is not None:
             try:
-                print(f'  setting hostname "{hostname}"')
+                logging.info(f'  setting hostname "{hostname}"', 'main:connect_to_network')
                 network.hostname(hostname)
             except ValueError:
-                print('Failed to set hostname.')
+                logging.error('Failed to set hostname.', 'main:connect_to_network')
 
         """
         #define CYW43_AUTH_OPEN (0)                     ///< No authorisation required (open)
@@ -212,11 +214,11 @@ def connect_to_network(config):
             security = 0x00400004  # CYW43_AUTH_WPA2_AES_PSK
         wlan.config(ssid=ssid, key=secret, security=security)
         wlan.active(True)
-        print(f'  wlan.active()={wlan.active()}')
-        print(f'  ssid={wlan.config("ssid")}')
-        print(f'  ifconfig={wlan.ifconfig()}')
+        logging.info(f'  wlan.active()={wlan.active()}', 'main:connect_to_network')
+        logging.info(f'  ssid={wlan.config("ssid")}', 'main:connect_to_network')
+        logging.info(f'  ifconfig={wlan.ifconfig()}', 'main:connect_to_network')
     else:
-        print('Connecting to WLAN...')
+        logging.info('Connecting to WLAN...', 'main:connect_to_network')
         wlan = network.WLAN(network.STA_IF)
         wlan.deinit()
         # wlan.deinit turns off the onboard LED because it is connected to the CYW43
@@ -236,44 +238,43 @@ def connect_to_network(config):
             gateway = config.get('gateway')
             dns_server = config.get('dns_server')
             if ip_address is not None and netmask is not None and gateway is not None and dns_server is not None:
-                print('Configuring network with static IP')
+                logging.info('Configuring network with static IP', 'main:connect_to_network')
                 wlan.ifconfig((ip_address, netmask, gateway, dns_server))
             else:
-                print('Cannot use static IP, data is missing.')
-                print('Configuring network with DHCP....')
+                logging.warning('Cannot use static IP, data is missing.', 'main:connect_to_network')
+                logging.warning('Configuring network with DHCP....', 'main:connect_to_network')
                 #wlan.ifconfig('dhcp')
         else:
-            print('Configuring network with DHCP...')
-            #wlan.ifconfig('dhcp')
+            logging.info('Configuring network with DHCP...', 'main:connect_to_network')
 
         hostname = config.get('hostname')
         if hostname is not None:
             try:
-                print(f'  setting hostname "{hostname}"')
+                logging.info(f'...setting hostname "{hostname}"', 'main:connect_to_network')
                 network.hostname(hostname)
             except ValueError:
-                print('Failed to set hostname.')
+                logging.error('Failed to set hostname.', 'main:connect_to_network')
 
         # print(f'ifconfig={wlan.ifconfig()}')
 
         max_wait = 10
         wl_status = wlan.status()
-        print(f'  ifconfig={wlan.ifconfig()}')
-        print(f'  connecting to "{ssid}"...')
+        logging.info(f'...ifconfig={wlan.ifconfig()}', 'main:connect_to_network')
+        logging.info(f'...connecting to "{ssid}"...', 'main:connect_to_network')
         wlan.connect(ssid, secret)
         while max_wait > 0:
             wl_status = wlan.status()
             st = network_status_map.get(wl_status) or 'undefined'
-            print(f'  network status: {wl_status} {st}')
+            logging.info(f'...network status: {wl_status} {st}', 'main:connect_to_network')
             if wl_status < 0 or wl_status >= 3:
                 break
             max_wait -= 1
             time.sleep(1)
         if wl_status != network.STAT_GOT_IP:
-            print('Network did not connect!')
+            logging.error('Network did not connect!', 'main:connect_to_network')
             morse_code_sender.set_message('ERR')
             return None, None
-        print(f'  connected, ifconfig={wlan.ifconfig()}')
+        logging.info(f'...connected, ifconfig={wlan.ifconfig()}', 'main:connect_to_network')
 
     onboard.on()  # turn on the LED, WAN is up.
     wl_config = wlan.ifconfig()
@@ -282,7 +283,7 @@ def connect_to_network(config):
     message = f'AP {ip_address} ' if access_point_mode else f'{ip_address} '
     message = message.replace('.', ' ')
     morse_code_sender.set_message(message)
-    print(message)
+    logging.info(f'setting morse code message to {message}', 'main:connect_to_network')
     return ip_address, netmask
 
 
@@ -495,7 +496,7 @@ async def api_upload_file_callback(http, verb, args, reader, writer, request_hea
                             if line == start_boundary:
                                 state = http.MP_HEADERS
                             else:
-                                print('expecting start boundary, got ' + line)
+                                logging.error(f'expecting start boundary, got {line}', 'main:api_upload_file_callback')
                         elif state == http.MP_HEADERS:
                             if len(line) == 0:
                                 state = http.MP_DATA
@@ -515,7 +516,7 @@ async def api_upload_file_callback(http, verb, args, reader, writer, request_hea
                             if line == end_boundary:
                                 state = http.MP_START_BOUND
                             else:
-                                print('expecting end boundary, got ' + line)
+                                logging.error(f'expecting end boundary, got {line}', 'main:api_upload_file_callback')
                         else:
                             http_status = 500
                             response = f'unmanaged state {state}'.encode('utf-8')
@@ -786,6 +787,9 @@ async def api_kat_set_bypass_callback(http, verb, args, reader, writer, request_
 
 async def main():
     global restart, username, password, kpa500, kat500
+
+    logging.info('Starting...', 'main:main')
+
     config = read_config()
     username = config.get('username')
     password = config.get('password')
@@ -826,8 +830,9 @@ async def main():
             ip_address, netmask = connect_to_network(config)
             connected = ip_address is not None
         except Exception as ex:
-            print(f'Network did not connect, {ex}')
+            logging.error(f'Network did not connect, {ex}', 'main:main')
 
+        #morse_sender =
         asyncio.create_task(morse_code_sender.morse_sender())
 
     if connected:
@@ -848,10 +853,12 @@ async def main():
             http_server.add_uri_callback('/api/kpa_set_power', api_kpa_set_power_callback)
             http_server.add_uri_callback('/api/kpa_set_speaker_alarm', api_kpa_set_speaker_alarm_callback)
             http_server.add_uri_callback('/api/kpa_status', api_kpa_status_callback)
-            print(f'Starting KPA500 TCP service on port {kpa500_tcp_port}')
-            asyncio.create_task(asyncio.start_server(kpa500.serve_kpa500_remote_client, '0.0.0.0', kpa500_tcp_port))
+            logging.info(f'Starting KPA500 client service on port {kpa500_tcp_port}', 'main:main')
+            kpa500_client_server = asyncio.create_task(asyncio.start_server(kpa500.serve_kpa500_remote_client,
+                                                                            '0.0.0.0', kpa500_tcp_port))
             # this task talks to the amplifier hardware.
-            asyncio.create_task(kpa500.kpa500_server(3))
+            logging.info(f'Starting KPA500 amplifier service', 'main:main')
+            kpa500_server = asyncio.create_task(kpa500.kpa500_server())
 
         # KAT500 specific
         if kat500_tcp_port != 0:
@@ -865,44 +872,48 @@ async def main():
             http_server.add_uri_callback('/api/kat_set_attn', api_kat_set_attn_callback)
             http_server.add_uri_callback('/api/kat_set_bypass', api_kat_set_bypass_callback)
             http_server.add_uri_callback('/api/kat_clear_fault', api_kat_clear_fault_callback)
-            print(f'Starting KAT500 TCP service on port {kat500_tcp_port}')
-            asyncio.create_task(asyncio.start_server(kat500.serve_kat500_remote_client, '0.0.0.0', kat500_tcp_port))
+            logging.info(f'Starting KAT500 client service on port {kat500_tcp_port}', 'main:main')
+            kat500_client_server = asyncio.create_task(asyncio.start_server(kat500.serve_kat500_remote_client,
+                                                                            '0.0.0.0', kat500_tcp_port))
             # this task talks to the tuner hardware.
-            asyncio.create_task(kat500.kat500_server(5))
+            logging.info(f'Starting KAT500 tuner service', 'main:main')
+            kat500_server = asyncio.create_task(kat500.kat500_server())
 
-        print(f'Starting web service on port {web_port}')
-        asyncio.create_task(asyncio.start_server(http_server.serve_http_client, '0.0.0.0', web_port))
+        logging.info(f'Starting web service on port {web_port}', 'main:main')
+        web_server = asyncio.create_task(asyncio.start_server(http_server.serve_http_client, '0.0.0.0', web_port))
     else:
-        print('no network connection')
+        logging.error('no network connection', 'main:main')
 
+    keep_running = True
     reset_button_pressed_count = 0
-
-    while True:
+    while keep_running:
         if upython:
             await asyncio.sleep(0.25)
             pressed = reset_button.value() == 0
             if pressed:
                 reset_button_pressed_count += 1
-                if reset_button_pressed_count > 7:
-                    ap_mode = not ap_mode
-                    config['ap_mode'] = ap_mode
-                    save_config(config)
-                    restart = True
             else:
-                reset_button_pressed_count = 0
-
-            if restart:
-                machine.soft_reset()
+                if reset_button_pressed_count > 0:
+                    reset_button_pressed_count -= 1
+            if reset_button_pressed_count > 7:
+                logging.info('reset button pressed', 'main:main')
+                ap_mode = not ap_mode
+                config['ap_mode'] = ap_mode
+                save_config(config)
+                keep_running = False
         else:
             await asyncio.sleep(10.0)
+    if upython:
+        machine.soft_reset()
 
 
 if __name__ == '__main__':
-    print('starting')
+    logging.loglevel = logging.INFO  # DEBUG
+    logging.info('starting', 'main:__main__')
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print('bye')
+        logging.info('bye', 'main:__main__')
     finally:
         asyncio.new_event_loop()
-    print('done')
+    logging.info('done', 'main:__main__')
