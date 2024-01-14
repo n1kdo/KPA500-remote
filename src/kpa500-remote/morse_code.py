@@ -23,6 +23,7 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 """
+__version__ = '0.9.0'
 
 # disable pylint import error
 # pylint: disable=E0401
@@ -75,19 +76,26 @@ class MorseCode:
         self.message = message
 
     async def morse_sender(self):
+        # these next several lines are optimizations for micropython, intended to eliminate dict lookups on self & etc.
+        morse_esp = self.MORSE_ESP
+        morse_lsp = self.MORSE_LSP
+        led = self.led
+        sleep = asyncio.sleep
+        patterns = self.MORSE_PATTERNS
+
         while True:
             msg = self.message
             for morse_letter in msg:
-                blink_pattern = self.MORSE_PATTERNS.get(morse_letter)
+                blink_pattern = patterns.get(morse_letter)
                 if blink_pattern is None:
-                    print(f'Warning: no pattern for letter {morse_letter}')
-                    blink_pattern = self.MORSE_PATTERNS.get(' ')
+                    print(f'[MORSE_CODE] Warning: no pattern for letter {morse_letter}')
+                    blink_pattern = patterns.get(' ')
                 blink_list = list(blink_pattern)
                 while len(blink_list) > 0:
                     blink_time = blink_list.pop(0)
                     if blink_time > 0:
                         # blink time is in milliseconds!, but data is in 10 msec
-                        self.led.on()
-                        await asyncio.sleep(blink_time/100)
-                        self.led.off()
-                    await asyncio.sleep(self.MORSE_ESP / 100 if len(blink_list) > 0 else self.MORSE_LSP / 100)
+                        led.on()
+                        await sleep(blink_time/100)
+                        led.off()
+                    await sleep(morse_esp / 100 if len(blink_list) > 0 else morse_lsp / 100)

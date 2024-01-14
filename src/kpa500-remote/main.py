@@ -3,6 +3,7 @@
 #
 __author__ = 'J. B. Otterson'
 __copyright__ = 'Copyright 2023, J. B. Otterson N1KDO.'
+__version__ = '0.9.1'
 
 #
 # Copyright 2023, J. B. Otterson N1KDO.

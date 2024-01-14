@@ -23,6 +23,7 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 """
+__version__ = '0.9.0'
 
 import gc
 import json
@@ -122,7 +123,7 @@ class HttpServer:
                     if len(buffer) < self.BUFFER_SIZE:
                         break
         except Exception as exc:
-            print(type(exc), exc)
+            print(f'[HTTP_SERVER] {type(exc)} {exc}')
         return content_length, http_status
 
     def start_response(self, writer, http_status=200, content_type=None, response_size=0, extra_headers=None):
@@ -161,12 +162,13 @@ class HttpServer:
         http_status = 418  # can only make tea, sorry.
         bytes_sent = 0
         partner = writer.get_extra_info('peername')[0]
-        if self.verbosity >= 4:
-            print(f'\nweb client connected from {partner}')
+        vb = self.verbosity
+        if vb >= 4:
+            print(f'[HTTP_SERVER] web client connected from {partner}')
         request_line = await reader.readline()
         request = request_line.decode().strip()
-        if self.verbosity >= 4:
-            print(request)
+        if vb >= 4:
+            print(f'[HTTP_SERVER] {request}')
         pieces = request.split(' ')
         if len(pieces) != 3:  # does the http request line look approximately correct?
             http_status = 400
@@ -244,9 +246,9 @@ class HttpServer:
         await writer.wait_closed()
         elapsed = milliseconds() - t0
         if http_status == 200:
-            if self.verbosity > 2:
-                print(f'{partner} {request} {http_status} {bytes_sent} {elapsed} ms')
+            if vb> 2:
+                print(f'[HTTP_SERVER] {partner} {request} {http_status} {bytes_sent} {elapsed} ms')
         else:
-            if self.verbosity >= 1:
-                print(f'{partner} {request} {http_status} {bytes_sent} {elapsed} ms')
+            if vb >= 1:
+                print(f'[HTTP_SERVER] {partner} {request} {http_status} {bytes_sent} {elapsed} ms')
         gc.collect()
