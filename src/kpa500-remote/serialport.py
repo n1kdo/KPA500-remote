@@ -60,12 +60,13 @@ class SerialPort:
                 tx_pin = machine.Pin(4)
                 rx_pin = machine.Pin(5)
             timeout_msec = int(timeout * 1000)
+            timeout_char_msec = int(timeout * 100)
             self.port = machine.UART(int(name),
                                      baudrate=baudrate,
                                      parity=None,
                                      stop=1,
                                      timeout=timeout_msec,
-                                     timeout_char=timeout_msec,
+                                     timeout_char=timeout_char_msec,
                                      tx=tx_pin,
                                      rx=rx_pin)
         else:
