@@ -27,7 +27,7 @@ import sys
 
 import serial
 from serial.tools.list_ports import comports
-import pyboard
+from pyboard import Pyboard, PyboardError
 BAUD_RATE = 115200
 
 SRC_DIR = '../kpa500-remote/'
@@ -72,7 +72,7 @@ def put_file(filename, target):
         try:
             target.fs_mkdir(filename)
             print(f'created directory {filename}')
-        except pyboard.PyboardError as exc:
+        except PyboardError as exc:
             if 'EEXIST' not in str(exc):
                 print(f'failed to create directory {filename}')
                 print(type(exc), exc)
@@ -87,7 +87,11 @@ def put_file(filename, target):
 
 
 def load_device(port):
-    target = pyboard.Pyboard(port, BAUD_RATE)
+    try:
+        target = Pyboard(port, BAUD_RATE)
+    except PyboardError:
+        print(f'cannot connect to device {port}')
+        sys.exit(1)
     target.enter_raw_repl()
     for file in FILES_LIST:
         put_file(file, target)

@@ -418,7 +418,7 @@ async def api_get_files_callback(http, verb, args, reader, writer, request_heade
 async def api_upload_file_callback(http, verb, args, reader, writer, request_headers=None):
     if verb == 'POST':
         boundary = None
-        request_content_type = request_headers.get('content-type') or ''
+        request_content_type = request_headers.get('Content-Type') or ''
         if ';' in request_content_type:
             pieces = request_content_type.split(';')
             request_content_type = pieces[0]
@@ -431,7 +431,7 @@ async def api_upload_file_callback(http, verb, args, reader, writer, request_hea
         else:
             response = b'unhandled problem'
             http_status = 500
-            request_content_length = int(request_headers.get('content-length') or '0')
+            request_content_length = int(request_headers.get('Content-Length') or '0')
             remaining_content_length = request_content_length
             start_boundary = http.HYPHENS + boundary
             end_boundary = start_boundary + http.HYPHENS
@@ -525,6 +525,25 @@ async def api_upload_file_callback(http, verb, args, reader, writer, request_hea
         response = b'PUT only.'
         http_status = 400
         bytes_sent = http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
+    return bytes_sent, http_status
+
+
+# noinspection PyUnusedLocal
+async def api_remove_file_callback(http, verb, args, reader, writer, request_headers=None):
+    filename = args.get('filename')
+    if valid_filename(filename) and filename not in DANGER_ZONE_FILE_NAMES:
+        filename = http.content_dir + filename
+        try:
+            os.remove(filename)
+            http_status = 200
+            response = b'removed\r\n'
+        except OSError as ose:
+            http_status = 409
+            response = str(ose).encode('utf-8')
+    else:
+        http_status = 409
+        response = b'bad file name\r\n'
+    bytes_sent = http.send_simple_response(writer, http_status, http.CT_APP_JSON, response)
     return bytes_sent, http_status
 
 
@@ -832,14 +851,14 @@ async def main():
         except Exception as ex:
             logging.error(f'Network did not connect, {ex}', 'main:main')
 
-        #morse_sender =
-        asyncio.create_task(morse_code_sender.morse_sender())
+        morse_sender_task = asyncio.create_task(morse_code_sender.morse_sender())
 
     if connected:
         http_server.add_uri_callback('/', slash_callback)
         http_server.add_uri_callback('/api/config', api_config_callback)
         http_server.add_uri_callback('/api/get_files', api_get_files_callback)
         http_server.add_uri_callback('/api/upload_file', api_upload_file_callback)
+        http_server.add_uri_callback('/api/remove_file', api_remove_file_callback)
         http_server.add_uri_callback('/api/rename_file', api_rename_file_callback)
         http_server.add_uri_callback('/api/restart', api_restart_callback)
 

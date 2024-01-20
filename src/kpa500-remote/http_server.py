@@ -182,9 +182,9 @@ class HttpServer:
                 # get HTTP request headers
                 request_content_length = 0
                 request_content_type = ''
+                request_headers = {}
                 while True:
                     header = await reader.readline()
-                    request_headers = {}
                     if len(header) == 0:
                         # empty header line, eof?
                         break
@@ -193,11 +193,13 @@ class HttpServer:
                         break
                     # process headers.  look for those we are interested in.
                     parts = header.decode().strip().split(':', 1)
-                    request_headers[parts[0].strip().lower()] = parts[1].strip()
-                    if parts[0] == 'Content-Length':
-                        request_content_length = int(parts[1].strip())
-                    elif parts[0] == 'Content-Type':
-                        request_content_type = parts[1].strip()
+                    header_name = parts[0].strip()
+                    header_value = parts[1].strip()
+                    request_headers[header_name] = header_value
+                    if header_name == 'Content-Length':
+                        request_content_length = int(header_value)
+                    elif header_name == 'Content-Type':
+                        request_content_type = header_value
 
                 args = {}
                 if verb == 'GET':
@@ -210,9 +212,11 @@ class HttpServer:
                         elif request_content_type == self.CT_APP_JSON:
                             data = await reader.read(request_content_length)
                             args = json.loads(data.decode())
-                        # else:
-                        #    print('warning: unhandled content_type {}'.format(request_content_type))
-                        #    print('request_content_length={}'.format(request_content_length))
+                        else:
+                            logging.warning(f'warning: unhandled content_type {request_content_type}',
+                                            'http_server:serve_http_client')
+                            logging.warning(f'request_content_length={request_content_length}',
+                                            'http_server:serve_http_client')
                 else:  # bad request
                     http_status = 400
                     response = b'only GET and POST are supported'
