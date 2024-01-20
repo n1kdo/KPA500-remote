@@ -108,7 +108,15 @@ def load_device(port):
                        stopbits=serial.STOPBITS_ONE,
                        timeout=1) as pyboard_port:
         pyboard_port.write(b'\x04')
-    print('\nDevice should restart.')
+        print('\nDevice should restart.')
+
+        while True:
+            try:
+                b = pyboard_port.read(1)
+                sys.stdout.write(b.decode())
+            except serial.SerialException:
+                print(f'\n\nLost connection to device on {port}.')
+                break
 
 
 def main():

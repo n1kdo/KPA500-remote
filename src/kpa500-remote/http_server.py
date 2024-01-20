@@ -212,7 +212,7 @@ class HttpServer:
                         elif request_content_type == self.CT_APP_JSON:
                             data = await reader.read(request_content_length)
                             args = json.loads(data.decode())
-                        else:
+                        elif not request_content_type.startswith('multipart/form-data;'):
                             logging.warning(f'warning: unhandled content_type {request_content_type}',
                                             'http_server:serve_http_client')
                             logging.warning(f'request_content_length={request_content_length}',
