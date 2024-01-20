@@ -306,7 +306,7 @@ class KAT500(KDevice):
                     tuner_state = 0  # test state again.
                     logging.info('tuner state 2-->0', 'kat500:kat500_server')
                 else:
-                    await self.device_send_receive(b'PS1;', bl, timeout=1.5)  # hi there.
+                    await self.device_send_receive(b'PS1;', bl, wait_time=1.5)  # hi there.
                     # is b'PS1;' when tuner is on.
                     # is b'PS0;' when tuner is off
                     # is b'' when tuner is not found.

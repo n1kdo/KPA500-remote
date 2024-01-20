@@ -89,14 +89,15 @@ class KDevice:
                 if index not in network_client.update_list:
                     network_client.update_list.append(index)
 
-    async def device_send_receive(self, message, buf_and_length, timeout=0.10):
+    async def device_send_receive(self, message, buf_and_length, wait_time=0.10):
         # should the read buffer be flushed? can only read to drain
         device_port = self.device_port
-        while len(device_port.read()) > 0:
-            pass
+        # empty the receive buffer
+        while device_port.readinto(buf_and_length.buffer) > 0:
+            logging.warning(f'waiting to send "{message}", rx buffer was not empty: "{buf_and_length.buffer}"')
         device_port.write(message)
         device_port.flush()
-        await asyncio.sleep(timeout)
+        await asyncio.sleep(wait_time)
         buf_and_length.bytes_received = device_port.readinto(buf_and_length.buffer)
 
     @staticmethod
@@ -104,9 +105,9 @@ class KDevice:
         try:
             data = await reader.readline()
             return data.decode().strip()
-        except ConnectionResetError as cre:
-            logging.warning(f'ConnectionResetError in read_network_client: {str(cre)}', 'read_network_client')
+        # except ConnectionResetError as cre:  # micropython does not support ConnectionResetError
+        #    logging.warning(f'ConnectionResetError in read_network_client: {str(cre)}', 'read_network_client')
         except Exception as ex:
-            logging.error(f'exception in read_network_client: {str(ex)}', 'read_network_client')
-            raise ex
+            logging.error(f'exception in read_network_client: {str(ex)}', 'kdevice:read_network_client')
+            # raise ex
         return None

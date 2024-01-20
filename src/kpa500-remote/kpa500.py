@@ -262,7 +262,7 @@ class KPA500(KDevice):
                     amp_state = 0  # test state again.
                     logging.debug('amp state 2-->0', 'kpa500_server')
                 else:
-                    await self.device_send_receive(b'^ON;', bl, timeout=1.5)  # hi there.
+                    await self.device_send_receive(b'^ON;', bl, wait_time=1.5)  # hi there.
                     # is b'^ON1;' when amp is on.
                     # is b'^ON;' when amp is off
                     # is b'' when amp is not found.
@@ -348,7 +348,7 @@ class KPA500(KDevice):
                             client_data.authorized = True
                         writer.write(response)
                         client_data.last_activity = milliseconds()
-                        logging.info(f'sending "{response.decode().strip()}"', 'kpa500:serve_kpa500_remote_client')
+                        logging.debug(f'sending "{response.decode().strip()}"', 'kpa500:serve_kpa500_remote_client')
                     else:
                         if client_data.authorized:
                             # noinspection SpellCheckingInspection
@@ -437,7 +437,8 @@ class KPA500(KDevice):
                     break
             if found_network_client is not None:
                 self.network_clients.remove(found_network_client)
-                logging.info(f'client {client_name} removed from network_clients list.', 'kpa500:serve_kpa500_remote_client')
+                logging.info(f'client {client_name} removed from network_clients list.',
+                             'kpa500:serve_kpa500_remote_client')
         tc = milliseconds()
         logging.info(f'client {client_name} disconnected, elapsed time {((tc - t0) / 1000.0):6.3f} seconds',
                      'kpa500:serve_kpa500_remote_client')
