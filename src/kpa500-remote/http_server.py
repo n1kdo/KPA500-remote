@@ -150,7 +150,7 @@ class HttpServer:
         http_status = 418  # can only make tea, sorry.
         bytes_sent = 0
         partner = writer.get_extra_info('peername')[0]
-        logging.debug('web client connected from {partner}', 'http_server:serve_http_client')
+        logging.debug(f'web client connected from {partner}', 'http_server:serve_http_client')
         request_line = await reader.readline()
         request = request_line.decode().strip()
         logging.debug(f'request: {request}', 'http_server:serve_http_client')
