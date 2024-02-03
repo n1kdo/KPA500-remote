@@ -1,3 +1,2 @@
 .idea/*
-/src/kpa500-remote/data/config.json
-/src/kpa500-remote/data/stuff.txt
+/src/kpa500-remote/data/*
