@@ -28,6 +28,8 @@ __version__ = '0.9.0'
 import gc
 import json
 import os
+import re
+
 from utils import milliseconds, safe_int, upython
 if upython:
     import micro_logging as logging
@@ -78,6 +80,11 @@ class HttpServer:
     MP_DATA = 3
     MP_END_BOUND = 4
 
+    DANGER_ZONE_FILE_NAMES = [
+        'config.html',
+        'files.html',
+    ]
+
     def __init__(self, content_dir):
         self.content_dir = content_dir
         self.uri_map = {}
@@ -111,13 +118,14 @@ class HttpServer:
                     if len(buffer) < self.BUFFER_SIZE:
                         break
         except Exception as exc:
-            logging.info('{type(exc)} {exc}', 'http_server:serve_content')
+            logging.error('{type(exc)} {exc}', 'http_server:serve_content')
         return content_length, http_status
 
     def start_response(self, writer, http_status=200, content_type=None, response_size=0, extra_headers=None):
         status_text = self.HTTP_STATUS_TEXT.get(http_status) or 'Confused'
         protocol = 'HTTP/1.0'
         writer.write(f'{protocol} {http_status} {status_text}\r\n'.encode('utf-8'))
+        writer.write('Access-Control-Allow-Origin: *\n'.encode('utf-8'))  # CORS override
         if content_type is not None and len(content_type) > 0:
             writer.write(f'Content-type: {content_type}; charset=UTF-8\r\n'.encode('utf-8'))
         if response_size > 0:
@@ -242,3 +250,201 @@ class HttpServer:
             logging.info(f'{partner} {request} {http_status} {bytes_sent} {elapsed} ms',
                          'http_server:serve_http_client')
         gc.collect()
+
+#
+# common file operations callbacks, here because just about every app will use them...
+#
+
+
+def valid_filename(filename):
+    if filename is None:
+        return False
+    match = re.match('^[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?.[a-zA-Z0-9_-]+$', filename)
+    if match is None:
+        return False
+    if match.group(0) != filename:
+        return False
+    extension = filename.split('.')[-1].lower()
+    if HttpServer.FILE_EXTENSION_TO_CONTENT_TYPE_MAP.get(extension) is None:
+        return False
+    return True
+
+
+def file_size(filename):
+    try:
+        return os.stat(filename)[6]
+    except OSError:
+        return -1
+
+
+# noinspection PyUnusedLocal
+async def api_get_files_callback(http, verb, args, reader, writer, request_headers=None):
+    if verb == 'GET':
+        payload = os.listdir(http.content_dir)
+        response = json.dumps(payload).encode('utf-8')
+        http_status = 200
+        bytes_sent = http.send_simple_response(writer, http_status, http.CT_APP_JSON, response)
+    else:
+        http_status = 400
+        response = b'only GET permitted'
+        bytes_sent = http.send_simple_response(writer, http_status, http.CT_APP_JSON, response)
+    return bytes_sent, http_status
+
+
+# noinspection PyUnusedLocal
+async def api_upload_file_callback(http, verb, args, reader, writer, request_headers=None):
+    if verb == 'POST':
+        boundary = None
+        request_content_type = request_headers.get('Content-Type') or ''
+        if ';' in request_content_type:
+            pieces = request_content_type.split(';')
+            request_content_type = pieces[0]
+            boundary = pieces[1].strip()
+            if boundary.startswith('boundary='):
+                boundary = boundary[9:]
+        if request_content_type != http.CT_MULTIPART_FORM or boundary is None:
+            response = b'multipart boundary or content type error'
+            http_status = 400
+        else:
+            response = b'unhandled problem'
+            http_status = 500
+            request_content_length = int(request_headers.get('Content-Length') or '0')
+            remaining_content_length = request_content_length
+            logging.info(f'upload content length {request_content_length}', 'main:api_upload_file_callback')
+            start_boundary = http.HYPHENS + boundary
+            end_boundary = start_boundary + http.HYPHENS
+            state = http.MP_START_BOUND
+            filename = None
+            output_file = None
+            writing_file = False
+            more_bytes = True
+            leftover_bytes = []
+            while more_bytes:
+                buffer = await reader.read(HttpServer.BUFFER_SIZE)
+                remaining_content_length -= len(buffer)
+                if remaining_content_length == 0:  # < BUFFER_SIZE:
+                    more_bytes = False
+                if len(leftover_bytes) != 0:
+                    buffer = leftover_bytes + buffer
+                    leftover_bytes = []
+                start = 0
+                while start < len(buffer):
+                    if state == http.MP_DATA:
+                        if not output_file:
+                            output_file = open(http.content_dir + 'uploaded_' + filename, 'wb')
+                            writing_file = True
+                        end = len(buffer)
+                        for i in range(start, len(buffer) - 3):
+                            if buffer[i] == 13 and buffer[i + 1] == 10 and buffer[i + 2] == 45 and \
+                                    buffer[i + 3] == 45:
+                                end = i
+                                writing_file = False
+                                break
+                        if end == HttpServer.BUFFER_SIZE:
+                            if buffer[-1] == 13:
+                                leftover_bytes = buffer[-1:]
+                                buffer = buffer[:-1]
+                                end -= 1
+                            elif buffer[-2] == 13 and buffer[-1] == 10:
+                                leftover_bytes = buffer[-2:]
+                                buffer = buffer[:-2]
+                                end -= 2
+                            elif buffer[-3] == 13 and buffer[-2] == 10 and buffer[-1] == 45:
+                                leftover_bytes = buffer[-3:]
+                                buffer = buffer[:-3]
+                                end -= 3
+                        output_file.write(buffer[start:end])
+                        if not writing_file:
+                            state = http.MP_END_BOUND
+                            output_file.close()
+                            output_file = None
+                            response = f'Uploaded {filename} successfully'.encode('utf-8')
+                            http_status = 201
+                        start = end + 2
+                    else:  # must be reading headers or boundary
+                        line = ''
+                        for i in range(start, len(buffer) - 1):
+                            if buffer[i] == 13 and buffer[i + 1] == 10:
+                                line = buffer[start:i].decode('utf-8')
+                                start = i + 2
+                                break
+                        if state == http.MP_START_BOUND:
+                            if line == start_boundary:
+                                state = http.MP_HEADERS
+                            else:
+                                logging.error(f'expecting start boundary, got {line}', 'main:api_upload_file_callback')
+                        elif state == http.MP_HEADERS:
+                            if len(line) == 0:
+                                state = http.MP_DATA
+                            elif line.startswith('Content-Disposition:'):
+                                pieces = line.split(';')
+                                fn = pieces[2].strip()
+                                if fn.startswith('filename="'):
+                                    filename = fn[10:-1]
+                                    if not valid_filename(filename):
+                                        response = b'bad filename'
+                                        http_status = 500
+                                        more_bytes = False
+                                        start = len(buffer)
+                        elif state == http.MP_END_BOUND:
+                            if line == end_boundary:
+                                state = http.MP_START_BOUND
+                            else:
+                                logging.error(f'expecting end boundary, got {line}', 'main:api_upload_file_callback')
+                        else:
+                            http_status = 500
+                            response = f'unmanaged state {state}'.encode('utf-8')
+        bytes_sent = http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
+    else:
+        response = b'PUT only.'
+        http_status = 400
+        bytes_sent = http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
+    return bytes_sent, http_status
+
+
+# noinspection PyUnusedLocal
+async def api_remove_file_callback(http, verb, args, reader, writer, request_headers=None):
+    filename = args.get('filename')
+    if valid_filename(filename) and filename not in HttpServer.DANGER_ZONE_FILE_NAMES:
+        filename = http.content_dir + filename
+        try:
+            os.remove(filename)
+            http_status = 200
+            response = f'removed {filename}'.encode('utf-8')
+        except OSError as ose:
+            http_status = 409
+            response = str(ose).encode('utf-8')
+    else:
+        http_status = 409
+        response = b'bad file name'
+    bytes_sent = http.send_simple_response(writer, http_status, http.CT_APP_JSON, response)
+    return bytes_sent, http_status
+
+
+# noinspection PyUnusedLocal
+async def api_rename_file_callback(http, verb, args, reader, writer, request_headers=None):
+    filename = args.get('filename')
+    newname = args.get('newname')
+    if valid_filename(filename) and valid_filename(newname):
+        filename = http.content_dir + filename
+        newname = http.content_dir + newname
+        if file_size(newname) >= 0:
+            http_status = 409
+            response = f'new file {newname} already exists'.encode('utf-8')
+        else:
+            try:
+                os.remove(newname)
+            except OSError:
+                pass  # swallow exception.
+            try:
+                os.rename(filename, newname)
+                http_status = 200
+                response = f'renamed {filename} to {newname}'.encode('utf-8')
+            except Exception as ose:
+                http_status = 409
+                response = str(ose).encode('utf-8')
+    else:
+        http_status = 409
+        response = b'bad file name'
+    bytes_sent = http.send_simple_response(writer, http_status, http.CT_APP_JSON, response)
+    return bytes_sent, http_status

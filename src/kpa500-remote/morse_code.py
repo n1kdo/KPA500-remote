@@ -88,7 +88,7 @@ class MorseCode:
 
         while True:
             msg = self.message
-            logging.debug(f'sending new message "{msg}"', 'morse_code:morse_sender')
+            logging.debug(f'starting message "{msg}"', 'morse_code:morse_sender')
             for morse_letter in msg:
                 blink_pattern = patterns.get(morse_letter)
                 if blink_pattern is None:

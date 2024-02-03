@@ -32,33 +32,23 @@ __version__ = '0.9.1'
 # pylint: disable=E0401
 
 import json
-import os
-import re
-import time
 
-from http_server import HttpServer
+from http_server import (HttpServer,
+                         api_rename_file_callback,
+                         api_remove_file_callback,
+                         api_upload_file_callback,
+                         api_get_files_callback)
 from kpa500 import KPA500
 from kat500 import KAT500
 from morse_code import MorseCode
 from utils import upython, safe_int
+from picow_network import connect_to_network
 
 
 if upython:
     import machine
     import micro_logging as logging
-    import network
     import uasyncio as asyncio
-
-    network_status_map = {
-        network.STAT_IDLE: 'no connection and no activity',  # 0
-        network.STAT_CONNECTING: 'connecting in progress',  # 1
-        network.STAT_CONNECTING + 1: 'connected no IP address',  # 2, this is undefined, but returned.
-        network.STAT_GOT_IP: 'connection successful',  # 3
-        network.STAT_WRONG_PASSWORD: 'failed due to incorrect password',  # -3
-        network.STAT_NO_AP_FOUND: 'failed because no access point replied',  # -2
-        network.STAT_CONNECT_FAIL: 'failed due to other problems',  # -1
-    }
-
 else:
     import asyncio
     import logging
@@ -156,135 +146,6 @@ def read_config():
 def save_config(config):
     with open(CONFIG_FILE, 'w') as config_file:
         json.dump(config, config_file)
-
-
-def valid_filename(filename):
-    if filename is None:
-        return False
-    match = re.match('^[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?.[a-zA-Z0-9_-]+$', filename)
-    if match is None:
-        return False
-    if match.group(0) != filename:
-        return False
-    extension = filename.split('.')[-1].lower()
-    if http_server.FILE_EXTENSION_TO_CONTENT_TYPE_MAP.get(extension) is None:
-        return False
-    return True
-
-
-def connect_to_network(config):
-    network.country('US')
-    ssid = config.get('SSID') or ''
-    if len(ssid) == 0 or len(ssid) > 64:
-        ssid = DEFAULT_SSID
-    secret = config.get('secret') or ''
-    if len(secret) > 64:
-        secret = ''
-    access_point_mode = config.get('ap_mode') or False
-
-    if access_point_mode:
-        logging.info('Starting setup WLAN...', 'main:connect_to_network')
-        wlan = network.WLAN(network.AP_IF)
-        wlan.deinit()
-        wlan.config(pm=wlan.PM_NONE)  # disable power save, this is a server.
-        # wlan.deinit turns off the onboard LED because it is connected to the CYW43
-        # turn it on again.
-        onboard = machine.Pin('LED', machine.Pin.OUT, value=0)
-        onboard.on()
-
-        hostname = config.get('hostname')
-        if hostname is not None:
-            try:
-                logging.info(f'  setting hostname "{hostname}"', 'main:connect_to_network')
-                network.hostname(hostname)
-            except ValueError:
-                logging.error('Failed to set hostname.', 'main:connect_to_network')
-
-        """
-        #define CYW43_AUTH_OPEN (0)                     ///< No authorisation required (open)
-        #define CYW43_AUTH_WPA_TKIP_PSK   (0x00200002)  ///< WPA authorisation
-        #define CYW43_AUTH_WPA2_AES_PSK   (0x00400004)  ///< WPA2 authorisation (preferred)
-        #define CYW43_AUTH_WPA2_MIXED_PSK (0x00400006)  ///< WPA2/WPA mixed authorisation
-        """
-        ssid = DEFAULT_SSID
-        secret = DEFAULT_SECRET
-        if len(secret) == 0:
-            security = 0
-        else:
-            security = 0x00400004  # CYW43_AUTH_WPA2_AES_PSK
-        wlan.config(ssid=ssid, key=secret, security=security)
-        wlan.active(True)
-        logging.info(f'  wlan.active()={wlan.active()}', 'main:connect_to_network')
-        logging.info(f'  ssid={wlan.config("ssid")}', 'main:connect_to_network')
-        logging.info(f'  ifconfig={wlan.ifconfig()}', 'main:connect_to_network')
-    else:
-        logging.info('Connecting to WLAN...', 'main:connect_to_network')
-        wlan = network.WLAN(network.STA_IF)
-        wlan.deinit()
-        # wlan.deinit turns off the onboard LED because it is connected to the CYW43
-        # turn it on again.
-        onboard = machine.Pin('LED', machine.Pin.OUT, value=0)
-        onboard.on()
-
-        wlan.active(True)
-        wlan.config(pm=wlan.PM_NONE)  # disable power save, this is a server.
-        
-        is_dhcp = config.get('dhcp')
-        if is_dhcp is None:
-            is_dhcp = True
-        if not is_dhcp:
-            ip_address = config.get('ip_address')
-            netmask = config.get('netmask')
-            gateway = config.get('gateway')
-            dns_server = config.get('dns_server')
-            if ip_address is not None and netmask is not None and gateway is not None and dns_server is not None:
-                logging.info('Configuring network with static IP', 'main:connect_to_network')
-                wlan.ifconfig((ip_address, netmask, gateway, dns_server))
-            else:
-                logging.warning('Cannot use static IP, data is missing.', 'main:connect_to_network')
-                logging.warning('Configuring network with DHCP....', 'main:connect_to_network')
-                #wlan.ifconfig('dhcp')
-        else:
-            logging.info('Configuring network with DHCP...', 'main:connect_to_network')
-
-        hostname = config.get('hostname')
-        if hostname is not None:
-            try:
-                logging.info(f'...setting hostname "{hostname}"', 'main:connect_to_network')
-                network.hostname(hostname)
-            except ValueError:
-                logging.error('Failed to set hostname.', 'main:connect_to_network')
-
-        # print(f'ifconfig={wlan.ifconfig()}')
-
-        max_wait = 10
-        wl_status = wlan.status()
-        logging.info(f'...ifconfig={wlan.ifconfig()}', 'main:connect_to_network')
-        logging.info(f'...connecting to "{ssid}"...', 'main:connect_to_network')
-        wlan.connect(ssid, secret)
-        while max_wait > 0:
-            wl_status = wlan.status()
-            st = network_status_map.get(wl_status) or 'undefined'
-            logging.info(f'...network status: {wl_status} {st}', 'main:connect_to_network')
-            if wl_status < 0 or wl_status >= 3:
-                break
-            max_wait -= 1
-            time.sleep(1)
-        if wl_status != network.STAT_GOT_IP:
-            logging.error('Network did not connect!', 'main:connect_to_network')
-            morse_code_sender.set_message('ERR')
-            return None, None
-        logging.info(f'...connected, ifconfig={wlan.ifconfig()}', 'main:connect_to_network')
-
-    onboard.on()  # turn on the LED, WAN is up.
-    wl_config = wlan.ifconfig()
-    ip_address = wl_config[0]
-    netmask = wl_config[1]
-    message = f'AP {ip_address} ' if access_point_mode else f'{ip_address} '
-    message = message.replace('.', ' ')
-    morse_code_sender.set_message(message)
-    logging.info(f'setting morse code message to {message}', 'main:connect_to_network')
-    return ip_address, netmask
 
 
 # noinspection PyUnusedLocal
@@ -397,178 +258,6 @@ async def api_config_callback(http, verb, args, reader, writer, request_headers=
         response = b'GET or PUT only.'
         http_status = 400
         bytes_sent = http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
-    return bytes_sent, http_status
-
-
-# noinspection PyUnusedLocal
-async def api_get_files_callback(http, verb, args, reader, writer, request_headers=None):
-    if verb == 'GET':
-        payload = os.listdir(http.content_dir)
-        response = json.dumps(payload).encode('utf-8')
-        http_status = 200
-        bytes_sent = http.send_simple_response(writer, http_status, http.CT_APP_JSON, response)
-    else:
-        http_status = 400
-        response = b'only GET permitted'
-        bytes_sent = http.send_simple_response(writer, http_status, http.CT_APP_JSON, response)
-    return bytes_sent, http_status
-
-
-# noinspection PyUnusedLocal
-async def api_upload_file_callback(http, verb, args, reader, writer, request_headers=None):
-    if verb == 'POST':
-        boundary = None
-        request_content_type = request_headers.get('Content-Type') or ''
-        if ';' in request_content_type:
-            pieces = request_content_type.split(';')
-            request_content_type = pieces[0]
-            boundary = pieces[1].strip()
-            if boundary.startswith('boundary='):
-                boundary = boundary[9:]
-        if request_content_type != http.CT_MULTIPART_FORM or boundary is None:
-            response = b'multipart boundary or content type error'
-            http_status = 400
-        else:
-            response = b'unhandled problem'
-            http_status = 500
-            request_content_length = int(request_headers.get('Content-Length') or '0')
-            remaining_content_length = request_content_length
-            start_boundary = http.HYPHENS + boundary
-            end_boundary = start_boundary + http.HYPHENS
-            state = http.MP_START_BOUND
-            filename = None
-            output_file = None
-            writing_file = False
-            more_bytes = True
-            leftover_bytes = []
-            while more_bytes:
-                # print('waiting for read')
-                buffer = await reader.read(BUFFER_SIZE)
-                remaining_content_length -= len(buffer)
-                if remaining_content_length == 0:  # < BUFFER_SIZE:
-                    more_bytes = False
-                if len(leftover_bytes) != 0:
-                    buffer = leftover_bytes + buffer
-                    leftover_bytes = []
-                start = 0
-                while start < len(buffer):
-                    if state == http.MP_DATA:
-                        if not output_file:
-                            output_file = open(http.content_dir + 'uploaded_' + filename, 'wb')
-                            writing_file = True
-                        end = len(buffer)
-                        for i in range(start, len(buffer) - 3):
-                            if buffer[i] == 13 and buffer[i + 1] == 10 and buffer[i + 2] == 45 and \
-                                    buffer[i + 3] == 45:
-                                end = i
-                                writing_file = False
-                                break
-                        if end == BUFFER_SIZE:
-                            if buffer[-1] == 13:
-                                leftover_bytes = buffer[-1:]
-                                buffer = buffer[:-1]
-                                end -= 1
-                            elif buffer[-2] == 13 and buffer[-1] == 10:
-                                leftover_bytes = buffer[-2:]
-                                buffer = buffer[:-2]
-                                end -= 2
-                            elif buffer[-3] == 13 and buffer[-2] == 10 and buffer[-1] == 45:
-                                leftover_bytes = buffer[-3:]
-                                buffer = buffer[:-3]
-                                end -= 3
-                        output_file.write(buffer[start:end])
-                        if not writing_file:
-                            # print('closing file')
-                            state = http.MP_END_BOUND
-                            output_file.close()
-                            output_file = None
-                            response = f'Uploaded {filename} successfully'.encode('utf-8')
-                            http_status = 201
-                        start = end + 2
-                    else:  # must be reading headers or boundary
-                        line = ''
-                        for i in range(start, len(buffer) - 1):
-                            if buffer[i] == 13 and buffer[i + 1] == 10:
-                                line = buffer[start:i].decode('utf-8')
-                                start = i + 2
-                                break
-                        if state == http.MP_START_BOUND:
-                            if line == start_boundary:
-                                state = http.MP_HEADERS
-                            else:
-                                logging.error(f'expecting start boundary, got {line}', 'main:api_upload_file_callback')
-                        elif state == http.MP_HEADERS:
-                            if len(line) == 0:
-                                state = http.MP_DATA
-                            elif line.startswith('Content-Disposition:'):
-                                pieces = line.split(';')
-                                fn = pieces[2].strip()
-                                if fn.startswith('filename="'):
-                                    filename = fn[10:-1]
-                                    if not valid_filename(filename):
-                                        response = b'bad filename'
-                                        http_status = 500
-                                        more_bytes = False
-                                        start = len(buffer)
-                            # else:
-                            #     print('processing headers, got ' + line)
-                        elif state == http.MP_END_BOUND:
-                            if line == end_boundary:
-                                state = http.MP_START_BOUND
-                            else:
-                                logging.error(f'expecting end boundary, got {line}', 'main:api_upload_file_callback')
-                        else:
-                            http_status = 500
-                            response = f'unmanaged state {state}'.encode('utf-8')
-        bytes_sent = http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
-    else:
-        response = b'PUT only.'
-        http_status = 400
-        bytes_sent = http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
-    return bytes_sent, http_status
-
-
-# noinspection PyUnusedLocal
-async def api_remove_file_callback(http, verb, args, reader, writer, request_headers=None):
-    filename = args.get('filename')
-    if valid_filename(filename) and filename not in DANGER_ZONE_FILE_NAMES:
-        filename = http.content_dir + filename
-        try:
-            os.remove(filename)
-            http_status = 200
-            response = b'removed\r\n'
-        except OSError as ose:
-            http_status = 409
-            response = str(ose).encode('utf-8')
-    else:
-        http_status = 409
-        response = b'bad file name\r\n'
-    bytes_sent = http.send_simple_response(writer, http_status, http.CT_APP_JSON, response)
-    return bytes_sent, http_status
-
-
-# noinspection PyUnusedLocal
-async def api_rename_file_callback(http, verb, args, reader, writer, request_headers=None):
-    filename = args.get('filename')
-    newname = args.get('newname')
-    if valid_filename(filename) and valid_filename(newname):
-        filename = http.content_dir + filename
-        newname = http.content_dir + newname
-        try:
-            os.remove(newname)
-        except OSError:
-            pass  # swallow exception.
-        try:
-            os.rename(filename, newname)
-            http_status = 200
-            response = b'renamed\r\n'
-        except Exception as ose:
-            http_status = 409
-            response = str(ose).encode('utf-8')
-    else:
-        http_status = 409
-        response = b'bad file name'
-    bytes_sent = http.send_simple_response(writer, http_status, http.CT_APP_JSON, response)
     return bytes_sent, http_status
 
 
@@ -846,7 +535,7 @@ async def main():
     connected = True
     if upython:
         try:
-            ip_address, netmask = connect_to_network(config)
+            ip_address = connect_to_network(config, DEFAULT_SSID, DEFAULT_SECRET, morse_code_sender)
             connected = ip_address is not None
         except Exception as ex:
             logging.error(f'Network did not connect, {ex}', 'main:main')
