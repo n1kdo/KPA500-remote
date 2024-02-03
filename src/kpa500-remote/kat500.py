@@ -335,7 +335,7 @@ class KAT500(KDevice):
                         next_command += 1
 
                 # timeout = 2.0 if query in (b'MDA;', b'MDB;', b'MDM;') else 0.05
-                await self.device_send_receive(query, bl)
+                await self.device_send_receive(query, bl, retries=2)
                 if query == b'PS0;':
                     tuner_state = 1
                     logging.info('power off command, tuner state 3-->1', 'kat500:kat500_server')

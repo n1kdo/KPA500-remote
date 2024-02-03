@@ -32,10 +32,11 @@ __version__ = '0.9.0'
 import sys
 
 impl_name = sys.implementation.name
-if impl_name == 'cpython':
-    import serial
-elif impl_name == 'micropython':
+upython = impl_name == 'micropython'
+if upython:
     import machine
+else:
+    import serial
 
 
 class SerialPort:
@@ -74,6 +75,19 @@ class SerialPort:
 
     def close(self):
         self.port.close()
+
+    def any(self):
+        if upython:
+            return self.port.any()
+        else:
+            return self.port.in_waiting()
+
+    def flush_input(self):
+        if upython:
+            if self.any():
+                _ = self.port.read()
+        else:
+            self.port.reset_input_buffer()
 
     def write(self, buffer):
         self.port.write(buffer)

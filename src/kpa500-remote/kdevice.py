@@ -89,16 +89,25 @@ class KDevice:
                 if index not in network_client.update_list:
                     network_client.update_list.append(index)
 
-    async def device_send_receive(self, message, buf_and_length, wait_time=0.10):
-        # should the read buffer be flushed? can only read to drain
-        device_port = self.device_port
-        # empty the receive buffer
-        while device_port.readinto(buf_and_length.buffer) > 0:
-            logging.warning(f'waiting to send "{message}", rx buffer was not empty: "{buf_and_length.buffer}"')
-        device_port.write(message)
-        device_port.flush()
-        await asyncio.sleep(wait_time)
-        buf_and_length.bytes_received = device_port.readinto(buf_and_length.buffer)
+    async def device_send_receive(self, message, buf_and_length, wait_time=0.50, retries=1):
+        while retries > 0:
+            retries -= 1
+            device_port = self.device_port
+            # empty the receive buffer
+            while device_port.readinto(buf_and_length.buffer) > 0:
+                logging.warning(f'waiting to send "{message}", rx buffer was not empty: "{buf_and_length.buffer}"')
+            device_port.write(message)
+            device_port.flush()
+            while wait_time > 0:
+                await asyncio.sleep(0.01)
+                wait_time -= 0.01
+                if device_port.any() > 0:
+                    break
+            buf_and_length.bytes_received = device_port.readinto(buf_and_length.buffer)
+            if buf_and_length.bytes_received > 0:
+                return
+            if retries > 0:
+                logging.debug(f'received {buf_and_length.bytes_received} bytes response to {message}, retrying')
 
     @staticmethod
     async def read_network_client(reader):
