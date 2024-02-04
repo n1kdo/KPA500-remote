@@ -241,10 +241,11 @@
         config.netmask = netmask;
         config.gateway = gateway;
         config.dns_server = dns_server;
+        config.ap_mode = 0;
         let payload = JSON.stringify(config);
         let xmlHttp = new XMLHttpRequest();
         if (xmlHttp == null) {
-            alert("get a better browser!");
+            alert("No XMLHttpRequest! Get a better browser!");
             return;
         }
         xmlHttp.onreadystatechange = function () {
@@ -365,6 +366,6 @@
     <a href="kat500.html">KAT500</a>
     <a href="files.html">Files</a>
 </div>
-<div class="author"><a href="https://www.n1kdo.com" target="_blank">N1KDO</a> 20230813</div>
+<div class="author"><a href="https://www.n1kdo.com" target="_blank">N1KDO</a> 20240204</div>
 </body>
 </html>
