@@ -44,4 +44,3 @@ def safe_int(value, default=-1):
     if isinstance(value, int):
         return value
     return int(value) if value.isdigit() else default
-

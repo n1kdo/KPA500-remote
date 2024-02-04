@@ -87,7 +87,7 @@ def put_file(filename, target):
             print(f'cannot find source file {src_file_name}')
 
 
-class BytesConcatenator(object):
+class BytesConcatenator:
     """
     this is used to collect data from pyboard functions that otherwise do not return data.
     """

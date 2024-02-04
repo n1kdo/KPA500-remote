@@ -30,7 +30,7 @@ __copyright__ = 'Copyright 2024, J. B. Otterson N1KDO.'
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import time
-from utils import milliseconds, upython, safe_int
+from utils import upython
 
 if upython:
     import machine
@@ -85,12 +85,12 @@ def connect_to_network(config, default_ssid='PICO-W', default_secret='PICO-W', m
             except ValueError:
                 logging.error('Failed to set hostname.', 'main:connect_to_network')
 
-        """
+        #
         #define CYW43_AUTH_OPEN (0)                     ///< No authorisation required (open)
         #define CYW43_AUTH_WPA_TKIP_PSK   (0x00200002)  ///< WPA authorisation
         #define CYW43_AUTH_WPA2_AES_PSK   (0x00400004)  ///< WPA2 authorisation (preferred)
         #define CYW43_AUTH_WPA2_MIXED_PSK (0x00400006)  ///< WPA2/WPA mixed authorisation
-        """
+        #
         ssid = default_ssid
         secret = default_secret
         if len(secret) == 0:
@@ -163,5 +163,3 @@ def connect_to_network(config, default_ssid='PICO-W', default_secret='PICO-W', m
         morse_code_sender.set_message(message)
         logging.info(f'setting morse code message to {message}', 'main:connect_to_network')
     return ip_address
-
-
