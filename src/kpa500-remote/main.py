@@ -109,7 +109,7 @@ DEFAULT_KAT500_TCP_PORT = 4627
 DEFAULT_WEB_PORT = 80
 
 # globals...
-restart = False
+keep_running = True
 username = ''
 password = ''
 http_server = HttpServer(content_dir='content/')
@@ -159,7 +159,7 @@ async def slash_callback(http, verb, args, reader, writer, request_headers=None)
 async def api_config_callback(http, verb, args, reader, writer, request_headers=None):  # callback for '/api/config'
     if verb == 'GET':
         payload = read_config()
-        # payload.pop('secret')  # do not return the secret
+        payload.pop('secret')  # do not return the secret
         response = json.dumps(payload).encode('utf-8')
         http_status = 200
         bytes_sent = http.send_simple_response(writer, http_status, http.CT_APP_JSON, response)
@@ -263,9 +263,9 @@ async def api_config_callback(http, verb, args, reader, writer, request_headers=
 
 # noinspection PyUnusedLocal
 async def api_restart_callback(http, verb, args, reader, writer, request_headers=None):
-    global restart
+    global keep_running
     if upython:
-        restart = True
+        keep_running = False
         response = b'ok\r\n'
         http_status = 200
         bytes_sent = http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
@@ -494,7 +494,7 @@ async def api_kat_set_bypass_callback(http, verb, args, reader, writer, request_
 
 
 async def main():
-    global restart, username, password, kpa500, kat500
+    global keep_running, username, password, kpa500, kat500
 
     logging.info('Starting...', 'main:main')
 
@@ -592,7 +592,6 @@ async def main():
     else:
         logging.error('no network connection', 'main:main')
 
-    keep_running = True
     reset_button_pressed_count = 0
     while keep_running:
         if upython:
