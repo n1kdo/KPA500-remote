@@ -20,8 +20,9 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-__version__ = '0.9.2'
+__version__ = '0.9.3'
 
+import hashlib
 import os
 import sys
 
@@ -49,8 +50,8 @@ FILES_LIST = [
     'content/kat500.html',
     'content/kpa500.html',
     'content/setup.html',
-    'data/config.json',
 ]
+SPECIAL_FILES = ['data/config.json']
 
 
 def get_ports_list():
@@ -66,8 +67,12 @@ def put_file_progress_callback(bytes_so_far, bytes_total):
     print('.', end='')
 
 
-def put_file(filename, target):
-    src_file_name = SRC_DIR + filename
+def put_file(filename, target, src_file_name=None):
+    if src_file_name is None:
+        src_file_name = SRC_DIR + filename
+    else:
+        src_file_name = SRC_DIR + src_file_name
+
     if filename[-1:] == '/':
         filename = filename[:-1]
         try:
@@ -80,7 +85,7 @@ def put_file(filename, target):
     else:
         try:
             os.stat(src_file_name)
-            print(f'sending file {filename} ', end='')
+            print(f'sending file {src_file_name} to {filename} ', end='')
             target.fs_put(src_file_name, filename, progress_callback=put_file_progress_callback)
             print()
         except OSError:
@@ -120,9 +125,37 @@ def loader_ls(target, src='/'):
                 children = loader_ls(target, phile)
                 for child in children:
                     files_found.append(f'{phile}{child}')
-            else:
-                files_found.append(phile)
+            files_found.append(phile)
     return files_found
+
+
+def loader_sha1(target, file=''):
+    hash = BytesConcatenator()
+    cmd = (
+        "import hashlib\n"
+        "hasher = hashlib.sha1()\n"
+        "with open('" + file + "', 'rb', encoding=None) as fp:\n"
+        "  while True:\n"
+        "    buffer = fp.read(2048)\n"
+        "    if buffer is None or len(buffer) == 0:\n"
+        "      break\n"
+        "    hasher.update(buffer)\n"
+        "print(bytes.hex(hasher.digest()))"
+    )
+    target.exec_(cmd, data_consumer=hash.write_bytes)
+    result = str(hash).strip()
+    return result
+
+
+def local_sha1(file):
+    hasher = hashlib.sha1()
+    with open(file, 'rb') as fp:
+        while True:
+            buffer = fp.read(2048)
+            if buffer is None or len(buffer) == 0:
+                break
+            hasher.update(buffer)
+    return bytes.hex(hasher.digest())
 
 
 def load_device(port):
@@ -136,7 +169,7 @@ def load_device(port):
     # clean up files that do not belong here.
     existing_files = loader_ls(target)
     for existing_file in existing_files:
-        if existing_file not in FILES_LIST:
+        if existing_file not in FILES_LIST and existing_file not in SPECIAL_FILES:
             if existing_file[:-1] == '/':
                 print(f'removing directory {existing_file[:-1]}')
                 target.fs_rm(existing_file[:-1])
@@ -146,7 +179,24 @@ def load_device(port):
 
     # now add the files that do belong here.
     for file in FILES_LIST:
-        put_file(file, target)
+        if not file.endswith('/'):
+            # if this is not a directory, get the sha1 hash of the pico-w file
+            # and compare it with the sha1 hash of the local file.
+            # do not send unchanged files.  This makes subsequent loader invocations much faster.
+            picow_hash = loader_sha1(target, file)
+            local_hash = local_sha1(SRC_DIR + file)
+            if picow_hash == local_hash:
+                print(f'file {file} is unchanged, not loading.')
+            else:
+                put_file(file, target)
+        else:
+            put_file(file, target)
+
+    # this is logic that will not overwrite config.json if it is present,
+    # if it is not present, it will use the contents of config.json.example
+    for file in SPECIAL_FILES:
+        if file not in existing_files:
+            put_file(file, target, src_file_name=f'{file}.example')
     target.exit_raw_repl()
     target.close()
 
