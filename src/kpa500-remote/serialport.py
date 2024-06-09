@@ -77,7 +77,11 @@ class SerialPort:
         self.port.close()
 
     def any(self):
-        return self.port.any() if upython else self.port.in_waiting()
+        if upython:
+            return self.port.any()
+        else:
+            x = self.port.in_waiting
+            return x != 0
 
     def flush_input(self):
         if upython:

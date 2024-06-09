@@ -12,13 +12,23 @@ The hardware is a Raspberry Pi "Pico W" with a MAX3232 RS-232 interface IC.
 Pretty simple.  As usual, the simplicity of the hardware is made up for by
 the complexity of the software.
 
-## Web Client
+## Ecosystem
 
-The KPA500-remote provides a web client for the amplifier and the auto-tuner.
+The project supports both of the 
+[Elecraft Remote Control clients](https://elecraft.com/pages/kpa1500-kpa500-kat500-remote-software) 
+as well as web pages that emulate the remote control clients. 
 
-The web client is modeled on the Elecraft KPA500-Remote windows client,
-more or less.  The fundamental difference is that the web client will
-not automatically update unless one of the non-zero auto-refresh buttons
+![ecosystem](kpa500-remote-ecosystem.png)
+
+## Web Clients
+
+The KPA500-remote provides web pages for both the amplifier and the auto-tuner.
+
+The web pages are modeled on the Elecraft KPA500-Remote windows client,
+and Elecraft KAT500-Remote windows client -- more or less.  
+
+The fundamental difference is that the web pages will
+not automatically refresh unless one of the non-zero auto-refresh buttons
 is selected.  Note that the on every activity, the auto-refresh is 
 engaged for three one-second updates regardless of the update settings.
 This is to allow the changes made from the UI to be reflected on the page.

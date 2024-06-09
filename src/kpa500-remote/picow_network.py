@@ -60,30 +60,25 @@ def connect_to_network(config, default_ssid='PICO-W', default_secret='PICO-W', m
     hostname = config.get('hostname')
     if hostname is None or hostname == '':
         hostname = 'pico-w'
-    try:
-        logging.info(f'...setting hostname "{hostname}"', 'main:connect_to_network')
-        network.hostname(hostname)
-    except ValueError:
-        logging.error('Failed to set hostname.', 'main:connect_to_network')
 
     access_point_mode = config.get('ap_mode') or False
     if access_point_mode:
         logging.info('Starting setup WLAN...', 'main:connect_to_network')
         wlan = network.WLAN(network.AP_IF)
         wlan.deinit()
+        wlan = network.WLAN(network.AP_IF)
         wlan.config(pm=wlan.PM_NONE)  # disable power save, this is a server.
         # wlan.deinit turns off the onboard LED because it is connected to the CYW43
         # turn it on again.
         onboard = machine.Pin('LED', machine.Pin.OUT, value=0)
         onboard.on()
 
-        hostname = config.get('hostname')
-        if hostname is not None:
-            try:
-                logging.info(f'  setting hostname "{hostname}"', 'main:connect_to_network')
-                network.hostname(hostname)
-            except ValueError:
-                logging.error('Failed to set hostname.', 'main:connect_to_network')
+
+        try:
+            logging.info(f'  setting hostname "{hostname}"', 'main:connect_to_network')
+            network.hostname(hostname)
+        except ValueError:
+            logging.error('Failed to set hostname.', 'main:connect_to_network')
 
         #
         #define CYW43_AUTH_OPEN (0)                     ///< No authorisation required (open)
@@ -106,11 +101,16 @@ def connect_to_network(config, default_ssid='PICO-W', default_secret='PICO-W', m
         logging.info('Connecting to WLAN...', 'main:connect_to_network')
         wlan = network.WLAN(network.STA_IF)
         wlan.deinit()
+        wlan = network.WLAN(network.STA_IF)
         # wlan.deinit turns off the onboard LED because it is connected to the CYW43
         # turn it on again.
         onboard = machine.Pin('LED', machine.Pin.OUT, value=0)
         onboard.on()
-        wlan = network.WLAN(network.STA_IF)
+        try:
+            logging.info(f'...setting hostname "{hostname}"', 'main:connect_to_network')
+            network.hostname(hostname)
+        except ValueError:
+            logging.error('Failed to set hostname.', 'main:connect_to_network')
         wlan.active(True)
         wlan.config(pm=wlan.PM_NONE)  # disable power save, this is a server.
 

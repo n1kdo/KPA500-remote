@@ -20,8 +20,9 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-__version__ = '0.9.3'
+__version__ = '0.9.4'
 
+import argparse
 import hashlib
 import os
 import sys
@@ -158,7 +159,7 @@ def local_sha1(file):
     return bytes.hex(hasher.digest())
 
 
-def load_device(port):
+def load_device(port, force):
     try:
         target = Pyboard(port, BAUD_RATE)
     except PyboardError:
@@ -169,7 +170,7 @@ def load_device(port):
     # clean up files that do not belong here.
     existing_files = loader_ls(target)
     for existing_file in existing_files:
-        if existing_file not in FILES_LIST and existing_file not in SPECIAL_FILES:
+        if (force or existing_file not in FILES_LIST) and existing_file not in SPECIAL_FILES:
             if existing_file[:-1] == '/':
                 print(f'removing directory {existing_file[:-1]}')
                 target.fs_rm(existing_file[:-1])
@@ -178,17 +179,18 @@ def load_device(port):
                 target.fs_rm(existing_file)
 
     # now add the files that do belong here.
+    existing_files = loader_ls(target)
     for file in FILES_LIST:
         if not file.endswith('/'):
             # if this is not a directory, get the sha1 hash of the pico-w file
             # and compare it with the sha1 hash of the local file.
             # do not send unchanged files.  This makes subsequent loader invocations much faster.
-            picow_hash = loader_sha1(target, file)
-            local_hash = local_sha1(SRC_DIR + file)
-            if picow_hash == local_hash:
-                print(f'file {file} is unchanged, not loading.')
-            else:
-                put_file(file, target)
+            if file in existing_files:
+                picow_hash = loader_sha1(target, file)
+                local_hash = local_sha1(SRC_DIR + file)
+                if picow_hash == local_hash:
+                    continue
+            put_file(file, target)
         else:
             put_file(file, target)
 
@@ -222,8 +224,19 @@ def load_device(port):
 
 
 def main():
-    if len(sys.argv) == 2:
-        picow_port = sys.argv[1]
+    parser = argparse.ArgumentParser(
+        prog='Loader',
+        description='Load an application to a micropython device')
+    parser.add_argument('--force',
+                        action='store_true',
+                        help='force all files to be replaced')
+    parser.add_argument('--port',
+                        help='name of serial port, otherwise it will be detected.')
+    args = parser.parse_args()
+    if 'force' in args:
+        force = args.force
+    if 'port' in args and args.port is not None:
+        picow_port = args.port
     else:
         print('Disconnect the Pico-W if it is connected.')
         input('(press enter to continue...)')
@@ -245,7 +258,7 @@ def main():
         sys.exit(1)
 
     print(f'\nAttempting to load device on port {picow_port}')
-    load_device(picow_port)
+    load_device(picow_port, force)
 
 
 if __name__ == "__main__":
