@@ -4,7 +4,7 @@
 
 __author__ = 'J. B. Otterson'
 __copyright__ = """
-Copyright 2022, J. B. Otterson N1KDO.
+Copyright 2022, 2024 J. B. Otterson N1KDO.
 Redistribution and use in source and binary forms, with or without modification, 
 are permitted provided that the following conditions are met:
   1. Redistributions of source code must retain the above copyright notice, 
@@ -23,7 +23,7 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-__version__ = '0.9.0'
+__version__ = '0.9.2'
 
 # disable pylint import error
 # pylint: disable=E0401
@@ -63,20 +63,24 @@ class MorseCode:
         'E': (MORSE_DIT, ),
         'H': (MORSE_DIT, MORSE_DIT, MORSE_DIT, MORSE_DIT),
         'I': (MORSE_DIT, MORSE_DIT),
-        #  'N': (MORSE_DAH, MORSE_DIT),
+        'N': (MORSE_DAH, MORSE_DIT),
         #  'O': (MORSE_DAH, MORSE_DAH, MORSE_DAH),
         'P': (MORSE_DIT, MORSE_DAH, MORSE_DAH, MORSE_DIT),
         'R': (MORSE_DIT, MORSE_DAH, MORSE_DIT),
-        #  'S': (MORSE_DIT, MORSE_DIT, MORSE_DIT),
+        'S': (MORSE_DIT, MORSE_DIT, MORSE_DIT),
+        'T': (MORSE_DAH, ),
     }
 
     def __init__(self, led):
         self.led = led
-        self.message = ''
+        self.message = 'START '
 
-    def set_message(self, message):
-        logging.info(f'set_message("{message}")', 'morse_code:set_message')
-        self.message = message
+    def set_message(self, new_message):
+        # do not send periods in Morse code, send a space instead.
+        new_message = new_message.upper().replace('.', ' ')
+        if self.message != new_message:
+            logging.info(f'new message "{new_message}")', 'morse_code:set_message')
+            self.message = new_message
 
     async def morse_sender(self):
         # these next several lines are optimizations for micropython, intended to eliminate dict lookups on self & etc.
@@ -92,7 +96,7 @@ class MorseCode:
             for morse_letter in msg:
                 blink_pattern = patterns.get(morse_letter)
                 if blink_pattern is None:
-                    logging.error(f'[MORSE_CODE] Warning: no pattern for letter {morse_letter}',
+                    logging.debug(f'[MORSE_CODE] Warning: no pattern for letter {morse_letter}',
                                   'morse_code:morse_sender')
                     blink_pattern = patterns.get(' ')
                 blink_list = list(blink_pattern)

@@ -5,6 +5,7 @@
 
 __author__ = 'J. B. Otterson'
 __copyright__ = 'Copyright 2024, J. B. Otterson N1KDO.'
+__version__ = '0.9.2'
 
 #
 # Copyright 2024, J. B. Otterson N1KDO.
@@ -30,15 +31,21 @@ __copyright__ = 'Copyright 2024, J. B. Otterson N1KDO.'
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import time
+import socket
+
 from utils import upython
 
 if upython:
     import machine
     import network
+    import uasyncio as asyncio
     import micro_logging as logging
+else:
+    import asyncio
+    import logging
 
 
-def connect_to_network(config, default_ssid='PICO-W', default_secret='PICO-W', morse_code_sender=None):
+class PicowNetwork:
     network_status_map = {
         network.STAT_IDLE: 'no connection and no activity',  # 0
         network.STAT_CONNECTING: 'connecting in progress',  # 1
@@ -49,117 +56,232 @@ def connect_to_network(config, default_ssid='PICO-W', default_secret='PICO-W', m
         network.STAT_CONNECT_FAIL: 'failed due to other problems',  # -1
     }
 
-    network.country('US')
-    ssid = config.get('SSID') or ''
-    if len(ssid) == 0 or len(ssid) > 64:
-        ssid = default_ssid
-    secret = config.get('secret') or ''
-    if len(secret) > 64:
-        secret = secret[:64]
+    def __init__(self, config: dict, default_ssid='PICO-W', default_secret='PICO-W') -> None:
+        self.keepalive = False
+        self.ssid = config.get('SSID') or ''
+        if len(self.ssid) == 0 or len(self.ssid) > 64:
+            self.ssid = default_ssid
+        self.secret = config.get('secret') or ''
+        if self.secret is None or len(self.secret) == 0:
+            self.secret = default_secret
+        if len(self.secret) > 64:
+            self.secret = self.secret[:64]
 
-    hostname = config.get('hostname')
-    if hostname is None or hostname == '':
-        hostname = 'pico-w'
+        self.hostname = config.get('hostname')
+        if self.hostname is None or self.hostname == '':
+            self.hostname = 'pico-w'
 
-    access_point_mode = config.get('ap_mode') or False
-    if access_point_mode:
-        logging.info('Starting setup WLAN...', 'main:connect_to_network')
-        wlan = network.WLAN(network.AP_IF)
-        wlan.deinit()
-        wlan = network.WLAN(network.AP_IF)
-        wlan.config(pm=wlan.PM_NONE)  # disable power save, this is a server.
-        # wlan.deinit turns off the onboard LED because it is connected to the CYW43
-        # turn it on again.
-        onboard = machine.Pin('LED', machine.Pin.OUT, value=0)
-        onboard.on()
+        self.access_point_mode = config.get('ap_mode', False)
 
+        self.is_dhcp = config.get('dhcp', True)
+        self.ip_address = config.get('ip_address')
+        self.netmask = config.get('netmask')
+        self.gateway = config.get('gateway')
+        self.dns_server = config.get('dns_server')
 
-        try:
-            logging.info(f'  setting hostname "{hostname}"', 'main:connect_to_network')
-            network.hostname(hostname)
-        except ValueError:
-            logging.error('Failed to set hostname.', 'main:connect_to_network')
+        self.message='INIT'
+        self.wlan = None
 
-        #
-        #define CYW43_AUTH_OPEN (0)                     ///< No authorisation required (open)
-        #define CYW43_AUTH_WPA_TKIP_PSK   (0x00200002)  ///< WPA authorisation
-        #define CYW43_AUTH_WPA2_AES_PSK   (0x00400004)  ///< WPA2 authorisation (preferred)
-        #define CYW43_AUTH_WPA2_MIXED_PSK (0x00400006)  ///< WPA2/WPA mixed authorisation
-        #
-        ssid = default_ssid
-        secret = default_secret
-        if len(secret) == 0:
-            security = 0
-        else:
-            security = 0x00400004  # CYW43_AUTH_WPA2_AES_PSK
-        wlan.config(ssid=ssid, key=secret, security=security)
-        wlan.active(True)
-        logging.info(f'  wlan.active()={wlan.active()}', 'main:connect_to_network')
-        logging.info(f'  ssid={wlan.config("ssid")}', 'main:connect_to_network')
-        logging.info(f'  ifconfig={wlan.ifconfig()}', 'main:connect_to_network')
-    else:
-        logging.info('Connecting to WLAN...', 'main:connect_to_network')
-        wlan = network.WLAN(network.STA_IF)
-        wlan.deinit()
-        wlan = network.WLAN(network.STA_IF)
-        # wlan.deinit turns off the onboard LED because it is connected to the CYW43
-        # turn it on again.
-        onboard = machine.Pin('LED', machine.Pin.OUT, value=0)
-        onboard.on()
-        try:
-            logging.info(f'...setting hostname "{hostname}"', 'main:connect_to_network')
-            network.hostname(hostname)
-        except ValueError:
-            logging.error('Failed to set hostname.', 'main:connect_to_network')
-        wlan.active(True)
-        wlan.config(pm=wlan.PM_NONE)  # disable power save, this is a server.
+    def connect(self):
+        network.country('US')
+        sleep = asyncio.sleep
 
-        logging.info(f'...ifconfig={wlan.ifconfig()}', 'main:connect_to_network')
-        is_dhcp = config.get('dhcp')
-        if is_dhcp is None:
-            is_dhcp = True
-        if not is_dhcp:
-            ip_address = config.get('ip_address')
-            netmask = config.get('netmask')
-            gateway = config.get('gateway')
-            dns_server = config.get('dns_server')
-            if ip_address is not None and netmask is not None and gateway is not None and dns_server is not None:
-                logging.info('Configuring network with static IP', 'main:connect_to_network')
-                wlan.ifconfig((ip_address, netmask, gateway, dns_server))
+        if self.access_point_mode:
+            logging.info('Starting setup WLAN...', 'PicowNetwork:connect_to_network')
+            self.wlan = network.WLAN(network.AP_IF)
+            self.wlan.deinit()
+            self.wlan.active(False)
+            self.wlan = network.WLAN(network.AP_IF)
+            self.wlan.config(pm=self.wlan.PM_NONE)  # disable power save, this is a server.
+            # wlan.deinit turns off the onboard LED because it is connected to the CYW43
+            # turn it on again.
+            onboard = machine.Pin('LED', machine.Pin.OUT, value=0)
+            onboard.on()
+
+            try:
+                logging.info(f'  setting hostname "{self.hostname}"', 'PicowNetwork:connect_to_network')
+                network.hostname(self.hostname)
+            except ValueError:
+                logging.error('Failed to set hostname.', 'PicowNetwork:connect_to_network')
+
+            #
+            #define CYW43_AUTH_OPEN (0)                     ///< No authorisation required (open)
+            #define CYW43_AUTH_WPA_TKIP_PSK   (0x00200002)  ///< WPA authorisation
+            #define CYW43_AUTH_WPA2_AES_PSK   (0x00400004)  ///< WPA2 authorisation (preferred)
+            #define CYW43_AUTH_WPA2_MIXED_PSK (0x00400006)  ///< WPA2/WPA mixed authorisation
+            #
+
+            if len(self.secret) == 0:
+                security = 0
             else:
-                logging.warning('Cannot use static IP, data is missing.', 'main:connect_to_network')
-                logging.warning('Configuring network with DHCP....', 'main:connect_to_network')
-                is_dhcp = True
-                # wlan.ifconfig('dhcp')
-        if is_dhcp:
-            logging.info('Configuring network with DHCP...', 'main:connect_to_network')
+                security = 0x00400004  # CYW43_AUTH_WPA2_AES_PSK
+            self.wlan.config(ssid=self.ssid, key=self.secret, security=security)
+            self.wlan.active(True)
+            logging.info(f'  wlan.active()={self.wlan.active()}', 'PicowNetwork:connect_to_network')
+            logging.info(f'  ssid={self.wlan.config("ssid")}', 'PicowNetwork:connect_to_network')
+            logging.info(f'  ifconfig={self.wlan.ifconfig()}', 'PicowNetwork:connect_to_network')
+        else:
+            logging.info('Connecting to WLAN...', 'PicowNetwork:connect_to_network')
+            self.wlan = network.WLAN(network.STA_IF)
+            self.wlan.disconnect()
+            self.wlan.deinit()
+            self.wlan.active(False)
+            sleep(1)
+            # get a new one.
+            self.wlan = network.WLAN(network.STA_IF)
+            # wlan.deinit turns off the onboard LED because it is connected to the CYW43
+            # turn it on again.
+            onboard = machine.Pin('LED', machine.Pin.OUT, value=0)
+            onboard.on()
+            try:
+                logging.info(f'...setting hostname "{self.hostname}"', 'PicowNetwork:connect_to_network')
+                network.hostname(self.hostname)
+            except ValueError:
+                logging.error('Failed to set hostname.', 'PicowNetwork:connect_to_network')
+            self.wlan.active(True)
+            self.wlan.config(pm=self.wlan.PM_NONE)  # disable power save, this is a server.
 
-        max_wait = 15
-        wl_status = wlan.status()
-        logging.info(f'...ifconfig={wlan.ifconfig()}', 'main:connect_to_network')
-        logging.info(f'...connecting to "{ssid}"...', 'main:connect_to_network')
-        wlan.connect(ssid, secret)
-        while max_wait > 0:
-            wl_status = wlan.status()
-            st = network_status_map.get(wl_status) or 'undefined'
-            logging.info(f'...network status: {wl_status} {st}', 'main:connect_to_network')
-            if wl_status < 0 or wl_status >= 3:
-                break
-            max_wait -= 1
-            time.sleep(1)
-        if wl_status != network.STAT_GOT_IP:
-            logging.error('Network did not connect!', 'main:connect_to_network')
-            if morse_code_sender is not None:
-                morse_code_sender.set_message('ERR ')
-            return None, None
-        logging.info(f'...connected, ifconfig={wlan.ifconfig()}', 'main:connect_to_network')
+            if not self.is_dhcp:
+                if self.ip_address is not None and self.netmask is not None and self.gateway is not None and self.dns_server is not None:
+                    logging.info('...configuring network with static IP', 'PicowNetwork:connect_to_network')
+                    self.wlan.ifconfig((self.ip_address, self.netmask, self.gateway, self.dns_server))
+                    # TODO FIXME wlan.ifconfig is deprecated, "dns" parameter is not found in the doc
+                    # https://docs.micropython.org/en/latest/library/network.html
+                    # but it is not defined for the cyc43 on pico-w
+                    #self.wlan.ipconfig(addr4=(self.ip_address, self.netmask),
+                    #                   gw4=self.gateway,
+                    #                   dns=self.dns_server)
+                else:
+                    logging.warning('Cannot use static IP, data is missing.', 'PicowNetwork:connect_to_network')
+                    logging.warning('Configuring network with DHCP....', 'PicowNetwork:connect_to_network')
+                    self.is_dhcp = True
+            if self.is_dhcp:
+                self.wlan.ipconfig(dhcp4=True)
+                logging.info(f'...configuring network with DHCP {self.wlan.ifconfig()}', 'PicowNetwork:connect_to_network')
+            else:
+                logging.info(f'...configuring network with {self.wlan.ifconfig()}', 'PicowNetwork:connect_to_network')
 
-    onboard.on()  # turn on the LED, WAN is up.
-    wl_config = wlan.ifconfig()
-    ip_address = wl_config[0]
-    message = f'AP {ip_address} ' if access_point_mode else f'{ip_address} '
-    message = message.replace('.', ' ')
-    if morse_code_sender is not None:
-        morse_code_sender.set_message(message)
-        logging.info(f'setting morse code message to {message}', 'main:connect_to_network')
-    return ip_address
+            max_wait = 15
+            # wl_status = self.wlan.status()
+            logging.info(f'...connecting to "{self.ssid}"...', 'PicowNetwork:connect_to_network')
+            self.wlan.connect(self.ssid, self.secret)
+            last_wl_status = -9
+            while max_wait > 0:
+                wl_status = self.wlan.status()
+                if wl_status != last_wl_status:
+                    last_wl_status = wl_status
+                    st = self.network_status_map.get(wl_status) or 'undefined'
+                    logging.info(f'...network status: {wl_status} {st}', 'PicowNetwork:connect_to_network')
+                if wl_status < 0 or wl_status >= 3:
+                    break
+                max_wait -= 1
+                time.sleep(1)
+            if wl_status != network.STAT_GOT_IP:
+                logging.warning(f'...network connect timed out: {wl_status}', 'PicowNetwork:connect_to_network')
+                self.message = f'Error {wl_status} {st} '
+                return None
+            logging.info(f'...connected: {self.wlan.ifconfig()}', 'PicowNetwork:connect_to_network')
+
+        onboard.on()  # turn on the LED, WAN is up.
+        wl_config = self.wlan.ipconfig('addr4')  # get use str param name.
+        ip_address = wl_config[0]
+        self.message = f'AP {ip_address} ' if self.access_point_mode else f'{ip_address} '
+        return ip_address
+
+    def ifconfig(self):
+        return self.wlan.ifconfig()
+
+    def status(self):
+        keys = ['antenna',
+                'channel',
+                'hostname',
+                # 'hidden',
+                # 'key',
+                'mac',
+                'pm',
+                # 'secret',
+                'security',
+                'ssid',
+                # 'reconnects',
+                'txpower']
+        # note that there is also 'trace' and 'monitor' that appear to be write-only
+
+        if self.wlan is not None:
+            for k in keys:
+                try:
+                    data = self.wlan.config(k)
+                    if isinstance(data, str):
+                        logging.info(f'WLAN.config("{k}")="{data}"', 'PicowNetwork:status')
+                    elif isinstance(data, int):
+                        logging.info(f'WLAN.config("{k}")={data}', 'PicowNetwork:status')
+                    elif isinstance(data, bytes):
+                        mac = ':'.join([f'{b:02x}' for b in data])
+                        logging.info(f'WLAN.config("{k}")={mac}', 'PicowNetwork:status')
+                    else:
+                        logging.info(f'WLAN.config("{k}")={data} {type(data)}', 'PicowNetwork:status')
+
+                except Exception as exc:
+                    logging.warning(f'{exc}: "{k}"', 'PicowNetwork:status')
+        else:
+            logging.warning('Network not initialized.', 'PicowNetwork:status')
+
+    def is_connected(self):
+        return self.wlan.isconnected() if self.wlan is not None else False
+
+    def has_wan(self):
+        if not self.is_connected():
+            return False
+        test_host = 'www.google.com'
+        try:
+            addr = socket.getaddrinfo(test_host, 80)
+            if addr is not None and len(addr) > 0:
+                addr = addr[0][4][0]
+            else:
+                return False
+        except Exception as exc:
+            logging.error(f'cannot lookup {test_host}: {exc}')
+            return False
+        logging.info(f'has_wan found IP {addr}')
+        return True
+
+    def has_router(self):
+        if not self.is_connected():
+            return False
+        s = None
+        try:
+            router_ip = self.wlan.ifconfig()[2]
+            addr = socket.getaddrinfo(router_ip, 80)[0][-1]
+            s = socket.socket()
+            s.connect(addr)
+            s.send(b'GET / HTTP/1.1\r\n\r\n')
+            data = s.recv(128)
+            if data is not None and len(data) > 0:
+                # print(f'got some data: "{str(data)}".')
+                return True
+        except Exception as exc:
+            logging.error(f'cannot lookup or connect to router: {exc}')
+            return False
+        finally:
+            if s is not None:
+                s.close()
+                s = None
+
+    async def keep_alive(self):
+        self.keepalive = True
+        # eliminate >1 dict lookup
+        sleep = asyncio.sleep
+        while self.keepalive:
+            connected = self.is_connected()
+            logging.debug(f'self.is_connected() = {self.is_connected()}','PicowNetwork.keepalive')
+            if not connected:
+                logging.warning('not connected...  attempting network connect...', 'PicowNetwork:keep_alive')
+                ip_addr = self.connect()
+                logging.debug(f'tried to connect, got ip_addr: {ip_addr}', 'PicowNetwork.keepalive')
+            else:
+                logging.debug(f'connected = {connected}', 'PicowNetwork.keepalive')
+            await sleep(5)  # check network every 5 seconds
+        logging.info('keepalive exit', 'PicowNetwork.keepalive loop exit.')
+
+    def get_message(self):
+        return self.message
+

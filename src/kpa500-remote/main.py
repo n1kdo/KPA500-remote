@@ -3,7 +3,7 @@
 #
 __author__ = 'J. B. Otterson'
 __copyright__ = 'Copyright 2023, 2024 J. B. Otterson N1KDO.'
-__version__ = '0.9.1'
+__version__ = '0.9.2'
 
 #
 # Copyright 2023, 2024 J. B. Otterson N1KDO.
@@ -42,7 +42,7 @@ from kpa500 import KPA500
 from kat500 import KAT500
 from morse_code import MorseCode
 from utils import upython, safe_int
-from picow_network import connect_to_network
+from picow_network import PicowNetwork
 
 
 if upython:
@@ -110,13 +110,8 @@ DEFAULT_WEB_PORT = 80
 
 # globals...
 keep_running = True
-username = ''
-password = ''
-http_server = HttpServer(content_dir='content/')
 kpa500 = None
 kat500 = None
-
-morse_code_sender = MorseCode(morse_led)
 
 
 def read_config():
@@ -166,15 +161,23 @@ async def api_config_callback(http, verb, args, reader, writer, request_headers=
     elif verb == 'POST':
         config = read_config()
         dirty = False
-        errors = False
-        tcp_port = args.get('tcp_port')
-        if tcp_port is not None:
-            tcp_port_int = safe_int(tcp_port, -2)
-            if 0 <= tcp_port_int <= 65535:
-                config['tcp_port'] = tcp_port
+        errors = []
+        kat_tcp_port = args.get('kat_tcp_port')
+        if kat_tcp_port is not None:
+            kat_tcp_port_int = safe_int(kat_tcp_port, -2)
+            if 0 <= kat_tcp_port_int <= 65535:
+                config['kat_tcp_port'] = kat_tcp_port_int
                 dirty = True
             else:
-                errors = True
+                errors.append('kat_tcp_port')
+        kpa_tcp_port = args.get('kpa_tcp_port')
+        if kpa_tcp_port is not None:
+            kpa_tcp_port_int = safe_int(kpa_tcp_port, -2)
+            if 0 <= kpa_tcp_port_int <= 65535:
+                config['kpa_tcp_port'] = kpa_tcp_port_int
+                dirty = True
+            else:
+                errors.append('kpa_tcp_port')
         web_port = args.get('web_port')
         if web_port is not None:
             web_port_int = safe_int(web_port, -2)
@@ -182,35 +185,35 @@ async def api_config_callback(http, verb, args, reader, writer, request_headers=
                 config['web_port'] = web_port
                 dirty = True
             else:
-                errors = True
+                errors.append('web_port')
         ssid = args.get('SSID')
         if ssid is not None:
             if 0 < len(ssid) < 64:
                 config['SSID'] = ssid
                 dirty = True
             else:
-                errors = True
+                errors.append('SSID')
         secret = args.get('secret')
-        if secret is not None:
+        if secret is not None and len(secret):
             if 8 <= len(secret) < 32:
                 config['secret'] = secret
                 dirty = True
             else:
-                errors = True
+                errors.append('secret')
         remote_username = args.get('username')
         if remote_username is not None:
             if 1 <= len(remote_username) <= 16:
                 config['username'] = remote_username
                 dirty = True
             else:
-                errors = True
+                errors.append('username')
         remote_password = args.get('password')
         if remote_password is not None:
             if 1 <= len(remote_password) <= 16:
                 config['password'] = remote_password
                 dirty = True
             else:
-                errors = True
+                errors.append('password')
         ap_mode_arg = args.get('ap_mode')
         if ap_mode_arg is not None:
             ap_mode = ap_mode_arg == '1'
@@ -227,7 +230,7 @@ async def api_config_callback(http, verb, args, reader, writer, request_headers=
                 config['hostname'] = hostname
                 dirty = True
             else:
-                errors = True
+                errors.append('hostname')
         ip_address = args.get('ip_address')
         if ip_address is not None:
             config['ip_address'] = ip_address
@@ -251,7 +254,7 @@ async def api_config_callback(http, verb, args, reader, writer, request_headers=
             http_status = 200
             bytes_sent = http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
         else:
-            response = b'parameter out of range\r\n'
+            response = f'parameter(s) out of range\r\n {", ".join(errors)}'.encode('utf-8')
             http_status = 400
             bytes_sent = http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
     else:
@@ -494,7 +497,7 @@ async def api_kat_set_bypass_callback(http, verb, args, reader, writer, request_
 
 
 async def main():
-    global keep_running, username, password, kpa500, kat500
+    global keep_running, kpa500, kat500
 
     logging.info('Starting...', 'main:main')
 
@@ -532,70 +535,67 @@ async def main():
 
     ap_mode = config.get('ap_mode', False)
 
-    connected = True
     if upython:
-        try:
-            ip_address = connect_to_network(config, DEFAULT_SSID, DEFAULT_SECRET, morse_code_sender)
-            connected = ip_address is not None
-        except Exception as ex:
-            logging.error(f'Network did not connect, {ex}', 'main:main')
-
+        picow_network = PicowNetwork(config, DEFAULT_SSID, DEFAULT_SECRET)
+        network_keepalive_task = asyncio.create_task(picow_network.keep_alive())
+        morse_code_sender = MorseCode(morse_led)
         morse_sender_task = asyncio.create_task(morse_code_sender.morse_sender())
 
-    if connected:
-        http_server.add_uri_callback('/', slash_callback)
-        http_server.add_uri_callback('/api/config', api_config_callback)
-        http_server.add_uri_callback('/api/get_files', api_get_files_callback)
-        http_server.add_uri_callback('/api/upload_file', api_upload_file_callback)
-        http_server.add_uri_callback('/api/remove_file', api_remove_file_callback)
-        http_server.add_uri_callback('/api/rename_file', api_rename_file_callback)
-        http_server.add_uri_callback('/api/restart', api_restart_callback)
+    http_server = HttpServer(content_dir='content/')
+    http_server.add_uri_callback('/', slash_callback)
+    http_server.add_uri_callback('/api/config', api_config_callback)
+    http_server.add_uri_callback('/api/get_files', api_get_files_callback)
+    http_server.add_uri_callback('/api/upload_file', api_upload_file_callback)
+    http_server.add_uri_callback('/api/remove_file', api_remove_file_callback)
+    http_server.add_uri_callback('/api/rename_file', api_rename_file_callback)
+    http_server.add_uri_callback('/api/restart', api_restart_callback)
 
-        # KPA500 specific
-        if kpa500_tcp_port != 0:
-            kpa500 = KPA500(username=username, password=password, port_name=kpa500_port)
-            http_server.add_uri_callback('/api/kpa_clear_fault', api_kpa_clear_fault_callback)
-            http_server.add_uri_callback('/api/kpa_set_band', api_kpa_set_band_callback)
-            http_server.add_uri_callback('/api/kpa_set_fan_speed', api_kpa_set_fan_speed_callback)
-            http_server.add_uri_callback('/api/kpa_set_operate', api_kpa_set_operate_callback)
-            http_server.add_uri_callback('/api/kpa_set_power', api_kpa_set_power_callback)
-            http_server.add_uri_callback('/api/kpa_set_speaker_alarm', api_kpa_set_speaker_alarm_callback)
-            http_server.add_uri_callback('/api/kpa_status', api_kpa_status_callback)
-            logging.info(f'Starting KPA500 client service on port {kpa500_tcp_port}', 'main:main')
-            kpa500_client_server = asyncio.create_task(asyncio.start_server(kpa500.serve_kpa500_remote_client,
-                                                                            '0.0.0.0', kpa500_tcp_port))
-            # this task talks to the amplifier hardware.
-            logging.info(f'Starting KPA500 amplifier service', 'main:main')
-            kpa500_server = asyncio.create_task(kpa500.kpa500_server())
+    # KPA500 specific
+    if kpa500_tcp_port != 0:
+        kpa500 = KPA500(username=username, password=password, port_name=kpa500_port)
+        http_server.add_uri_callback('/api/kpa_clear_fault', api_kpa_clear_fault_callback)
+        http_server.add_uri_callback('/api/kpa_set_band', api_kpa_set_band_callback)
+        http_server.add_uri_callback('/api/kpa_set_fan_speed', api_kpa_set_fan_speed_callback)
+        http_server.add_uri_callback('/api/kpa_set_operate', api_kpa_set_operate_callback)
+        http_server.add_uri_callback('/api/kpa_set_power', api_kpa_set_power_callback)
+        http_server.add_uri_callback('/api/kpa_set_speaker_alarm', api_kpa_set_speaker_alarm_callback)
+        http_server.add_uri_callback('/api/kpa_status', api_kpa_status_callback)
+        logging.info(f'Starting KPA500 client service on port {kpa500_tcp_port}', 'main:main')
+        kpa500_client_server = asyncio.create_task(asyncio.start_server(kpa500.serve_kpa500_remote_client,
+                                                                        '0.0.0.0', kpa500_tcp_port))
+        # this task talks to the amplifier hardware.
+        logging.info(f'Starting KPA500 amplifier service', 'main:main')
+        kpa500_server = asyncio.create_task(kpa500.kpa500_server())
 
-        # KAT500 specific
-        if kat500_tcp_port != 0:
-            kat500 = KAT500(username=username, password=password, port_name=kat500_port)
-            http_server.add_uri_callback('/api/kat_status', api_kat_status_callback)
-            http_server.add_uri_callback('/api/kat_set_power', api_kat_set_power_callback)
-            http_server.add_uri_callback('/api/kat_set_tune', api_kat_set_tune_callback)
-            http_server.add_uri_callback('/api/kat_set_antenna', api_kat_set_antenna_callback)
-            http_server.add_uri_callback('/api/kat_set_mode', api_kat_set_mode_callback)
-            http_server.add_uri_callback('/api/kat_set_ampi', api_kat_set_ampi_callback)
-            http_server.add_uri_callback('/api/kat_set_attn', api_kat_set_attn_callback)
-            http_server.add_uri_callback('/api/kat_set_bypass', api_kat_set_bypass_callback)
-            http_server.add_uri_callback('/api/kat_clear_fault', api_kat_clear_fault_callback)
-            logging.info(f'Starting KAT500 client service on port {kat500_tcp_port}', 'main:main')
-            kat500_client_server = asyncio.create_task(asyncio.start_server(kat500.serve_kat500_remote_client,
-                                                                            '0.0.0.0', kat500_tcp_port))
-            # this task talks to the tuner hardware.
-            logging.info(f'Starting KAT500 tuner service', 'main:main')
-            kat500_server = asyncio.create_task(kat500.kat500_server())
+    # KAT500 specific
+    if kat500_tcp_port != 0:
+        kat500 = KAT500(username=username, password=password, port_name=kat500_port)
+        http_server.add_uri_callback('/api/kat_status', api_kat_status_callback)
+        http_server.add_uri_callback('/api/kat_set_power', api_kat_set_power_callback)
+        http_server.add_uri_callback('/api/kat_set_tune', api_kat_set_tune_callback)
+        http_server.add_uri_callback('/api/kat_set_antenna', api_kat_set_antenna_callback)
+        http_server.add_uri_callback('/api/kat_set_mode', api_kat_set_mode_callback)
+        http_server.add_uri_callback('/api/kat_set_ampi', api_kat_set_ampi_callback)
+        http_server.add_uri_callback('/api/kat_set_attn', api_kat_set_attn_callback)
+        http_server.add_uri_callback('/api/kat_set_bypass', api_kat_set_bypass_callback)
+        http_server.add_uri_callback('/api/kat_clear_fault', api_kat_clear_fault_callback)
+        logging.info(f'Starting KAT500 client service on port {kat500_tcp_port}', 'main:main')
+        kat500_client_server = asyncio.create_task(asyncio.start_server(kat500.serve_kat500_remote_client,
+                                                                        '0.0.0.0', kat500_tcp_port))
+        # this task talks to the tuner hardware.
+        logging.info(f'Starting KAT500 tuner service', 'main:main')
+        kat500_server = asyncio.create_task(kat500.kat500_server())
 
-        logging.info(f'Starting web service on port {web_port}', 'main:main')
-        web_server = asyncio.create_task(asyncio.start_server(http_server.serve_http_client, '0.0.0.0', web_port))
-    else:
-        logging.error('no network connection', 'main:main')
+    logging.info(f'Starting web service on port {web_port}', 'main:main')
+    web_server = asyncio.create_task(asyncio.start_server(http_server.serve_http_client, '0.0.0.0', web_port))
 
     reset_button_pressed_count = 0
+    four_count = 0
+    last_message = ''
     while keep_running:
         if upython:
             await asyncio.sleep(0.25)
+            four_count += 1
             pressed = reset_button.value() == 0
             if pressed:
                 reset_button_pressed_count += 1
@@ -608,6 +608,11 @@ async def main():
                 config['ap_mode'] = ap_mode
                 save_config(config)
                 keep_running = False
+            if four_count >= 3:  # check for new message every one second
+                if picow_network.get_message() != last_message:
+                    last_message = picow_network.get_message()
+                    morse_code_sender.set_message(last_message)
+                four_count = 0
         else:
             await asyncio.sleep(10.0)
     if upython:
