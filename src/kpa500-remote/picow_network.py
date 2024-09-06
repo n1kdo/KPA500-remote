@@ -30,9 +30,6 @@ __version__ = '0.9.2'
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import time
-import socket
-
 from utils import upython
 
 if upython:
@@ -43,6 +40,8 @@ if upython:
 else:
     import asyncio
     import logging
+
+import socket
 
 
 class PicowNetwork:
@@ -82,7 +81,7 @@ class PicowNetwork:
         self.message='INIT'
         self.wlan = None
 
-    def connect(self):
+    async def connect(self):
         network.country('US')
         sleep = asyncio.sleep
 
@@ -91,6 +90,8 @@ class PicowNetwork:
             self.wlan = network.WLAN(network.AP_IF)
             self.wlan.deinit()
             self.wlan.active(False)
+            await sleep(1)
+
             self.wlan = network.WLAN(network.AP_IF)
             self.wlan.config(pm=self.wlan.PM_NONE)  # disable power save, this is a server.
             # wlan.deinit turns off the onboard LED because it is connected to the CYW43
@@ -126,7 +127,7 @@ class PicowNetwork:
             self.wlan.disconnect()
             self.wlan.deinit()
             self.wlan.active(False)
-            sleep(1)
+            await sleep(1)
             # get a new one.
             self.wlan = network.WLAN(network.STA_IF)
             # wlan.deinit turns off the onboard LED because it is connected to the CYW43
@@ -175,7 +176,7 @@ class PicowNetwork:
                 if wl_status < 0 or wl_status >= 3:
                     break
                 max_wait -= 1
-                time.sleep(1)
+                await sleep(1)
             if wl_status != network.STAT_GOT_IP:
                 logging.warning(f'...network connect timed out: {wl_status}', 'PicowNetwork:connect_to_network')
                 self.message = f'Error {wl_status} {st} '
@@ -186,7 +187,7 @@ class PicowNetwork:
         wl_config = self.wlan.ipconfig('addr4')  # get use str param name.
         ip_address = wl_config[0]
         self.message = f'AP {ip_address} ' if self.access_point_mode else f'{ip_address} '
-        return ip_address
+        return
 
     def ifconfig(self):
         return self.wlan.ifconfig()
@@ -275,8 +276,7 @@ class PicowNetwork:
             logging.debug(f'self.is_connected() = {self.is_connected()}','PicowNetwork.keepalive')
             if not connected:
                 logging.warning('not connected...  attempting network connect...', 'PicowNetwork:keep_alive')
-                ip_addr = self.connect()
-                logging.debug(f'tried to connect, got ip_addr: {ip_addr}', 'PicowNetwork.keepalive')
+                await self.connect()
             else:
                 logging.debug(f'connected = {connected}', 'PicowNetwork.keepalive')
             await sleep(5)  # check network every 5 seconds
