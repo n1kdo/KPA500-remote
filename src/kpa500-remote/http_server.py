@@ -81,7 +81,7 @@ class HttpServer:
     MP_END_BOUND = 4
 
     DANGER_ZONE_FILE_NAMES = [
-        'config.html',
+        'network.html',
         'files.html',
     ]
 
@@ -113,9 +113,12 @@ class HttpServer:
         try:
             with open(filename, 'rb', self.BUFFER_SIZE) as infile:
                 while True:
-                    buffer = infile.read(self.BUFFER_SIZE)
-                    writer.write(buffer)
-                    if len(buffer) < self.BUFFER_SIZE:
+                    bytes_read = infile.readinto(self.buffer)
+                    if bytes_read == self.BUFFER_SIZE:
+                        writer.write(self.buffer)
+                    else:
+                        writer.write(self.buffer[0:bytes_read])
+                    if bytes_read < self.BUFFER_SIZE:
                         break
         except Exception as exc:
             logging.error('{type(exc)} {exc}', 'http_server:serve_content')

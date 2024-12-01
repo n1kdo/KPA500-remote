@@ -23,7 +23,7 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-__version__ = '0.9.2'
+__version__ = '0.9.3'
 
 # disable pylint import error
 # pylint: disable=E0401
@@ -74,6 +74,8 @@ class MorseCode:
     def __init__(self, led):
         self.led = led
         self.message = 'START '
+        self.keep_running = True
+        asyncio.create_task(self.morse_sender())
 
     def set_message(self, new_message):
         # do not send periods in Morse code, send a space instead.
@@ -90,7 +92,7 @@ class MorseCode:
         sleep = asyncio.sleep
         patterns = self.MORSE_PATTERNS
 
-        while True:
+        while self.keep_running:
             msg = self.message
             logging.debug(f'starting message "{msg}"', 'morse_code:morse_sender')
             for morse_letter in msg:

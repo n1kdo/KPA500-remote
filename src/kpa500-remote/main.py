@@ -537,9 +537,7 @@ async def main():
 
     if upython:
         picow_network = PicowNetwork(config, DEFAULT_SSID, DEFAULT_SECRET)
-        network_keepalive_task = asyncio.create_task(picow_network.keep_alive())
         morse_code_sender = MorseCode(morse_led)
-        morse_sender_task = asyncio.create_task(morse_code_sender.morse_sender())
 
     http_server = HttpServer(content_dir='content/')
     http_server.add_uri_callback('/', slash_callback)
