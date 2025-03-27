@@ -1,10 +1,9 @@
 #
 # micro_logging.py -- minimalistic logging for micropython.
-# minimally compatible with python logging?
 #
 __author__ = 'J. B. Otterson'
 __copyright__ = """
-Copyright 2024, J. B. Otterson N1KDO.
+Copyright 2024, 2025 J. B. Otterson N1KDO.
 Redistribution and use in source and binary forms, with or without modification, 
 are permitted provided that the following conditions are met:
   1. Redistributions of source code must retain the above copyright notice, 
@@ -23,26 +22,52 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-__version__ = '0.0.4'
+__version__ = '0.0.9'
 
-from utils import get_timestamp
+from utils import get_timestamp, upython
 
-DEBUG = 5
-INFO = 4
-WARNING = 3
-ERROR = 2
-CRITICAL = 1
-NOTHING = 0
+if not upython:
+    def const(i):
+        return i
+
+DEBUG = const(5)
+INFO = const(4)
+WARNING = const(3)
+ERROR = const(2)
+CRITICAL = const(1)
+NOTHING = const(0)
 
 loglevel = ERROR
 
+level_names = ['NOTHING', 'CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG']
+
+
+def set_level(level):
+    info(f'setting log level to {level}', 'micro_logging:set_level')
+
+    global loglevel
+    if isinstance(level, str):
+        try:
+            level = level_names.index(level)
+        except ValueError:
+            level = None
+
+    if isinstance(level, int):
+        if NOTHING <= level <= DEBUG:
+            loglevel = level
+
+
+# this is used to determine if logging.level() methods should be called,
+# purpose is to reduce heap pollution from building complex log messages.
+def should_log(level):
+    return level <= loglevel
 
 def _log(level: str, message: str, caller=None):
     level = '[' + level + ']'
     if caller is None:
-        print(f'{get_timestamp()} {level:<9s} {message}')
+        print(f'{get_timestamp()} {level:<11s} {message}')
     else:
-        print(f'{get_timestamp()} {level:<9s} [{caller}] {message}')
+        print(f'{get_timestamp()} {level:<11s} [{caller}] {message}')
 
 
 def debug(message, caller=None):
@@ -66,7 +91,10 @@ def error(message, caller=None):
 
 
 def exception(message:str, caller:str = None, exc_info:Exception = None) -> None:
-    _log('CRITICAL', message + str(exc_info), caller)
+    if exc_info is not None:
+        _log('EXCEPTION', f'{message} {type(exc_info)} {exc_info}', caller)
+    else:
+        _log('EXCEPTION', message, caller)
 
 
 def critical(message, caller=None):
