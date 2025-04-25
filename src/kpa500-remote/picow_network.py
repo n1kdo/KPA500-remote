@@ -209,7 +209,7 @@ class PicowNetwork:
                 await self.set_message(f'Connecting to\n{self._ssid}')
             self._wlan.connect(self._ssid, self._secret)
             ssid = self._wlan.config('ssid')
-            logging.info(f'...connecting to "{ssid}"...', 'PicowNetwork:connect_to_network')
+            logging.info(f'...connecting to "{self._ssid}"...', 'PicowNetwork:connect_to_network')
             last_wl_status = -9
             while max_wait > 0:
                 wl_status = self._wlan.status()
