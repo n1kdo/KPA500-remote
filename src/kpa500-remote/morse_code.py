@@ -60,11 +60,11 @@ class MorseCode:
         #  'B': (MORSE_DAH, MORSE_DIT, MORSE_DIT, MORSE_DIT),
         #  'C': (MORSE_DAH, MORSE_DIT, MORSE_DAH, MORSE_DIT),
         #  'D': (MORSE_DAH, MORSE_DIT, MORSE_DIT),
-        'E': (MORSE_DIT, ),
+        'E': (MORSE_DIT, ), # note that this comma is important, it is a tuple with one element
         'H': (MORSE_DIT, MORSE_DIT, MORSE_DIT, MORSE_DIT),
         'I': (MORSE_DIT, MORSE_DIT),
         'N': (MORSE_DAH, MORSE_DIT),
-        #  'O': (MORSE_DAH, MORSE_DAH, MORSE_DAH),
+        'O': (MORSE_DAH, MORSE_DAH, MORSE_DAH),
         'P': (MORSE_DIT, MORSE_DAH, MORSE_DAH, MORSE_DIT),
         'R': (MORSE_DIT, MORSE_DAH, MORSE_DIT),
         'S': (MORSE_DIT, MORSE_DIT, MORSE_DIT),
