@@ -156,6 +156,24 @@
     let kat500_data = [];
 
     function page_load() {
+        // look to see if update time is set in url search string
+        let search = window.location.search;
+        if (search !== "") {
+            search = search.substring(1);
+            let pairs = search.split("&");
+            let parts = search.split("=");
+            for (const pair of pairs) {
+                let parts = pair.split("=");
+                if (parts[0] === "update") {
+                    let i = parseInt(parts[1]);
+                    if (!isNaN(i)) {
+                        if ([0,1,5].includes(i)) { // only 0, 1, 5 supported for this page.
+                            update_secs = i;
+                        }
+                    }
+                }
+            }
+        }
         get_status();
     }
 
@@ -537,7 +555,7 @@
         <a href="kpa500.html">KPA500</a>
         <a href="setup.html">Setup</a>
     </div>
-    <div class="author"><a href="https://www.n1kdo.com" target="_blank">N1KDO</a> 20230813</div>
+    <div class="author"><a href="https://www.n1kdo.com" target="_blank">N1KDO</a> 20250425</div>
 </div>
 </body>
 </html>
