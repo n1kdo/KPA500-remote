@@ -2,8 +2,8 @@
 # main.py -- this is the Raspberry Pi Pico W KAT500 & KPA500 Network Server.
 #
 __author__ = 'J. B. Otterson'
-__copyright__ = 'Copyright 2023, 2024 J. B. Otterson N1KDO.'
-__version__ = '0.9.3'
+__copyright__ = 'Copyright 2023, 2024, 2025 J. B. Otterson N1KDO.'
+__version__ = '0.9.4'
 
 #
 # Copyright 2023, 2024, 2025 J. B. Otterson N1KDO.
@@ -37,7 +37,8 @@ from http_server import (HttpServer,
                          api_rename_file_callback,
                          api_remove_file_callback,
                          api_upload_file_callback,
-                         api_get_files_callback)
+                         api_get_files_callback,
+                         HTTP_VERB_GET, HTTP_VERB_POST)
 from kpa500 import KPA500
 from kat500 import KAT500
 from morse_code import MorseCode
@@ -146,19 +147,19 @@ def save_config(config):
 # noinspection PyUnusedLocal
 async def slash_callback(http, verb, args, reader, writer, request_headers=None):  # callback for '/'
     http_status = 301
-    bytes_sent = await http.send_simple_response(writer, http_status, None, None, ['Location: /kpa500.html'])
+    bytes_sent = await http.send_simple_response(writer, http_status, None, None, [b'Location: /kpa500.html'])
     return bytes_sent, http_status
 
 
 # noinspection PyUnusedLocal
 async def api_config_callback(http, verb, args, reader, writer, request_headers=None):  # callback for '/api/config'
-    if verb == 'GET':
+    if verb == HTTP_VERB_GET:
         payload = read_config()
         payload.pop('secret')  # do not return the secret
         response = json.dumps(payload).encode('utf-8')
         http_status = 200
         bytes_sent = await http.send_simple_response(writer, http_status, http.CT_APP_JSON, response)
-    elif verb == 'POST':
+    elif verb == HTTP_VERB_POST:
         config = read_config()
         dirty = False
         errors = []
@@ -540,24 +541,24 @@ async def main():
         morse_code_sender = MorseCode(morse_led)
 
     http_server = HttpServer(content_dir='content/')
-    http_server.add_uri_callback('/', slash_callback)
-    http_server.add_uri_callback('/api/config', api_config_callback)
-    http_server.add_uri_callback('/api/get_files', api_get_files_callback)
-    http_server.add_uri_callback('/api/upload_file', api_upload_file_callback)
-    http_server.add_uri_callback('/api/remove_file', api_remove_file_callback)
-    http_server.add_uri_callback('/api/rename_file', api_rename_file_callback)
-    http_server.add_uri_callback('/api/restart', api_restart_callback)
+    http_server.add_uri_callback(b'/', slash_callback)
+    http_server.add_uri_callback(b'/api/config', api_config_callback)
+    http_server.add_uri_callback(b'/api/get_files', api_get_files_callback)
+    http_server.add_uri_callback(b'/api/upload_file', api_upload_file_callback)
+    http_server.add_uri_callback(b'/api/remove_file', api_remove_file_callback)
+    http_server.add_uri_callback(b'/api/rename_file', api_rename_file_callback)
+    http_server.add_uri_callback(b'/api/restart', api_restart_callback)
 
     # KPA500 specific
     if kpa500_tcp_port != 0:
         kpa500 = KPA500(username=username, password=password, port_name=kpa500_port)
-        http_server.add_uri_callback('/api/kpa_clear_fault', api_kpa_clear_fault_callback)
-        http_server.add_uri_callback('/api/kpa_set_band', api_kpa_set_band_callback)
-        http_server.add_uri_callback('/api/kpa_set_fan_speed', api_kpa_set_fan_speed_callback)
-        http_server.add_uri_callback('/api/kpa_set_operate', api_kpa_set_operate_callback)
-        http_server.add_uri_callback('/api/kpa_set_power', api_kpa_set_power_callback)
-        http_server.add_uri_callback('/api/kpa_set_speaker_alarm', api_kpa_set_speaker_alarm_callback)
-        http_server.add_uri_callback('/api/kpa_status', api_kpa_status_callback)
+        http_server.add_uri_callback(b'/api/kpa_clear_fault', api_kpa_clear_fault_callback)
+        http_server.add_uri_callback(b'/api/kpa_set_band', api_kpa_set_band_callback)
+        http_server.add_uri_callback(b'/api/kpa_set_fan_speed', api_kpa_set_fan_speed_callback)
+        http_server.add_uri_callback(b'/api/kpa_set_operate', api_kpa_set_operate_callback)
+        http_server.add_uri_callback(b'/api/kpa_set_power', api_kpa_set_power_callback)
+        http_server.add_uri_callback(b'/api/kpa_set_speaker_alarm', api_kpa_set_speaker_alarm_callback)
+        http_server.add_uri_callback(b'/api/kpa_status', api_kpa_status_callback)
         logging.info(f'Starting KPA500 client service on port {kpa500_tcp_port}', 'main:main')
         kpa500_client_server = asyncio.create_task(asyncio.start_server(kpa500.serve_kpa500_remote_client,
                                                                         '0.0.0.0', kpa500_tcp_port))
@@ -568,15 +569,15 @@ async def main():
     # KAT500 specific
     if kat500_tcp_port != 0:
         kat500 = KAT500(username=username, password=password, port_name=kat500_port)
-        http_server.add_uri_callback('/api/kat_status', api_kat_status_callback)
-        http_server.add_uri_callback('/api/kat_set_power', api_kat_set_power_callback)
-        http_server.add_uri_callback('/api/kat_set_tune', api_kat_set_tune_callback)
-        http_server.add_uri_callback('/api/kat_set_antenna', api_kat_set_antenna_callback)
-        http_server.add_uri_callback('/api/kat_set_mode', api_kat_set_mode_callback)
-        http_server.add_uri_callback('/api/kat_set_ampi', api_kat_set_ampi_callback)
-        http_server.add_uri_callback('/api/kat_set_attn', api_kat_set_attn_callback)
-        http_server.add_uri_callback('/api/kat_set_bypass', api_kat_set_bypass_callback)
-        http_server.add_uri_callback('/api/kat_clear_fault', api_kat_clear_fault_callback)
+        http_server.add_uri_callback(b'/api/kat_status', api_kat_status_callback)
+        http_server.add_uri_callback(b'/api/kat_set_power', api_kat_set_power_callback)
+        http_server.add_uri_callback(b'/api/kat_set_tune', api_kat_set_tune_callback)
+        http_server.add_uri_callback(b'/api/kat_set_antenna', api_kat_set_antenna_callback)
+        http_server.add_uri_callback(b'/api/kat_set_mode', api_kat_set_mode_callback)
+        http_server.add_uri_callback(b'/api/kat_set_ampi', api_kat_set_ampi_callback)
+        http_server.add_uri_callback(b'/api/kat_set_attn', api_kat_set_attn_callback)
+        http_server.add_uri_callback(b'/api/kat_set_bypass', api_kat_set_bypass_callback)
+        http_server.add_uri_callback(b'/api/kat_clear_fault', api_kat_clear_fault_callback)
         logging.info(f'Starting KAT500 client service on port {kat500_tcp_port}', 'main:main')
         kat500_client_server = asyncio.create_task(asyncio.start_server(kat500.serve_kat500_remote_client,
                                                                         '0.0.0.0', kat500_tcp_port))
