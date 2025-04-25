@@ -1,0 +1,24 @@
+{
+  "source_directory" : "../kpa500-remote/",
+  "files": [
+    "content/",
+    "data/",
+    "http_server.py",
+    "kdevice.py",
+    "kat500.py",
+    "kpa500.py",
+    "main.py",
+    "micro_logging.py",
+    "utils.py",
+    "morse_code.py",
+    "picow_network.py",
+    "serialport.py",
+    "content/favicon.ico",
+    "content/files.html",
+    "content/kat500.html",
+    "content/kpa500.html",
+    "content/setup.html"],
+  "special_files": [
+    "data/config.json"
+  ]
+}
