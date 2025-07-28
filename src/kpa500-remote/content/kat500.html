@@ -434,6 +434,16 @@
                 process_get_status_response(xmlHttp.responseText);
             }
         }
+        xmlHttp.onerror = function () {
+            if (update_secs > 0) {
+                update_timeout = setTimeout(get_status, update_secs * 1000);
+            }
+        }
+        xmlHttp.ontimeout = function () {
+            if (update_secs > 0) {
+                update_timeout = setTimeout(get_status, update_secs * 1000);
+            }
+        }
         xmlHttp.open("GET", "/api/kat_status", true);
         xmlHttp.send();
     }
