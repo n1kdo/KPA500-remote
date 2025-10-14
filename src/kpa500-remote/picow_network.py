@@ -37,11 +37,6 @@ if upython:
     import machine
     # noinspection PyUnresolvedReferences,PyPackageRequirements
     import network
-    def sleep_ms(delay):
-        asyncio.sleep_ms(delay)
-else:
-    def sleep_ms(delay):
-        asyncio.sleep(delay/1000.0)
 
 
 class PicowNetwork:
@@ -181,7 +176,7 @@ class PicowNetwork:
                 await self.set_message('Connecting to WLAN...')
             logging.info('Connecting to WLAN...', 'PicowNetwork:connect_to_network')
             self._wlan = network.WLAN(network.WLAN.IF_STA)
-            sleep_ms(500)
+            await sleep(0.5)
             logging.debug('Connecting to WLAN...1', 'PicowNetwork:connect_to_network')
 
             if self._wlan.isconnected():
@@ -213,7 +208,7 @@ class PicowNetwork:
             self._wlan.active(True)
             self._wlan.config(pm=self._wlan.PM_NONE)  # disable power save, this is a server.
             logging.debug('Connecting to WLAN...6', 'PicowNetwork:connect_to_network')
-            await sleep_ms(100)
+            await sleep(0.100)
 
             scan_results = self._wlan.scan()
             logging.debug('Connecting to WLAN...7', 'PicowNetwork:connect_to_network')
@@ -284,7 +279,7 @@ class PicowNetwork:
                 else:
                     await self.set_message('ERROR ', -wl_status)
                 return None
-            await sleep_ms(500)
+            await sleep(0.500)
 
         logging.info(f'...connected: {self._wlan.ipconfig('addr4')}', 'PicowNetwork:connect_to_network')
         onboard.on()  # turn on the LED, WAN is up.
