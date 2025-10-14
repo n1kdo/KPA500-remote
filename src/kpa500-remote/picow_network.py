@@ -3,7 +3,7 @@
 #
 __author__ = 'J. B. Otterson'
 __copyright__ = 'Copyright 2024, 2025 J. B. Otterson N1KDO.'
-__version__ = '0.9.93'  # 2025-07-28
+__version__ = '0.9.94'  # 2025-10-13
 #
 # Copyright 2024, 2025, J. B. Otterson N1KDO.
 #
@@ -27,6 +27,9 @@ __version__ = '0.9.93'  # 2025-07-28
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import asyncio
+import socket
+import micro_logging as logging
 from utils import upython
 
 if upython:
@@ -34,13 +37,12 @@ if upython:
     import machine
     # noinspection PyUnresolvedReferences,PyPackageRequirements
     import network
-    # noinspection PyUnresolvedReferences
-    import micro_logging as logging
+    def sleep_ms(delay):
+        asyncio.sleep_ms(delay)
 else:
-    import logging
+    def sleep_ms(delay):
+        asyncio.sleep(delay/1000.0)
 
-import asyncio
-import socket
 
 class PicowNetwork:
     network_status_map = {
@@ -116,7 +118,7 @@ class PicowNetwork:
         network.country('US')
         network.ipconfig(prefer=4)  # this is an IPv4 network
         sleep = asyncio.sleep
-        sleep_ms = asyncio.sleep_ms
+
         wl_status = 0
         self._connected = False
 

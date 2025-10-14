@@ -22,18 +22,11 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-__version__ = '0.9.0'
+__version__ = '0.9.1'
 
+import asyncio
+import micro_logging as logging
 from serialport import SerialPort
-from utils import upython
-
-if upython:
-    import micro_logging as logging
-    import uasyncio as asyncio
-else:
-    import asyncio
-    import logging
-
 
 class ClientData:
     """

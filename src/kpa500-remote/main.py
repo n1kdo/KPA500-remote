@@ -3,7 +3,7 @@
 #
 __author__ = 'J. B. Otterson'
 __copyright__ = 'Copyright 2023, 2024, 2025 J. B. Otterson N1KDO.'
-__version__ = '0.9.4'
+__version__ = '0.9.5'
 
 #
 # Copyright 2023, 2024, 2025 J. B. Otterson N1KDO.
@@ -31,7 +31,9 @@ __version__ = '0.9.4'
 # disable pylint import error
 # pylint: disable=E0401
 
+import asyncio
 import json
+import sys
 
 from http_server import (HttpServer,
                          api_rename_file_callback,
@@ -43,52 +45,13 @@ from kpa500 import KPA500
 from kat500 import KAT500
 from morse_code import MorseCode
 from utils import upython, safe_int
-from picow_network import PicowNetwork
-
+import micro_logging as logging
 
 if upython:
     import machine
-    import micro_logging as logging
-    import uasyncio as asyncio
+    from picow_network import PicowNetwork
 else:
-    import asyncio
-    import logging
-
-
-    class Machine:
-        """
-        fake micropython stuff
-        """
-
-        @staticmethod
-        def soft_reset():
-            logging.debug('Machine.soft_reset()', 'main:Machine.soft_reset()')
-
-        @staticmethod
-        def reset():
-            logging.debug('Machine.reset()', 'main:Machine.reset()')
-
-        class Pin:
-            OUT = 1
-            IN = 0
-            PULL_UP = 0
-
-            def __init__(self, name, options=0, value=0):
-                self.name = name
-                self.options = options
-                self.state = value
-
-            def on(self):
-                self.state = 1
-
-            def off(self):
-                self.state = 0
-
-            def value(self):
-                return self.state
-
-
-    machine = Machine()
+    from not_machine import machine
 
 onboard = machine.Pin('LED', machine.Pin.OUT, value=0)
 morse_led = machine.Pin(2, machine.Pin.OUT, value=0)  # status LED
@@ -526,8 +489,16 @@ async def main():
         kat500_port = '1'
         kpa500_port = '0'
     else:
-        kat500_port = 'com1'
-        kpa500_port = 'com2'
+        if sys.platform == 'win32':
+            kat500_port = 'com1'
+            kpa500_port = 'com2'
+        elif sys.platform == 'linux':
+            kat500_port = '/dev/ttyS4'
+            kpa500_port = '/dev/ttyS5'
+        else:
+            kat500_port = None
+            kpa500_port = None
+            logging.error(f'Unsupported platform {sys.platform}')
 
     web_port = safe_int(config.get('web_port') or DEFAULT_WEB_PORT, DEFAULT_WEB_PORT)
     if web_port < 0 or web_port > 65535:
@@ -539,6 +510,9 @@ async def main():
     if upython:
         picow_network = PicowNetwork(config, DEFAULT_SSID, DEFAULT_SECRET)
         morse_code_sender = MorseCode(morse_led)
+    else:
+        picow_network = None
+        morse_code_sender = None
 
     http_server = HttpServer(content_dir='content/')
     http_server.add_uri_callback(b'/', slash_callback)
@@ -565,6 +539,9 @@ async def main():
         # this task talks to the amplifier hardware.
         logging.info(f'Starting KPA500 amplifier service', 'main:main')
         kpa500_server = asyncio.create_task(kpa500.kpa500_server())
+    else:
+        kpa500 = None
+        kpa500_server = None
 
     # KAT500 specific
     if kat500_tcp_port != 0:
@@ -584,9 +561,16 @@ async def main():
         # this task talks to the tuner hardware.
         logging.info(f'Starting KAT500 tuner service', 'main:main')
         kat500_server = asyncio.create_task(kat500.kat500_server())
+    else:
+        kat500 = None
+        kat500_client_server = None
+        kat500_server = None
 
     logging.info(f'Starting web service on port {web_port}', 'main:main')
-    web_server = asyncio.create_task(asyncio.start_server(http_server.serve_http_client, '0.0.0.0', web_port))
+    try:
+        web_server = asyncio.create_task(asyncio.start_server(http_server.serve_http_client, '0.0.0.0', web_port))
+    except Exception as e:
+        logging.error(e)
 
     reset_button_pressed_count = 0
     four_count = 0

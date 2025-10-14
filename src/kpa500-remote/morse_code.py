@@ -23,19 +23,13 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-__version__ = '0.9.3'
+__version__ = '0.9.4'
 
 # disable pylint import error
 # pylint: disable=E0401
 
-import sys
-impl_name = sys.implementation.name
-if impl_name == 'cpython':
-    import asyncio
-    import logging
-else:
-    import uasyncio as asyncio
-    import micro_logging as logging
+import asyncio
+import micro_logging as logging
 
 
 class MorseCode:

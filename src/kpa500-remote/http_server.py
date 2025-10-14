@@ -23,18 +23,16 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-__version__ = '0.1.2'
+__version__ = '0.1.5'
 
 import gc
 import json
 import os
 import re
+import micro_logging as logging
 
 from utils import milliseconds, safe_int, upython
-if upython:
-    import micro_logging as logging
-else:
-    import logging
+if not upython:
     def const(i):
         return i
 
@@ -120,29 +118,23 @@ class HttpServer:
             content_length = -1
         if content_length < 0:
             response = b'<html><body><p>404 -- File not found.</p></body></html>'
-            http_status = HTTP_STATUS_NOT_FOUND
-            return await self.send_simple_response(writer, http_status, self.CT_TEXT_HTML, response), http_status
+            return (await self.send_simple_response(writer, HTTP_STATUS_NOT_FOUND, self.CT_TEXT_HTML, response),
+                    HTTP_STATUS_NOT_FOUND)
         extension = filename.split('.')[-1]
-        content_type = self.FILE_EXTENSION_TO_CONTENT_TYPE_MAP.get(extension)
-        if content_type is None:
-            content_type = self.FILE_EXTENSION_TO_CONTENT_TYPE_MAP.get('*')
-        http_status = HTTP_STATUS_OK
+        content_type = self.FILE_EXTENSION_TO_CONTENT_TYPE_MAP.get(extension, b'application/octet-stream')
         await self.start_response(writer, HTTP_STATUS_OK, content_type, content_length)
         try:
             with open(filename, 'rb', _BUFFER_SIZE) as infile:
                 while True:
-                    # readinto is supported by micropython
-                    bytes_read = infile.readinto(self.bmv)
-                    if bytes_read == _BUFFER_SIZE:
-                        writer.write(self.bmv)
-                    else:
-                        writer.write(self.bmv[0:bytes_read])
-                    await writer.drain()
+                    bytes_read = infile.readinto(self.buffer)
+                    if bytes_read:
+                        writer.write(self.bmv[:bytes_read])
+                        await writer.drain()
                     if bytes_read < _BUFFER_SIZE:
                         break
         except Exception as exc:
             logging.error(f'{type(exc)} {exc}', 'http_server:serve_content')
-        return content_length, http_status
+        return content_length, HTTP_STATUS_OK
 
     async def start_response(self, writer, http_status:int=HTTP_STATUS_OK, content_type:bytes=None, response_size:int=0, extra_headers:list[bytes]=None):
         status_text = self.HTTP_STATUS_TEXT.get(http_status) or b'Confused'
@@ -185,15 +177,18 @@ class HttpServer:
 
     @classmethod
     def unpack_args(cls, value):
-        args_dict = {}
-        if value is not None:
+        if not value:
+            return {}
+        # Accept bytes or str; decode only if needed to avoid extra allocations and errors.
+        if isinstance(value, bytes):
             value = value.decode()
-            args_list = value.split('&')
-            for arg in args_list:
-                arg_parts = arg.split('=')
-                if len(arg_parts) == 2:
-                    args_dict[arg_parts[0]] = arg_parts[1]
-        return args_dict
+        args = {}
+        args_list = value.split('&')
+        for arg in args_list:
+            arg_parts = arg.split('=')
+            if len(arg_parts) == 2:
+                args[arg_parts[0]] = arg_parts[1]
+        return args
 
     async def serve_http_client(self, reader, writer):
         gc.collect()
@@ -230,7 +225,7 @@ class HttpServer:
                 logging.warning(b'Bad request, wrong verb {verb}', 'http_server:serve_http_client')
                 response = b'<html><body><p>only GET and POST are supported</p></body></html>'
                 bytes_sent = await self.send_simple_response(writer, http_status, self.CT_TEXT_HTML, response)
-            elif protocol not in [b'HTTP/1.0', b'HTTP/1.1']:
+            elif protocol not in {b'HTTP/1.0', b'HTTP/1.1'}:
                 logging.warning(f'bad request, wrong http protocol {protocol}', 'http_server:serve_http_client')
                 http_status = HTTP_STATUS_BAD_REQUEST
                 response = b'protocol %s is not supported' % protocol
@@ -242,11 +237,7 @@ class HttpServer:
                 request_headers = {}
                 while True:
                     header = await reader.readline()
-                    if len(header) == 0:
-                        # empty header line, eof?
-                        break
-                    if header == b'\r\n':
-                        # blank line at end of headers
+                    if header in (b'', b'\r\n'):
                         break
                     # process headers.  look for those we are interested in.
                     parts = header.split(b':', 1)
@@ -264,7 +255,7 @@ class HttpServer:
                     if request_content_length > 0:
                         if request_content_type == self.CT_APP_WWW_FORM:
                             data = await reader.read(request_content_length)
-                            args = self.unpack_args(data.decode())
+                            args = self.unpack_args(data)
                         elif request_content_type == self.CT_APP_JSON:
                             data = await reader.read(request_content_length)
                             args = json.loads(data.decode())
@@ -291,8 +282,9 @@ class HttpServer:
         writer.close()
         await writer.wait_closed()
         elapsed = milliseconds() - t0
-        logging.info(f'{partner} {request} {http_status} {bytes_sent} {elapsed} ms',
-                     'http_server:serve_http_client')
+        if logging.should_log(logging.INFO):
+            logging.info(f'{partner} {request} {http_status} {bytes_sent} {elapsed} ms',
+                         'http_server:serve_http_client')
         gc.collect()
 
 #

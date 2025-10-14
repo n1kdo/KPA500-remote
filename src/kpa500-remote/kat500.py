@@ -27,18 +27,16 @@ __version__ = '0.9.0'
 # disable pylint import error
 # pylint: disable=E0401
 
+import asyncio
 import gc
+import micro_logging as logging
 
 from kdevice import KDevice, ClientData, BufferAndLength
 from utils import upython, milliseconds, safe_int
 
 if upython:
-    import uasyncio as asyncio
-    import micro_logging as logging
-    from uasyncio import TimeoutError
+    from asyncio import TimeoutError
 else:
-    import asyncio
-    import logging
     from asyncio.exceptions import TimeoutError
 
 
