@@ -23,7 +23,7 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-__version__ = '0.1.5'
+__version__ = '0.1.7'  # 2025-11-05
 
 import gc
 import json
@@ -37,6 +37,7 @@ if not upython:
         return i
 
 # these are the HTTP responses that will be sent.
+# noinspection PyUnboundLocalVariable
 HTTP_STATUS_OK = const(200)
 HTTP_STATUS_CREATED = const(201)
 HTTP_STATUS_BAD_REQUEST = const(400)
@@ -99,15 +100,24 @@ class HttpServer:
 
     def __init__(self, content_dir):
         self.content_dir = content_dir
-        self.uri_map = {}
+        self.uri_map = {b'/api/get_files': api_get_files_callback,
+                        b'/api/upload_file': api_upload_file_callback,
+                        b'/api/remove_file': api_remove_file_callback,
+                        b'/api/rename_file': api_rename_file_callback,
+                        }
+
         self.buffer = bytearray(_BUFFER_SIZE)
         self.bmv = memoryview(self.buffer)
 
-    def add_uri_callback(self, uri, callback):
+    def route(self, uri):
         if isinstance(uri, str):
             logging.warning(f'uri {uri} is str not bytes', 'http_server:add_uri_callback')
             uri = uri.encode('utf-8')
-        self.uri_map[uri] = callback
+
+        def decorator(func):
+            self.uri_map[uri] = func
+            return func
+        return decorator
 
     async def serve_content(self, writer, filename):
         filename = self.content_dir + filename
@@ -125,18 +135,27 @@ class HttpServer:
         await self.start_response(writer, HTTP_STATUS_OK, content_type, content_length)
         try:
             with open(filename, 'rb', _BUFFER_SIZE) as infile:
+                bytes_since_drain = 0
+                # Drain after roughly 16 KB or at EOF to reduce syscall overhead while preventing buffer bloat.
+                drain_threshold = _BUFFER_SIZE * 4
                 while True:
                     bytes_read = infile.readinto(self.buffer)
                     if bytes_read:
                         writer.write(self.bmv[:bytes_read])
-                        await writer.drain()
+                        bytes_since_drain += bytes_read
+                        if bytes_since_drain >= drain_threshold:
+                            await writer.drain()
+                            bytes_since_drain = 0
                     if bytes_read < _BUFFER_SIZE:
+                        # EOF reached; ensure pending bytes are flushed.
+                        if bytes_since_drain:
+                            await writer.drain()
                         break
         except Exception as exc:
             logging.error(f'{type(exc)} {exc}', 'http_server:serve_content')
         return content_length, HTTP_STATUS_OK
 
-    async def start_response(self, writer, http_status:int=HTTP_STATUS_OK, content_type:bytes=None, response_size:int=0, extra_headers:list[bytes]=None):
+    async def start_response(self, writer, http_status:int=HTTP_STATUS_OK, content_type:bytes=b'', response_size:int=0, extra_headers:list[bytes]=None):
         status_text = self.HTTP_STATUS_TEXT.get(http_status) or b'Confused'
         writer.write(b'HTTP/1.0 %d %s\r\n' % (http_status, status_text))
         writer.write(b'Access-Control-Allow-Origin: *\r\n')  # CORS override
@@ -153,11 +172,11 @@ class HttpServer:
         writer.write(b'\r\n')
         await writer.drain()
 
-    async def send_simple_response(self, writer, http_status=HTTP_STATUS_OK, content_type=None, response=None, extra_headers=None):
+    async def send_simple_response(self, writer, http_status=HTTP_STATUS_OK, content_type=b'', response=None, extra_headers=None):
         content_length = 0
         typ = type(response)
         if response is None:
-            await self.start_response(writer, http_status, None, 0, extra_headers)
+            await self.start_response(writer, http_status, content_type, 0, extra_headers)
         elif typ == bytes:
             content_length = len(response)
             await self.start_response(writer, http_status, content_type, content_length, extra_headers)
@@ -275,7 +294,7 @@ class HttpServer:
                     if callback is not None:
                         bytes_sent, http_status = await callback(self, verb, args, reader, writer, request_headers)
                     else:
-                        content_file = target[1:] if target[0] == '/' else target
+                        content_file = target[1:] if target.startswith(b'/') else target
                         bytes_sent, http_status = await self.serve_content(writer, content_file.decode())
 
         await writer.drain()
@@ -290,8 +309,6 @@ class HttpServer:
 #
 # common file operations callbacks, here because just about every app will use them...
 #
-
-
 def valid_filename(filename):
     if filename is None:
         return False
@@ -331,8 +348,8 @@ async def api_upload_file_callback(http, verb, args, reader, writer, request_hea
     if verb == HTTP_VERB_POST:
         logging.debug('http post handler', 'http_server:api_upload_file_callback')
         boundary = None
-        request_content_type = request_headers.get(b'Content-Type') or ''
-        if ';' in request_content_type:
+        request_content_type = request_headers.get(b'Content-Type') or b''
+        if b';' in request_content_type:
             pieces = request_content_type.split(b';')
             request_content_type = pieces[0]
             boundary = pieces[1].strip()
@@ -398,7 +415,7 @@ async def api_upload_file_callback(http, verb, args, reader, writer, request_hea
                             http_status = HTTP_STATUS_CREATED
                         start = end + 2
                     else:  # must be reading headers or boundary
-                        line = ''
+                        line = b''
                         for i in range(start, len(buffer) - 1):
                             if buffer[i] == 13 and buffer[i + 1] == 10:
                                 line = buffer[start:i]

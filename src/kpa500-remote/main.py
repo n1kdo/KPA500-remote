@@ -36,10 +36,7 @@ import json
 import sys
 
 from http_server import (HttpServer,
-                         api_rename_file_callback,
-                         api_remove_file_callback,
-                         api_upload_file_callback,
-                         api_get_files_callback,
+                         HTTP_STATUS_OK, HTTP_STATUS_BAD_REQUEST, HTTP_STATUS_CONFLICT,
                          HTTP_VERB_GET, HTTP_VERB_POST)
 from kpa500 import KPA500
 from kat500 import KAT500
@@ -59,6 +56,8 @@ reset_button = machine.Pin(3, machine.Pin.IN, machine.Pin.PULL_UP)
 
 BUFFER_SIZE = 4096
 CONFIG_FILE = 'data/config.json'
+CONTENT_DIR = 'content/'
+
 DANGER_ZONE_FILE_NAMES = (
     'config.html',
     'files.html',
@@ -76,6 +75,9 @@ DEFAULT_WEB_PORT = 80
 keep_running = True
 kpa500 = None
 kat500 = None
+
+# http server
+http_server = HttpServer(content_dir=CONTENT_DIR)
 
 
 def read_config():
@@ -108,6 +110,7 @@ def save_config(config):
 
 
 # noinspection PyUnusedLocal
+@http_server.route(b'/')
 async def slash_callback(http, verb, args, reader, writer, request_headers=None):  # callback for '/'
     http_status = 301
     bytes_sent = await http.send_simple_response(writer, http_status, None, None, [b'Location: /kpa500.html'])
@@ -115,6 +118,7 @@ async def slash_callback(http, verb, args, reader, writer, request_headers=None)
 
 
 # noinspection PyUnusedLocal
+@http_server.route(b'/api/config')
 async def api_config_callback(http, verb, args, reader, writer, request_headers=None):  # callback for '/api/config'
     if verb == HTTP_VERB_GET:
         payload = read_config()
@@ -229,6 +233,7 @@ async def api_config_callback(http, verb, args, reader, writer, request_headers=
 
 
 # noinspection PyUnusedLocal
+@http_server.route(b'/api/restart')
 async def api_restart_callback(http, verb, args, reader, writer, request_headers=None):
     global keep_running
     if upython:
@@ -245,6 +250,7 @@ async def api_restart_callback(http, verb, args, reader, writer, request_headers
 
 # KPA500 specific APIs
 # noinspection PyUnusedLocal
+@http_server.route(b'/api/kpa_clear_fault')
 async def api_kpa_clear_fault_callback(http, verb, args, reader, writer, request_headers=None):
     kpa500.enqueue_command(b'^FLC;')
     response = b'ok\r\n'
@@ -254,6 +260,7 @@ async def api_kpa_clear_fault_callback(http, verb, args, reader, writer, request
 
 
 # noinspection PyUnusedLocal
+@http_server.route(b'/api/kpa_set_band')
 async def api_kpa_set_band_callback(http, verb, args, reader, writer, request_headers=None):
     band_name = args.get('band')
     band_number = kpa500.band_label_to_number(band_name)
@@ -270,6 +277,7 @@ async def api_kpa_set_band_callback(http, verb, args, reader, writer, request_he
 
 
 # noinspection PyUnusedLocal
+@http_server.route(b'/api/kpa_set_fan_speed')
 async def api_kpa_set_fan_speed_callback(http, verb, args, reader, writer, request_headers=None):
     speed = safe_int(args.get('speed', -1))
     if 0 <= speed <= 6:
@@ -285,6 +293,7 @@ async def api_kpa_set_fan_speed_callback(http, verb, args, reader, writer, reque
 
 
 # noinspection PyUnusedLocal
+@http_server.route(b'/api/kpa_set_operate')
 async def api_kpa_set_operate_callback(http, verb, args, reader, writer, request_headers=None):
     state = args.get('state')
     if state in ('0', '1'):
@@ -300,6 +309,7 @@ async def api_kpa_set_operate_callback(http, verb, args, reader, writer, request
 
 
 # noinspection PyUnusedLocal
+@http_server.route(b'/api/kpa_set_power')
 async def api_kpa_set_power_callback(http, verb, args, reader, writer, request_headers=None):
     state = args.get('state')
     if state in ('0', '1'):
@@ -315,6 +325,7 @@ async def api_kpa_set_power_callback(http, verb, args, reader, writer, request_h
 
 
 # noinspection PyUnusedLocal
+@http_server.route(b'/api/kpa_set_speaker_alarm')
 async def api_kpa_set_speaker_alarm_callback(http, verb, args, reader, writer, request_headers=None):
     state = args.get('state')
     if state in ('0', '1'):
@@ -330,6 +341,7 @@ async def api_kpa_set_speaker_alarm_callback(http, verb, args, reader, writer, r
 
 
 # noinspection PyUnusedLocal
+@http_server.route(b'/api/kpa_status')
 async def api_kpa_status_callback(http, verb, args, reader, writer, request_headers=None):  # '/api/kpa_status'
     payload = {'kpa500_data': kpa500.device_data}
     response = json.dumps(payload).encode('utf-8')
@@ -340,6 +352,7 @@ async def api_kpa_status_callback(http, verb, args, reader, writer, request_head
 
 # KAT500 specific APIs
 # noinspection PyUnusedLocal
+@http_server.route(b'/api/kat_status')
 async def api_kat_status_callback(http, verb, args, reader, writer, request_headers=None):  # '/api/kpa_status'
     payload = {'kat500_data': kat500.device_data}
     response = json.dumps(payload).encode('utf-8')
@@ -347,7 +360,7 @@ async def api_kat_status_callback(http, verb, args, reader, writer, request_head
     bytes_sent = await http.send_simple_response(writer, http_status, http.CT_APP_JSON, response)
     return bytes_sent, http_status
 
-
+@http_server.route(b'/api/kat_set_power')
 async def api_kat_set_power_callback(http, verb, args, reader, writer, request_headers=None):
     state = args.get('state')
     if state in ('0', '1'):
@@ -362,6 +375,7 @@ async def api_kat_set_power_callback(http, verb, args, reader, writer, request_h
     return bytes_sent, http_status
 
 
+@http_server.route(b'/api/kat_set_antenna')
 async def api_kat_set_antenna_callback(http, verb, args, reader, writer, request_headers=None):
     antenna = args.get('antenna')
     if antenna in ('0', '1', '2', '3'):
@@ -376,6 +390,7 @@ async def api_kat_set_antenna_callback(http, verb, args, reader, writer, request
     return bytes_sent, http_status
 
 
+@http_server.route(b'/api/kat_set_mode')
 async def api_kat_set_mode_callback(http, verb, args, reader, writer, request_headers=None):
     mode = args.get('mode')
     if mode in ('A', 'M', 'B'):
@@ -390,6 +405,7 @@ async def api_kat_set_mode_callback(http, verb, args, reader, writer, request_he
     return bytes_sent, http_status
 
 
+@http_server.route(b'/api/kat_set_tune')
 async def api_kat_set_tune_callback(http, verb, args, reader, writer, request_headers=None):
     state = args.get('state')
     if state in ('0', '1'):
@@ -407,6 +423,7 @@ async def api_kat_set_tune_callback(http, verb, args, reader, writer, request_he
     return bytes_sent, http_status
 
 
+@http_server.route(b'/api/kat_clear_fault')
 async def api_kat_clear_fault_callback(http, verb, args, reader, writer, request_headers=None):
     kat500.enqueue_command(b'FLTC;FLT;')
     response = b'ok\r\n'
@@ -415,6 +432,7 @@ async def api_kat_clear_fault_callback(http, verb, args, reader, writer, request
     return bytes_sent, http_status
 
 
+@http_server.route(b'/api/kat_set_ampi')
 async def api_kat_set_ampi_callback(http, verb, args, reader, writer, request_headers=None):
     state = args.get('state')
     if state in ('0', '1'):
@@ -429,6 +447,7 @@ async def api_kat_set_ampi_callback(http, verb, args, reader, writer, request_he
     return bytes_sent, http_status
 
 
+@http_server.route(b'/api/kat_set_attn')
 async def api_kat_set_attn_callback(http, verb, args, reader, writer, request_headers=None):
     state = args.get('state')
     if state in ('0', '1'):
@@ -443,6 +462,7 @@ async def api_kat_set_attn_callback(http, verb, args, reader, writer, request_he
     return bytes_sent, http_status
 
 
+@http_server.route(b'/api/kat_set_bypass')
 async def api_kat_set_bypass_callback(http, verb, args, reader, writer, request_headers=None):
     state = args.get('state')
     if state in ('0', '1'):
@@ -514,25 +534,9 @@ async def main():
         picow_network = None
         morse_code_sender = None
 
-    http_server = HttpServer(content_dir='content/')
-    http_server.add_uri_callback(b'/', slash_callback)
-    http_server.add_uri_callback(b'/api/config', api_config_callback)
-    http_server.add_uri_callback(b'/api/get_files', api_get_files_callback)
-    http_server.add_uri_callback(b'/api/upload_file', api_upload_file_callback)
-    http_server.add_uri_callback(b'/api/remove_file', api_remove_file_callback)
-    http_server.add_uri_callback(b'/api/rename_file', api_rename_file_callback)
-    http_server.add_uri_callback(b'/api/restart', api_restart_callback)
-
     # KPA500 specific
     if kpa500_tcp_port != 0:
         kpa500 = KPA500(username=username, password=password, port_name=kpa500_port)
-        http_server.add_uri_callback(b'/api/kpa_clear_fault', api_kpa_clear_fault_callback)
-        http_server.add_uri_callback(b'/api/kpa_set_band', api_kpa_set_band_callback)
-        http_server.add_uri_callback(b'/api/kpa_set_fan_speed', api_kpa_set_fan_speed_callback)
-        http_server.add_uri_callback(b'/api/kpa_set_operate', api_kpa_set_operate_callback)
-        http_server.add_uri_callback(b'/api/kpa_set_power', api_kpa_set_power_callback)
-        http_server.add_uri_callback(b'/api/kpa_set_speaker_alarm', api_kpa_set_speaker_alarm_callback)
-        http_server.add_uri_callback(b'/api/kpa_status', api_kpa_status_callback)
         logging.info(f'Starting KPA500 client service on port {kpa500_tcp_port}', 'main:main')
         kpa500_client_server = asyncio.create_task(asyncio.start_server(kpa500.serve_kpa500_remote_client,
                                                                         '0.0.0.0', kpa500_tcp_port))
@@ -546,15 +550,6 @@ async def main():
     # KAT500 specific
     if kat500_tcp_port != 0:
         kat500 = KAT500(username=username, password=password, port_name=kat500_port)
-        http_server.add_uri_callback(b'/api/kat_status', api_kat_status_callback)
-        http_server.add_uri_callback(b'/api/kat_set_power', api_kat_set_power_callback)
-        http_server.add_uri_callback(b'/api/kat_set_tune', api_kat_set_tune_callback)
-        http_server.add_uri_callback(b'/api/kat_set_antenna', api_kat_set_antenna_callback)
-        http_server.add_uri_callback(b'/api/kat_set_mode', api_kat_set_mode_callback)
-        http_server.add_uri_callback(b'/api/kat_set_ampi', api_kat_set_ampi_callback)
-        http_server.add_uri_callback(b'/api/kat_set_attn', api_kat_set_attn_callback)
-        http_server.add_uri_callback(b'/api/kat_set_bypass', api_kat_set_bypass_callback)
-        http_server.add_uri_callback(b'/api/kat_clear_fault', api_kat_clear_fault_callback)
         logging.info(f'Starting KAT500 client service on port {kat500_tcp_port}', 'main:main')
         kat500_client_server = asyncio.create_task(asyncio.start_server(kat500.serve_kat500_remote_client,
                                                                         '0.0.0.0', kat500_tcp_port))
