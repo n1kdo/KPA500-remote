@@ -36,7 +36,7 @@ import json
 import sys
 
 from http_server import (HttpServer,
-                         HTTP_STATUS_OK, HTTP_STATUS_BAD_REQUEST, HTTP_STATUS_CONFLICT,
+                         HTTP_STATUS_OK, HTTP_STATUS_BAD_REQUEST, HTTP_STATUS_MOVED_PERMANENTLY,
                          HTTP_VERB_GET, HTTP_VERB_POST)
 from kpa500 import KPA500
 from kat500 import KAT500
@@ -112,7 +112,7 @@ def save_config(config):
 # noinspection PyUnusedLocal
 @http_server.route(b'/')
 async def slash_callback(http, verb, args, reader, writer, request_headers=None):  # callback for '/'
-    http_status = 301
+    http_status = HTTP_STATUS_MOVED_PERMANENTLY
     bytes_sent = await http.send_simple_response(writer, http_status, None, None, [b'Location: /kpa500.html'])
     return bytes_sent, http_status
 
@@ -124,7 +124,7 @@ async def api_config_callback(http, verb, args, reader, writer, request_headers=
         payload = read_config()
         payload.pop('secret')  # do not return the secret
         response = json.dumps(payload).encode('utf-8')
-        http_status = 200
+        http_status = HTTP_STATUS_OK
         bytes_sent = await http.send_simple_response(writer, http_status, http.CT_APP_JSON, response)
     elif verb == HTTP_VERB_POST:
         config = read_config()
@@ -219,15 +219,15 @@ async def api_config_callback(http, verb, args, reader, writer, request_headers=
             if dirty:
                 save_config(config)
             response = b'ok\r\n'
-            http_status = 200
+            http_status = HTTP_STATUS_OK
             bytes_sent = await http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
         else:
             response = f'parameter(s) out of range\r\n {", ".join(errors)}'.encode('utf-8')
-            http_status = 400
+            http_status = HTTP_STATUS_BAD_REQUEST
             bytes_sent = await http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
     else:
         response = b'GET or PUT only.'
-        http_status = 400
+        http_status = HTTP_STATUS_BAD_REQUEST
         bytes_sent = await http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
     return bytes_sent, http_status
 
@@ -239,10 +239,10 @@ async def api_restart_callback(http, verb, args, reader, writer, request_headers
     if upython:
         keep_running = False
         response = b'ok\r\n'
-        http_status = 200
+        http_status = HTTP_STATUS_OK
         bytes_sent = await http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
     else:
-        http_status = 400
+        http_status = HTTP_STATUS_BAD_REQUEST
         response = b'not permitted except on PICO-W'
         bytes_sent = await http.send_simple_response(writer, http_status, http.CT_APP_JSON, response)
     return bytes_sent, http_status
@@ -254,7 +254,7 @@ async def api_restart_callback(http, verb, args, reader, writer, request_headers
 async def api_kpa_clear_fault_callback(http, verb, args, reader, writer, request_headers=None):
     kpa500.enqueue_command(b'^FLC;')
     response = b'ok\r\n'
-    http_status = 200
+    http_status = HTTP_STATUS_OK
     bytes_sent = await http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
     return bytes_sent, http_status
 
@@ -268,10 +268,10 @@ async def api_kpa_set_band_callback(http, verb, args, reader, writer, request_he
         command = f'^BN{band_number:02d};'.encode()
         kpa500.enqueue_command(command)
         response = b'ok\r\n'
-        http_status = 200
+        http_status = HTTP_STATUS_OK
     else:
         response = b'bad band name parameter\r\n'
-        http_status = 400
+        http_status = HTTP_STATUS_BAD_REQUEST
     bytes_sent = await http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
     return bytes_sent, http_status
 
@@ -284,10 +284,10 @@ async def api_kpa_set_fan_speed_callback(http, verb, args, reader, writer, reque
         command = f'^FC{speed};^FC;'.encode()
         kpa500.enqueue_command(command)
         response = b'ok\r\n'
-        http_status = 200
+        http_status = HTTP_STATUS_OK
     else:
         response = b'bad fan speed parameter\r\n'
-        http_status = 400
+        http_status = HTTP_STATUS_BAD_REQUEST
     bytes_sent = await http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
     return bytes_sent, http_status
 
@@ -300,10 +300,10 @@ async def api_kpa_set_operate_callback(http, verb, args, reader, writer, request
         command = f'^OS{state};^OS;'.encode()
         kpa500.enqueue_command(command)
         response = b'ok\r\n'
-        http_status = 200
+        http_status = HTTP_STATUS_OK
     else:
         response = b'bad state parameter\r\n'
-        http_status = 400
+        http_status = HTTP_STATUS_BAD_REQUEST
     bytes_sent = await http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
     return bytes_sent, http_status
 
@@ -316,10 +316,10 @@ async def api_kpa_set_power_callback(http, verb, args, reader, writer, request_h
         command = f'^ON{state};'.encode()
         kpa500.enqueue_command(command)
         response = b'ok\r\n'
-        http_status = 200
+        http_status = HTTP_STATUS_OK
     else:
         response = b'bad state parameter\r\n'
-        http_status = 400
+        http_status = HTTP_STATUS_BAD_REQUEST
     bytes_sent = await http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
     return bytes_sent, http_status
 
@@ -332,10 +332,10 @@ async def api_kpa_set_speaker_alarm_callback(http, verb, args, reader, writer, r
         command = f'^SP{state};^SP;'.encode()
         kpa500.enqueue_command(command)
         response = b'ok\r\n'
-        http_status = 200
+        http_status = HTTP_STATUS_OK
     else:
         response = b'bad state parameter\r\n'
-        http_status = 400
+        http_status = HTTP_STATUS_BAD_REQUEST
     bytes_sent = await http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
     return bytes_sent, http_status
 
@@ -345,7 +345,7 @@ async def api_kpa_set_speaker_alarm_callback(http, verb, args, reader, writer, r
 async def api_kpa_status_callback(http, verb, args, reader, writer, request_headers=None):  # '/api/kpa_status'
     payload = {'kpa500_data': kpa500.device_data}
     response = json.dumps(payload).encode('utf-8')
-    http_status = 200
+    http_status = HTTP_STATUS_OK
     bytes_sent = await http.send_simple_response(writer, http_status, http.CT_APP_JSON, response)
     return bytes_sent, http_status
 
@@ -356,7 +356,7 @@ async def api_kpa_status_callback(http, verb, args, reader, writer, request_head
 async def api_kat_status_callback(http, verb, args, reader, writer, request_headers=None):  # '/api/kpa_status'
     payload = {'kat500_data': kat500.device_data}
     response = json.dumps(payload).encode('utf-8')
-    http_status = 200
+    http_status = HTTP_STATUS_OK
     bytes_sent = await http.send_simple_response(writer, http_status, http.CT_APP_JSON, response)
     return bytes_sent, http_status
 
@@ -367,10 +367,10 @@ async def api_kat_set_power_callback(http, verb, args, reader, writer, request_h
         command = f'PS{state};PS;'.encode()
         kat500.enqueue_command(command)
         response = b'ok\r\n'
-        http_status = 200
+        http_status = HTTP_STATUS_OK
     else:
         response = b'bad state parameter\r\n'
-        http_status = 400
+        http_status = HTTP_STATUS_BAD_REQUEST
     bytes_sent = await http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
     return bytes_sent, http_status
 
@@ -382,10 +382,10 @@ async def api_kat_set_antenna_callback(http, verb, args, reader, writer, request
         command = f'AN{antenna};AN;'.encode()
         kat500.enqueue_command(command)
         response = b'ok\r\n'
-        http_status = 200
+        http_status = HTTP_STATUS_OK
     else:
         response = b'bad antenna parameter\r\n'
-        http_status = 400
+        http_status = HTTP_STATUS_BAD_REQUEST
     bytes_sent = await http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
     return bytes_sent, http_status
 
@@ -397,10 +397,10 @@ async def api_kat_set_mode_callback(http, verb, args, reader, writer, request_he
         command = f'MD{mode};MD;'.encode()
         kat500.enqueue_command(command)
         response = b'ok\r\n'
-        http_status = 200
+        http_status = HTTP_STATUS_OK
     else:
         response = b'bad mode parameter\r\n'
-        http_status = 400
+        http_status = HTTP_STATUS_BAD_REQUEST
     bytes_sent = await http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
     return bytes_sent, http_status
 
@@ -415,10 +415,10 @@ async def api_kat_set_tune_callback(http, verb, args, reader, writer, request_he
             command = f'CT;TP;'.encode()
         kat500.enqueue_command(command)
         response = b'ok\r\n'
-        http_status = 200
+        http_status = HTTP_STATUS_OK
     else:
         response = b'bad state parameter\r\n'
-        http_status = 400
+        http_status = HTTP_STATUS_BAD_REQUEST
     bytes_sent = await http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
     return bytes_sent, http_status
 
@@ -427,7 +427,7 @@ async def api_kat_set_tune_callback(http, verb, args, reader, writer, request_he
 async def api_kat_clear_fault_callback(http, verb, args, reader, writer, request_headers=None):
     kat500.enqueue_command(b'FLTC;FLT;')
     response = b'ok\r\n'
-    http_status = 200
+    http_status = HTTP_STATUS_OK
     bytes_sent = await http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
     return bytes_sent, http_status
 
@@ -439,10 +439,10 @@ async def api_kat_set_ampi_callback(http, verb, args, reader, writer, request_he
         command = f'AMPI{state};AMPI;'.encode()
         kat500.enqueue_command(command)
         response = b'ok\r\n'
-        http_status = 200
+        http_status = HTTP_STATUS_OK
     else:
         response = b'bad state parameter\r\n'
-        http_status = 400
+        http_status = HTTP_STATUS_BAD_REQUEST
     bytes_sent = await http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
     return bytes_sent, http_status
 
@@ -454,10 +454,10 @@ async def api_kat_set_attn_callback(http, verb, args, reader, writer, request_he
         command = f'ATTN{state};ATTN;'.encode()
         kat500.enqueue_command(command)
         response = b'ok\r\n'
-        http_status = 200
+        http_status = HTTP_STATUS_OK
     else:
         response = b'bad state parameter\r\n'
-        http_status = 400
+        http_status = HTTP_STATUS_BAD_REQUEST
     bytes_sent = await http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
     return bytes_sent, http_status
 
@@ -472,10 +472,10 @@ async def api_kat_set_bypass_callback(http, verb, args, reader, writer, request_
             command = b'BYPN;BYP;'
         kat500.enqueue_command(command)
         response = b'ok\r\n'
-        http_status = 200
+        http_status = HTTP_STATUS_OK
     else:
         response = b'bad state parameter\r\n'
-        http_status = 400
+        http_status = HTTP_STATUS_BAD_REQUEST
     bytes_sent = await http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
     return bytes_sent, http_status
 
