@@ -260,7 +260,7 @@ class KPA500(KDevice):
                     amp_state = 0  # test state again.
                     logging.debug('amp state 2-->0', 'kpa500_server')
                 else:
-                    await self.device_send_receive(b'^ON;', bl, wait_time=1.5)  # hi there.
+                    await self.device_send_receive(b'^ON;', bl, timeout=1.5)  # hi there.
                     # is b'^ON1;' when amp is on.
                     # is b'^ON;' when amp is off
                     # is b'' when amp is not found.
