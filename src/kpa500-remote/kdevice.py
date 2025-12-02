@@ -41,12 +41,25 @@ class ClientData:
 
 
 class BufferAndLength:
-    def __init__(self, buffer):
+    def __init__(self, buffer: bytearray):
         self.buffer = buffer
+        self._max_size = len(buffer)
         self.bytes_received = 0
 
-    def data(self):
+    def data(self) -> bytearray:
         return self.buffer[:self.bytes_received]
+
+    def __str__(self) -> str:
+        return self.buffer[:self.bytes_received].decode()
+
+    def clear(self):
+        self.bytes_received = 0
+
+    def last(self) -> int | None:
+        if self.bytes_received > 0:
+            return self.buffer[self.bytes_received-1]
+        else:
+            return None
 
 
 class KDevice:
@@ -82,25 +95,36 @@ class KDevice:
                 if index not in network_client.update_list:
                     network_client.update_list.append(index)
 
-    async def device_send_receive(self, message, buf_and_length, wait_time=0.50, retries=1):
-        while retries > 0:
-            retries -= 1
+    async def device_send_receive(self, message, buf_and_length, timeout=5.0, retries=1):
+        retries_left = retries
+        while retries_left > 0:
+            retries_left -= 1
             device_port = self.device_port
-            # empty the receive buffer
-            while device_port.readinto(buf_and_length.buffer) > 0:
-                logging.warning(f'waiting to send "{message}", rx buffer was not empty: "{buf_and_length.buffer}"')
+            # empty the receiver buffer
+            while True:
+                buf_and_length.bytes_received = device_port.readinto(buf_and_length.buffer)
+                if  buf_and_length.bytes_received > 0:
+                    logging.warning(f'waiting to send "{message}", rx buffer was not empty: "{buf_and_length}".',
+                             'kdevice:device_send_receive')
+                else:
+                    break
             device_port.write(message)
             device_port.flush()
-            while wait_time > 0:
+            await asyncio.sleep(0.1)  # TODO FIXME
+
+            while timeout > 0:
                 await asyncio.sleep(0.01)
-                wait_time -= 0.01
+                timeout -= 0.01
                 if device_port.any() > 0:
                     break
             buf_and_length.bytes_received = device_port.readinto(buf_and_length.buffer)
             if buf_and_length.bytes_received > 0:
                 return
-            if retries > 0:
-                logging.debug(f'received {buf_and_length.bytes_received} bytes response to {message}, retrying')
+            if retries_left > 0:
+                logging.info(f'received {buf_and_length.bytes_received} bytes response to {message}, {retries_left} retries left.',
+                              'kdevice:device_send_receive')
+            else:
+                logging.warning(f'timeout waiting for response to "{message}".', 'kdevice:device_send_receive')
 
     @staticmethod
     async def read_network_client(reader):
