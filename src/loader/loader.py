@@ -116,9 +116,8 @@ def loader_reset(target):
     cmd = f"""import machine
 machine.reset()
 """
-    #print(cmd)
     target.exec_(cmd, data_consumer=files_data.write_bytes)
-    # target.exec_raw_no_follow(cmd)
+
 
 def loader_sha1(target, file=''):
     hash_data = BytesConcatenator()
