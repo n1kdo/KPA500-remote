@@ -179,7 +179,7 @@ def load_device(port, force, manifest_filename='loader_manifest.json'):
             print('resetting target device...')
             loader_reset(target)
         except SerialException as e:
-            time.sleep(2)
+            time.sleep(3)
         else:
             print('expected disconnect on reset, something is wrong?')
 

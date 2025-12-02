@@ -3,7 +3,7 @@
 #
 __author__ = 'J. B. Otterson'
 __copyright__ = 'Copyright 2024, 2025 J. B. Otterson N1KDO.'
-__version__ = '0.9.99'  # 2025-11-05
+__version__ = '0.9.999'  # 2025-11-27
 #
 # Copyright 2024, 2025, J. B. Otterson N1KDO.
 #
@@ -41,13 +41,13 @@ if upython:
 
 class PicowNetwork:
     network_status_map = {
-        network.STAT_IDLE:           'not connected',          #  0  CYW43_LINK_DOWN
-        network.STAT_CONNECTING:     'connecting...',          #  1  CYW43_LINK_JOIN
-        network.STAT_CONNECTING + 1: 'connected no IP addr',   #  2  CYW43_LINK_NOIP
-        network.STAT_GOT_IP:         'connection successful',  #  3 CYW43_LINK_UP
-        network.STAT_WRONG_PASSWORD: 'failed, bad password',   # -3 CYW43_LINK_FAIL
-        network.STAT_NO_AP_FOUND:    'failed no AP replied',   # -2 CYW43_LINK_NONET
-        network.STAT_CONNECT_FAIL:   'failed other problem',   # -1 CYW43_LINK_FAIL
+        network.STAT_IDLE:           'not connected',  # 0  CYW43_LINK_DOWN
+        network.STAT_CONNECTING:     'connecting...',  # 1  CYW43_LINK_JOIN
+        network.STAT_CONNECTING + 1: 'connected no IP addr',  # 2  CYW43_LINK_NOIP
+        network.STAT_GOT_IP:         'connection successful',  # 3 CYW43_LINK_UP
+        network.STAT_WRONG_PASSWORD: 'failed, bad password',  # -3 CYW43_LINK_FAIL
+        network.STAT_NO_AP_FOUND:    'failed no AP replied',  # -2 CYW43_LINK_NONET
+        network.STAT_CONNECT_FAIL:   'failed other problem',  # -1 CYW43_LINK_FAIL
     }
 
     def __init__(self,
@@ -121,18 +121,14 @@ class PicowNetwork:
                 await self.set_message('Starting setup WLAN...')
             logging.info('Starting setup WLAN...', 'PicowNetwork:connect_to_network')
             self._wlan = network.WLAN(network.WLAN.IF_AP)
-            self._wlan.disconnect()
-            self._wlan.deinit()
-            self._wlan.active(False)
-            await sleep(1)
-
-            self._wlan = network.WLAN(network.WLAN.IF_AP)
             self._wlan.config(pm=self._wlan.PM_NONE)  # disable power save, this is a server.
+            await sleep(0.1)
+            logging.debug('Starting setup WLAN...1', 'PicowNetwork:connect_to_network')
+            logging.info(f'  wlan.active()={self._wlan.active()}', 'PicowNetwork:connect_to_network (new)')
             # wlan.deinit turns off the onboard LED because it is connected to the CYW43
             # turn it on again.
             onboard = machine.Pin('LED', machine.Pin.OUT, value=0)
             onboard.on()
-
             try:
                 if self._long_messages:
                     await self.set_message(f'Setting hostname "{self._hostname}"')
@@ -153,6 +149,7 @@ class PicowNetwork:
                 security = network.WLAN.SEC_WPA2_WPA3  # CYW43_AUTH_WPA2_AES_PSK
 
             mac_addr = self._wlan.config('mac')
+            mac = ''
             if mac_addr is not None:
                 mac = ''.join([f'{b:02x}' for b in mac_addr])
                 if len(mac) == 12:
@@ -161,6 +158,7 @@ class PicowNetwork:
             self._wlan.active(True)
             logging.info(f'  wlan.active()={self._wlan.active()}', 'PicowNetwork:connect_to_network')
             logging.info(f'  ssid={self._wlan.config("ssid")}', 'PicowNetwork:connect_to_network')
+            logging.debug(f'  key={self._default_secret}', 'PicowNetwork:connect_to_network')
             logging.info(f'  ipconfig addr4={self._wlan.ipconfig('addr4')}', 'PicowNetwork:connect_to_network')
             self._connected = True
         else:
@@ -168,18 +166,11 @@ class PicowNetwork:
                 await self.set_message('Connecting to WLAN...')
             logging.info('Connecting to WLAN...', 'PicowNetwork:connect_to_network')
             self._wlan = network.WLAN(network.WLAN.IF_STA)
-            await sleep(0.5)
+            self._wlan.config(pm=self._wlan.PM_NONE)  # disable power save, this is a server.
+            await sleep(0.1)
             logging.debug('Connecting to WLAN...1', 'PicowNetwork:connect_to_network')
-
-            if self._wlan.isconnected():
-                logging.debug('...wlan is already connected', 'PicowNetwork:connect_to_network')
-
-            self._wlan.disconnect()
-            self._wlan.deinit()
-            self._wlan.active(False)
-            await sleep(1)
-            # get a new one.
-            self._wlan = network.WLAN(network.WLAN.IF_STA)
+            self._wlan.active(True)
+            await sleep(0.1)
             logging.info(f'  wlan.active()={self._wlan.active()}', 'PicowNetwork:connect_to_network (new)')
             # wlan.deinit turns off the onboard LED because it is connected to the CYW43
             # turn it on again.
@@ -197,8 +188,6 @@ class PicowNetwork:
                 else:
                     await self.set_message('ERROR ', -10)
                 logging.error('Failed to set hostname.', 'PicowNetwork:connect_to_network')
-            self._wlan.active(True)
-            self._wlan.config(pm=self._wlan.PM_NONE)  # disable power save, this is a server.
             logging.debug('Connecting to WLAN...6', 'PicowNetwork:connect_to_network')
             await sleep(0.1)
 
@@ -242,7 +231,7 @@ class PicowNetwork:
             else:
                 logging.info(f'...configuring network with {self._wlan.ipconfig('addr4')}', 'PicowNetwork:connect_to_network')
 
-            max_wait = 15
+            connect_timeout = 15
             st = ''
             if self._long_messages:
                 await self.set_message(f'Connecting to\n{self._ssid}')
@@ -256,7 +245,7 @@ class PicowNetwork:
             logging.info(f'...connecting to "{self._ssid}"...', 'PicowNetwork:connect_to_network')
             logging.debug(f'...using secret "{self._secret}"...', 'PicowNetwork:connect_to_network')
             last_wl_status = -9
-            while max_wait > 0:
+            while connect_timeout > 0:
                 wl_status = self._wlan.status()
                 logging.debug(f'wlan.status()={wl_status}', 'PicowNetwork:connect_to_network')
                 if wl_status != last_wl_status:
@@ -265,20 +254,23 @@ class PicowNetwork:
                     logging.info(f'...network status: {wl_status} {st}', 'PicowNetwork:connect_to_network')
                 if wl_status < 0 or wl_status >= 3:
                     break
-                max_wait -= 1
+                connect_timeout -= 1
                 await sleep(1)
             if wl_status != network.STAT_GOT_IP:
-                logging.warning(f'...network connect timed out: {wl_status}', 'PicowNetwork:connect_to_network')
+                logging.warning(f'...network connect failed: {wl_status}, pausing...', 'PicowNetwork:connect_to_network')
                 if self._long_messages:
                     await self.set_message(f'Error {wl_status}\n{st}', -wl_status)
                 else:
                     await self.set_message('ERROR ', -wl_status)
-                return None
+                self._wlan.active(False)
+                await sleep(1)
+                self._wlan.deinit()
+                await sleep(10)  # pause after connection failure.
+                return
             await sleep(0.5)
 
         logging.info(f'...connected: {self._wlan.ipconfig('addr4')}', 'PicowNetwork:connect_to_network')
         onboard.on()  # turn on the LED, WAN is up.
-        #wl_config = self._wlan.ipconfig('addr4') # get use str param name.
         ifconfig = self._wlan.ifconfig()
         self._ip_address = ifconfig[0]
         self._netmask = ifconfig[1]
@@ -298,7 +290,7 @@ class PicowNetwork:
             else:
                 msg = f'{self._ip_address} '
         await self.set_message(msg, 1)
-        return None
+        return
 
     def ifconfig(self):
         if self._wlan is not None:
@@ -387,6 +379,7 @@ class PicowNetwork:
         finally:
             if s is not None:
                 s.close()
+                s = None
         if logging.should_log(logging.DEBUG):
             logging.debug(f'has_router testing IP {router_ip} result={result}', 'PicowNetwork:has_router')
         return result
@@ -410,7 +403,7 @@ class PicowNetwork:
                     logging.info(f'Network connected', 'PicowNetwork:keep_alive')
                 else:
                     logging.warning(f'Failed to connect', 'PicowNetwork:keep_alive')
-            await sleep(30 if connected else 10)  # check network every 30 seconds when connected, every 10 when not.
+            await sleep(30 if connected else 5)  # check network every 30 seconds when connected, every 5 when not.
         logging.info('keepalive exit', 'PicowNetwork.keepalive loop exit.')
 
     def get_message(self) -> str:
