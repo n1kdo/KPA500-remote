@@ -13,6 +13,7 @@
     "morse_code.py",
     "picow_network.py",
     "serialport.py",
+    "watchdog.py",
     "content/favicon.ico",
     "content/files.html",
     "content/kat500.html",

@@ -47,8 +47,13 @@ import micro_logging as logging
 if upython:
     import machine
     from picow_network import PicowNetwork
+    try:
+        from watchdog import Watchdog
+    except ImportError:
+        Watchdog = None
 else:
     from not_machine import machine
+    Watchdog = None
 
 onboard = machine.Pin('LED', machine.Pin.OUT, value=0)
 morse_led = machine.Pin(2, machine.Pin.OUT, value=0)  # status LED
@@ -530,6 +535,9 @@ async def main():
     if upython:
         picow_network = PicowNetwork(config, DEFAULT_SSID, DEFAULT_SECRET)
         morse_code_sender = MorseCode(morse_led)
+        if logging.loglevel != logging.DEBUG and Watchdog is not None:
+            _ = Watchdog()
+
     else:
         picow_network = None
         morse_code_sender = None
