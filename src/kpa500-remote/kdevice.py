@@ -121,10 +121,10 @@ class KDevice:
             if buf_and_length.bytes_received > 0:
                 return
             if retries_left > 0:
-                logging.info(f'received {buf_and_length.bytes_received} bytes response to {message}, {retries_left} retries left.',
+                logging.debug(f'received {buf_and_length.bytes_received} bytes response to {message}, {retries_left} retries left.',
                               'kdevice:device_send_receive')
             else:
-                logging.warning(f'timeout waiting for response to "{message}".', 'kdevice:device_send_receive')
+                logging.debug(f'timeout waiting for response to "{message}".', 'kdevice:device_send_receive')
 
     @staticmethod
     async def read_network_client(reader):
