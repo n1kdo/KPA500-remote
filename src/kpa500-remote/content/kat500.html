@@ -1,467 +1,474 @@
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/html" lang="en">
-<!-- Copyright 2023, J. B. Otterson N1KDO. -->
+<html lang="en">
+<!-- Copyright 2023, 2025, J. B. Otterson N1KDO. -->
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=0.75, minimum-scale=0.6, maximum-scale=1.5">
     <title>KAT500 Web Remote</title>
-</head>
-<style>
-    body {
-        background-color: #ddd;
-        border-style: double;
-        font-family: sans-serif;
-        font-size: 10pt;
-        margin: 0;
-        height: 350px;
-        width: 500px;
-    }
+    <style>
+        body {
+            background-color: #ddd;
+            border-style: double;
+            font-family: sans-serif;
+            font-size: 10pt;
+            margin: 0;
+            height: 350px;
+            width: 500px;
+        }
 
-    .author {
-        font-size: 8pt;
-        font-weight: bold;
-        text-align: right;
-        position: absolute;
-        top: 340px;
-        left: 400px;
-        width: 100px;
-    }
+        .author {
+            font-size: 8pt;
+            font-weight: bold;
+            text-align: right;
+            position: absolute;
+            top: 340px;
+            left: 400px;
+            width: 100px;
+        }
 
-    .author a:link, .author a:visited, .author a:hover {
-        color: black;
-        text-decoration: none;
-    }
+        .author a:link, .author a:visited, .author a:hover {
+            color: black;
+            text-decoration: none;
+        }
 
-    .bottom_links {
-        font-size: 8pt;
-        font-weight: bold;
-        color: black;
-        text-align: left;
-        position: absolute;
-        top: 340px;
-        width: 120px;
-    }
+        .bottom_links {
+            font-size: 8pt;
+            font-weight: bold;
+            color: black;
+            text-align: left;
+            position: absolute;
+            top: 340px;
+            width: 120px;
+        }
 
-    .bottom_links a:link, .bottom_links a:visited, .bottom_links a:hover {
-        color: blue;
-        text-decoration: none;
-        padding-right: 4px;
-    }
+        .bottom_links a:link, .bottom_links a:visited, .bottom_links a:hover {
+            color: blue;
+            text-decoration: none;
+            padding-right: 4px;
+        }
 
-    .text_right {
-        text-align: right;
-    }
+        .text_right {
+            text-align: right;
+        }
 
-    fieldset {
-        margin: 1px;
-        padding: 2px;
-    }
+        fieldset {
+            margin: 1px;
+            padding: 2px;
+        }
 
-    .header {
-        text-align: center;
-        font-size: 24pt;
-        font-weight: bold;
-        border-bottom: 24px;
-    }
+        .header {
+            text-align: center;
+            font-size: 24pt;
+            font-weight: bold;
+            border-bottom: 24px;
+        }
 
-    div.center {
-        text-align: center;
-    }
+        div.center {
+            text-align: center;
+        }
 
-    div.refresh_radio {
-        margin: 20px 0 0 200px;
-        text-align: left;
-        width: 100px;
-    }
+        div.refresh_radio {
+            margin: 20px 0 0 200px;
+            text-align: left;
+            width: 100px;
+        }
 
-    legend {
-        text-align: left;
-    }
+        legend {
+            text-align: left;
+        }
 
-    .five_columns {
-        display: flex;
-        column-count: 5;
-    }
+        .five_columns {
+            display: flex;
+            column-count: 5;
+        }
 
-    #kat_approx_freq {
-        display: inline-block;
-        width: 30px;
-    }
+        #kat_approx_freq {
+            display: inline-block;
+            width: 30px;
+        }
 
-    #kat_band {
-        display: inline-block;
-        font-weight: bold;
-        width: 36px;
-    }
+        #kat_band {
+            display: inline-block;
+            font-weight: bold;
+            width: 36px;
+        }
 
-    .kat_button {
-        margin: 1px;
-        width: 60px;
-    }
+        .kat_button {
+            margin: 1px;
+            width: 60px;
+        }
 
-    #kat_bypass_swr {
-        display: inline-block;
-        width: 30px;
-    }
+        #kat_bypass_swr {
+            display: inline-block;
+            width: 30px;
+        }
 
-    #kat_fault_code {
-        border: 1px solid black;
-        display: inline-block;
-        font-size: 20px;
-        font-weight: bold;
-        line-height: 22px;
-        width: 72px;
-        background-color: #3b7;
-        text-align: center;
-    }
+        #kat_fault_code {
+            border: 1px solid black;
+            display: inline-block;
+            font-size: 20px;
+            font-weight: bold;
+            line-height: 22px;
+            width: 72px;
+            background-color: #3b7;
+            text-align: center;
+        }
 
-    .kat_radio_label {
-        width: 50px;
-        display: inline-block;
-        text-align: left;
-    }
+        .kat_radio_label {
+            width: 50px;
+            display: inline-block;
+            text-align: left;
+        }
 
-    .kat_radio {
-        margin: 0;
-    }
+        .kat_radio {
+            margin: 0;
+        }
 
-    .kat_swr_meter {
-        width: 120px;
-        height: 18px;
-    }
+        .kat_swr_meter {
+            width: 120px;
+            height: 18px;
+        }
 
-    .kat_stats_text {
-        text-align: right;
-    }
+        .kat_stats_text {
+            text-align: right;
+        }
 
-    .kat_swr_value {
-        width: 16px;
-        text-align: right;
-    }
+        .kat_swr_value {
+            width: 16px;
+            text-align: right;
+        }
 
-    #kat_vfwd {
-        display: inline-block;
-        width: 36px;
-    }
+        #kat_vfwd {
+            display: inline-block;
+            width: 36px;
+        }
 
-    #kat_vrfl {
-        display: inline-block;
-        width: 36px;
-    }
-</style>
-<!--suppress JSUnusedLocalSymbols -->
-<script>
-    let auto_updates = 0;
-    let update_secs = 0;
-    let update_timeout = 0;
-    let kat500_data = [];
+        #kat_vrfl {
+            display: inline-block;
+            width: 36px;
+        }
+    </style>
+    <!--suppress JSUnusedLocalSymbols -->
+    <script>
+        let auto_updates = 0;
+        let update_secs = 0;
+        let update_timeout = 0;
+        let kat500_data = [];
 
-    function page_load() {
-        // look to see if update time is set in url search string
-        let search = window.location.search;
-        if (search !== "") {
-            search = search.substring(1);
-            let pairs = search.split("&");
-            let parts = search.split("=");
-            for (const pair of pairs) {
-                let parts = pair.split("=");
-                if (parts[0] === "update") {
-                    let i = parseInt(parts[1]);
-                    if (!isNaN(i)) {
-                        if ([0,1,5].includes(i)) { // only 0, 1, 5 supported for this page.
-                            update_secs = i;
+        function page_load() {
+            // look to see if update time is set in url search string
+            let search = window.location.search;
+            if (search !== "") {
+                search = search.substring(1);
+                let pairs = search.split("&");
+                for (const pair of pairs) {
+                    let parts = pair.split("=");
+                    if (parts[0] === "update") {
+                        let i = parseInt(parts[1]);
+                        if (!isNaN(i)) {
+                            if ([0, 1, 5].includes(i)) { // only 0, 1, 5 supported for this page.
+                                update_secs = i;
+                            }
                         }
                     }
                 }
             }
+            get_status();
         }
-        get_status();
-    }
 
-    function post_request(url, payload) {
-        let xmlHttp = new XMLHttpRequest();
-        if (xmlHttp == null) {
-            alert("no xmlhttp -- try a newer browser?");
-            return;
-        }
-        xmlHttp.open("POST", url, true);
-        xmlHttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-        xmlHttp.send(payload);
-        // update the UI after a short period
-        if (update_timeout !== 0) {
-            clearTimeout(update_timeout)
-            update_timeout = 0;
-        }
-        update_timeout = setTimeout(get_status, 500);
-    }
-
-    function kat_click_power() {
-        let payload;
-        if (kat500_data[4] === "1") {
-            payload = "state=0";
-        } else {
-            payload = "state=1";
-        }
-        auto_updates = 5;
-        post_request("/api/kat_set_power", payload);
-    }
-
-    function kat_click_tune() {
-        let state;
-        if (kat500_data[5] === "1") {
-            state = "0";
-        } else {
-            state = "1";
-        }
-        let payload = "state=" + state;
-        auto_updates = 5;
-        post_request("/api/kat_set_tune", payload);
-    }
-
-    function kat_click_antenna(state) {
-        auto_updates = 5;
-        post_request("/api/kat_set_antenna", "antenna=0");
-    }
-
-    function kat_click_mode() {
-        let payload;
-        if (kat500_data[8] === "Auto") {
-            payload = "mode=M";
-        } else if (kat500_data[8] === "Manual") {
-            payload = "mode=B";
-        } else {
-            payload = "mode=A";
-        }
-        auto_updates = 5;
-        post_request("/api/kat_set_mode", payload);
-    }
-
-    function kat_mode(mode) {
-        auto_updates = 5;
-        post_request("/api/kat_set_mode", "mode=" + mode);
-    }
-
-    function kat_antenna(antenna) {
-        auto_updates = 5;
-        post_request("/api/kat_set_antenna", "antenna=" + antenna);
-    }
-
-    function kat_click_clear() {
-        auto_updates = 5;
-        post_request("/api/kat_clear_fault", "");
-    }
-
-    function kat_ampi() {
-        let ampi_checkbox = document.getElementById("kat_ampi_button");
-        let state = ampi_checkbox.checked ? "1" : "0";
-        auto_updates = 5;
-        post_request("/api/kat_set_ampi", "state=" + state);
-
-    }
-
-    function kat_attn() {
-        let attn_checkbox = document.getElementById("kat_attn_button");
-        let state = attn_checkbox.checked ? "1" : "0";
-        auto_updates = 5;
-        post_request("/api/kat_set_attn", "state=" + state);
-      }
-
-    function kat_bypass() {
-        let bypass_checkbox = document.getElementById("kat_bypass_button");
-        let state = bypass_checkbox.checked ? "1" : "0";
-        auto_updates = 5;
-        post_request("/api/kat_set_bypass", "state=" + state);
-      }
-
-    function process_get_status_response(message) {
-        let status_data = JSON.parse(message);
-        kat500_data = status_data["kat500_data"];
-        let power_button = document.getElementById("kat_power_button");
-        let tune_button = document.getElementById("kat_tune_button");
-        let antenna_button = document.getElementById("kat_antenna_button");
-        let mode_button = document.getElementById("kat_antenna_button");
-        let auto_mode_radio_button = document.getElementById("kat_mode_auto_button");
-        let auto_mode_radio_button_label = document.getElementById("kat_mode_auto_button_label");
-        let manual_mode_radio_button = document.getElementById("kat_mode_manual_button");
-        let manual_mode_radio_button_label = document.getElementById("kat_mode_manual_button_label");
-        let bypass_mode_radio_button = document.getElementById("kat_mode_bypass_button");
-        let bypass_mode_radio_button_label = document.getElementById("kat_mode_bypass_button_label");
-        let antenna_one_radio_button = document.getElementById("kat_antenna_one_button");
-        let antenna_one_radio_button_label = document.getElementById("kat_antenna_one_button_label");
-        let antenna_two_radio_button = document.getElementById("kat_antenna_two_button");
-        let antenna_two_radio_button_label = document.getElementById("kat_antenna_two_button_label");
-        let antenna_three_radio_button = document.getElementById("kat_antenna_three_button");
-        let antenna_three_radio_button_label = document.getElementById("kat_antenna_three_button_label");
-        let swr_value = document.getElementById("kat_swr_value");
-        let swr_meter = document.getElementById("kat_swr_meter");
-        let approx_freq = document.getElementById("kat_approx_freq");
-        let bypass_swr_value = document.getElementById("kat_bypass_swr");
-        let vfwd_value = document.getElementById("kat_vfwd");
-        let vrfl_value = document.getElementById("kat_vrfl");
-        let fault_code_value = document.getElementById("kat_fault_code");
-        let band_value = document.getElementById("kat_band");
-        let ampi_checkbox = document.getElementById("kat_ampi_button");
-        let attn_checkbox = document.getElementById("kat_attn_button");
-        let bypass_checkbox = document.getElementById("kat_bypass_button");
-        // power button
-        if (kat500_data[4] === "1") {
-            power_button.style.fontWeight = "bold";
-            power_button.style.backgroundColor = "#cef";
-        } else {
-            power_button.style.fontWeight = "normal";
-            power_button.style.backgroundColor = "#fff";
-        }
-        // tune button
-        if (kat500_data[5] === "1") {
-            tune_button.style.fontWeight = "bold";
-            tune_button.style.backgroundColor = "#cef";
-        } else {
-            tune_button.style.fontWeight = "normal";
-            tune_button.style.backgroundColor = "#fff";
-        }
-        // MODE button & related radio buttons
-        if (kat500_data[8] === "Auto") {
-            auto_mode_radio_button.checked = true;
-            manual_mode_radio_button.checked = false;
-            bypass_mode_radio_button.checked = false;
-            auto_mode_radio_button_label.style.color = "#008";
-            auto_mode_radio_button_label.style.fontWeight = "bold";
-            manual_mode_radio_button_label.style.color = "#000";
-            manual_mode_radio_button_label.style.fontWeight = "normal";
-            bypass_mode_radio_button_label.style.color = "#000";
-            bypass_mode_radio_button_label.style.fontWeight = "normal";
-        } else if (kat500_data[8] === "Manual") {
-            auto_mode_radio_button.checked = false;
-            manual_mode_radio_button.checked = true;
-            bypass_mode_radio_button.checked = false;
-            auto_mode_radio_button_label.style.color = "#000";
-            auto_mode_radio_button_label.style.fontWeight = "normal";
-            manual_mode_radio_button_label.style.color = "#008";
-            manual_mode_radio_button_label.style.fontWeight = "bold";
-            bypass_mode_radio_button_label.style.color = "#000";
-            bypass_mode_radio_button_label.style.fontWeight = "normal";
-        } else {
-            auto_mode_radio_button.checked = false;
-            manual_mode_radio_button.checked = false;
-            bypass_mode_radio_button.checked = true;
-            auto_mode_radio_button_label.style.color = "#000";
-            auto_mode_radio_button_label.style.fontWeight = "normal";
-            manual_mode_radio_button_label.style.color = "#000";
-            manual_mode_radio_button_label.style.fontWeight = "normal";
-            bypass_mode_radio_button_label.style.color = "#008";
-            bypass_mode_radio_button_label.style.fontWeight = "bold";
-        }
-        // Antenna selection radio buttons
-        if (kat500_data[6] === "One") {
-            antenna_one_radio_button.checked = true;
-            antenna_two_radio_button.checked = false;
-            antenna_three_radio_button.checked = false;
-            antenna_one_radio_button_label.style.color = "#008";
-            antenna_one_radio_button_label.style.fontWeight = "bold";
-            antenna_two_radio_button_label.style.color = "#000";
-            antenna_two_radio_button_label.style.fontWeight = "normal";
-            antenna_three_radio_button_label.style.color = "#000";
-            antenna_three_radio_button_label.style.fontWeight = "normal";
-        } else if (kat500_data[6] === "Two") {
-            antenna_one_radio_button.checked = false;
-            antenna_two_radio_button.checked = true;
-            antenna_three_radio_button.checked = false;
-            antenna_one_radio_button_label.style.color = "#000";
-            antenna_one_radio_button_label.style.fontWeight = "normal";
-            antenna_two_radio_button_label.style.color = "#008";
-            antenna_two_radio_button_label.style.fontWeight = "bold";
-            antenna_three_radio_button_label.style.color = "#000";
-            antenna_three_radio_button_label.style.fontWeight = "normal";
-        } else {
-            antenna_one_radio_button.checked = false;
-            antenna_two_radio_button.checked = false;
-            antenna_three_radio_button.checked = true;
-            antenna_one_radio_button_label.style.color = "#000";
-            antenna_one_radio_button_label.style.fontWeight = "normal";
-            antenna_two_radio_button_label.style.color = "#000";
-            antenna_two_radio_button_label.style.fontWeight = "normal";
-            antenna_three_radio_button_label.style.color = "#008";
-            antenna_three_radio_button_label.style.fontWeight = "bold";
-        }
-        // vswr & etc.
-        let vswr = kat500_data[13]
-        swr_value.innerHTML = vswr;
-        swr_meter.value = parseFloat(vswr);
-        let mhz = Math.floor(parseInt(kat500_data[10]) / 100) / 10;
-        approx_freq.innerHTML = mhz.toFixed(1);
-        bypass_swr_value.innerHTML = kat500_data[14];
-        vfwd_value.innerHTML = kat500_data[11];
-        vrfl_value.innerHTML = kat500_data[12];
-        // fault data
-        let fault_code = kat500_data[9];
-        if (fault_code === "0") {
-            fault_code_value.innerHTML = "&check;";
-            fault_code_value.style.backgroundColor = "#3b7";
-        } else {
-            fault_code_value.innerHTML = fault_code;
-            fault_code_value.style.backgroundColor = "#f99";
-        }
-        // checkboxes
-        ampi_checkbox.checked = (kat500_data[0] === "1");
-        attn_checkbox.checked = (kat500_data[1] === "1");
-        bypass_checkbox.checked = (kat500_data[2] === "B");
-        band_value.innerHTML = kat500_data[7];
-
-        let button_secs = update_secs;
-        if (auto_updates > 0) {
-            update_timeout = setTimeout(get_status, 1000);
-            button_secs = 1;
-            auto_updates--;
-        } else {
-            if (update_secs > 0) {
-                update_timeout = setTimeout(get_status, update_secs * 1000);
+        function post_request(url, payload) {
+            let xmlHttp = new XMLHttpRequest();
+            if (xmlHttp == null) {
+                alert("no xmlhttp -- try a newer browser?");
+                return;
             }
-        }
-
-        // set the radio buttons for automatic updating
-        document.getElementById('refresh_radio_0').checked = (button_secs === 0);
-        document.getElementById('refresh_radio_1').checked = (button_secs === 1);
-        document.getElementById('refresh_radio_5').checked = (button_secs === 5);
-    }
-
-    function get_status() {
-        let xmlHttp = new XMLHttpRequest();
-        if (xmlHttp == null) {
-            alert("get a better browser!");
-            return;
-        }
-        xmlHttp.onreadystatechange = function () {
-            if (xmlHttp.readyState === 4 && xmlHttp.status === 200) {
-                process_get_status_response(xmlHttp.responseText);
-            }
-        }
-        xmlHttp.onerror = function () {
-            if (update_secs > 0) {
-                update_timeout = setTimeout(get_status, update_secs * 1000);
-            }
-        }
-        xmlHttp.ontimeout = function () {
-            if (update_secs > 0) {
-                update_timeout = setTimeout(get_status, update_secs * 1000);
-            }
-        }
-        xmlHttp.open("GET", "/api/kat_status", true);
-        xmlHttp.send();
-    }
-
-    function set_refresh(secs) {
-        update_secs = secs
-        if (update_secs === 0) {
+            xmlHttp.open("POST", url, true);
+            xmlHttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+            xmlHttp.send(payload);
+            // update the UI after a short period
             if (update_timeout !== 0) {
                 clearTimeout(update_timeout)
                 update_timeout = 0;
             }
-        } else {
-            get_status();
+            update_timeout = setTimeout(get_status, 500);
         }
-    }
 
-</script>
-<body onload="page_load()">
+        function kat_click_power() {
+            let payload;
+            if (kat500_data[4] === "1") {
+                payload = "state=0";
+            } else {
+                payload = "state=1";
+            }
+            auto_updates = 5;
+            post_request("/api/kat_set_power", payload);
+        }
+
+        function kat_click_tune() {
+            let state;
+            if (kat500_data[5] === "1") {
+                state = "0";
+            } else {
+                state = "1";
+            }
+            let payload = "state=" + state;
+            auto_updates = 5;
+            post_request("/api/kat_set_tune", payload);
+        }
+
+        function kat_click_antenna(state) {
+            auto_updates = 5;
+            post_request("/api/kat_set_antenna", "antenna=0");
+        }
+
+        function kat_click_mode() {
+            let payload;
+            if (kat500_data[8] === "Auto") {
+                payload = "mode=M";
+            } else if (kat500_data[8] === "Manual") {
+                payload = "mode=B";
+            } else {
+                payload = "mode=A";
+            }
+            auto_updates = 5;
+            post_request("/api/kat_set_mode", payload);
+        }
+
+        function kat_mode(mode) {
+            auto_updates = 5;
+            post_request("/api/kat_set_mode", "mode=" + mode);
+        }
+
+        function kat_antenna(antenna) {
+            auto_updates = 5;
+            post_request("/api/kat_set_antenna", "antenna=" + antenna);
+        }
+
+        function kat_click_clear() {
+            auto_updates = 5;
+            post_request("/api/kat_clear_fault", "");
+        }
+
+        function kat_ampi() {
+            let ampi_checkbox = document.getElementById("kat_ampi_button");
+            let state = ampi_checkbox.checked ? "1" : "0";
+            auto_updates = 5;
+            post_request("/api/kat_set_ampi", "state=" + state);
+        }
+
+        function kat_attn() {
+            let attn_checkbox = document.getElementById("kat_attn_button");
+            let state = attn_checkbox.checked ? "1" : "0";
+            auto_updates = 5;
+            post_request("/api/kat_set_attn", "state=" + state);
+        }
+
+        function kat_bypass() {
+            let bypass_checkbox = document.getElementById("kat_bypass_button");
+            let state = bypass_checkbox.checked ? "1" : "0";
+            auto_updates = 5;
+            post_request("/api/kat_set_bypass", "state=" + state);
+        }
+
+        function process_get_status_response(message) {
+            let status_data;
+            try {
+                status_data = JSON.parse(message);
+            } catch (e) {
+                alert("Invalid status data received.");
+                return;
+            }
+            kat500_data = status_data["kat500_data"];
+            let power_button = document.getElementById("kat_power_button");
+            let tune_button = document.getElementById("kat_tune_button");
+            let antenna_button = document.getElementById("kat_antenna_button");
+            let mode_button = document.getElementById("kat_mode_button");
+            let auto_mode_radio_button = document.getElementById("kat_mode_auto_button");
+            let auto_mode_radio_button_label = document.getElementById("kat_mode_auto_button_label");
+            let manual_mode_radio_button = document.getElementById("kat_mode_manual_button");
+            let manual_mode_radio_button_label = document.getElementById("kat_mode_manual_button_label");
+            let bypass_mode_radio_button = document.getElementById("kat_mode_bypass_button");
+            let bypass_mode_radio_button_label = document.getElementById("kat_mode_bypass_button_label");
+            let antenna_one_radio_button = document.getElementById("kat_antenna_one_button");
+            let antenna_one_radio_button_label = document.getElementById("kat_antenna_one_button_label");
+            let antenna_two_radio_button = document.getElementById("kat_antenna_two_button");
+            let antenna_two_radio_button_label = document.getElementById("kat_antenna_two_button_label");
+            let antenna_three_radio_button = document.getElementById("kat_antenna_three_button");
+            let antenna_three_radio_button_label = document.getElementById("kat_antenna_three_button_label");
+            let swr_value = document.getElementById("kat_swr_value");
+            let swr_meter = document.getElementById("kat_swr_meter");
+            let approx_freq = document.getElementById("kat_approx_freq");
+            let bypass_swr_value = document.getElementById("kat_bypass_swr");
+            let vfwd_value = document.getElementById("kat_vfwd");
+            let vrfl_value = document.getElementById("kat_vrfl");
+            let fault_code_value = document.getElementById("kat_fault_code");
+            let band_value = document.getElementById("kat_band");
+            let ampi_checkbox = document.getElementById("kat_ampi_button");
+            let attn_checkbox = document.getElementById("kat_attn_button");
+            let bypass_checkbox = document.getElementById("kat_bypass_button");
+            // power button
+            if (kat500_data[4] === "1") {
+                power_button.style.fontWeight = "bold";
+                power_button.style.backgroundColor = "#cef";
+            } else {
+                power_button.style.fontWeight = "normal";
+                power_button.style.backgroundColor = "#fff";
+            }
+            // tune button
+            if (kat500_data[5] === "1") {
+                tune_button.style.fontWeight = "bold";
+                tune_button.style.backgroundColor = "#cef";
+            } else {
+                tune_button.style.fontWeight = "normal";
+                tune_button.style.backgroundColor = "#fff";
+            }
+            // MODE button & related radio buttons
+            if (kat500_data[8] === "Auto") {
+                auto_mode_radio_button.checked = true;
+                manual_mode_radio_button.checked = false;
+                bypass_mode_radio_button.checked = false;
+                auto_mode_radio_button_label.style.color = "#008";
+                auto_mode_radio_button_label.style.fontWeight = "bold";
+                manual_mode_radio_button_label.style.color = "#000";
+                manual_mode_radio_button_label.style.fontWeight = "normal";
+                bypass_mode_radio_button_label.style.color = "#000";
+                bypass_mode_radio_button_label.style.fontWeight = "normal";
+            } else if (kat500_data[8] === "Manual") {
+                auto_mode_radio_button.checked = false;
+                manual_mode_radio_button.checked = true;
+                bypass_mode_radio_button.checked = false;
+                auto_mode_radio_button_label.style.color = "#000";
+                auto_mode_radio_button_label.style.fontWeight = "normal";
+                manual_mode_radio_button_label.style.color = "#008";
+                manual_mode_radio_button_label.style.fontWeight = "bold";
+                bypass_mode_radio_button_label.style.color = "#000";
+                bypass_mode_radio_button_label.style.fontWeight = "normal";
+            } else {
+                auto_mode_radio_button.checked = false;
+                manual_mode_radio_button.checked = false;
+                bypass_mode_radio_button.checked = true;
+                auto_mode_radio_button_label.style.color = "#000";
+                auto_mode_radio_button_label.style.fontWeight = "normal";
+                manual_mode_radio_button_label.style.color = "#000";
+                manual_mode_radio_button_label.style.fontWeight = "normal";
+                bypass_mode_radio_button_label.style.color = "#008";
+                bypass_mode_radio_button_label.style.fontWeight = "bold";
+            }
+            // Antenna selection radio buttons
+            if (kat500_data[6] === "One") {
+                antenna_one_radio_button.checked = true;
+                antenna_two_radio_button.checked = false;
+                antenna_three_radio_button.checked = false;
+                antenna_one_radio_button_label.style.color = "#008";
+                antenna_one_radio_button_label.style.fontWeight = "bold";
+                antenna_two_radio_button_label.style.color = "#000";
+                antenna_two_radio_button_label.style.fontWeight = "normal";
+                antenna_three_radio_button_label.style.color = "#000";
+                antenna_three_radio_button_label.style.fontWeight = "normal";
+            } else if (kat500_data[6] === "Two") {
+                antenna_one_radio_button.checked = false;
+                antenna_two_radio_button.checked = true;
+                antenna_three_radio_button.checked = false;
+                antenna_one_radio_button_label.style.color = "#000";
+                antenna_one_radio_button_label.style.fontWeight = "normal";
+                antenna_two_radio_button_label.style.color = "#008";
+                antenna_two_radio_button_label.style.fontWeight = "bold";
+                antenna_three_radio_button_label.style.color = "#000";
+                antenna_three_radio_button_label.style.fontWeight = "normal";
+            } else {
+                antenna_one_radio_button.checked = false;
+                antenna_two_radio_button.checked = false;
+                antenna_three_radio_button.checked = true;
+                antenna_one_radio_button_label.style.color = "#000";
+                antenna_one_radio_button_label.style.fontWeight = "normal";
+                antenna_two_radio_button_label.style.color = "#000";
+                antenna_two_radio_button_label.style.fontWeight = "normal";
+                antenna_three_radio_button_label.style.color = "#008";
+                antenna_three_radio_button_label.style.fontWeight = "bold";
+            }
+            // vswr & etc.
+            let vswr = kat500_data[13]
+            swr_value.innerHTML = vswr;
+            swr_meter.value = parseFloat(vswr);
+            let mhz = Math.floor(parseInt(kat500_data[10]) / 100) / 10;
+            approx_freq.innerHTML = mhz.toFixed(1);
+            bypass_swr_value.innerHTML = kat500_data[14];
+            vfwd_value.innerHTML = kat500_data[11];
+            vrfl_value.innerHTML = kat500_data[12];
+            // fault data
+            let fault_code = kat500_data[9];
+            if (fault_code === "0") {
+                fault_code_value.innerHTML = "&check;";
+                fault_code_value.style.backgroundColor = "#3b7";
+            } else {
+                fault_code_value.innerHTML = fault_code;
+                fault_code_value.style.backgroundColor = "#f99";
+            }
+            // checkboxes
+            ampi_checkbox.checked = (kat500_data[0] === "1");
+            attn_checkbox.checked = (kat500_data[1] === "1");
+            bypass_checkbox.checked = (kat500_data[2] === "B");
+            band_value.innerHTML = kat500_data[7];
+
+            let button_secs = update_secs;
+            if (auto_updates > 0) {
+                update_timeout = setTimeout(get_status, 1000);
+                button_secs = 1;
+                auto_updates--;
+            } else {
+                if (update_secs > 0) {
+                    update_timeout = setTimeout(get_status, update_secs * 1000);
+                }
+            }
+
+            // set the radio buttons for automatic updating
+            document.getElementById('refresh_radio_0').checked = (button_secs === 0);
+            document.getElementById('refresh_radio_1').checked = (button_secs === 1);
+            document.getElementById('refresh_radio_5').checked = (button_secs === 5);
+        }
+
+        function get_status() {
+            let xmlHttp = new XMLHttpRequest();
+            if (xmlHttp == null) {
+                alert("get a better browser!");
+                return;
+            }
+            xmlHttp.onreadystatechange = function () {
+                if (xmlHttp.readyState !== 4)
+                    return;
+                if (xmlHttp.status === 200) {
+                    process_get_status_response(xmlHttp.responseText);
+                } else {
+                    alert("Failed to load status data.");
+                }
+            }
+            xmlHttp.onerror = function () {
+                if (update_secs > 0) {
+                    update_timeout = setTimeout(get_status, update_secs * 1000);
+                }
+            }
+            xmlHttp.ontimeout = function () {
+                if (update_secs > 0) {
+                    update_timeout = setTimeout(get_status, update_secs * 1000);
+                }
+            }
+            xmlHttp.open("GET", "/api/kat_status", true);
+            xmlHttp.send();
+        }
+
+        function set_refresh(secs) {
+            update_secs = secs
+            if (update_secs === 0) {
+                if (update_timeout !== 0) {
+                    clearTimeout(update_timeout)
+                    update_timeout = 0;
+                }
+            } else {
+                get_status();
+            }
+        }
+        document.addEventListener("DOMContentLoaded", page_load);
+    </script>
+</head>
+<body>
 <div class="header">KAT500 Web Remote</div>
 <div class="five_columns">
     <div>
@@ -565,7 +572,7 @@
         <a href="kpa500.html">KPA500</a>
         <a href="setup.html">Setup</a>
     </div>
-    <div class="author"><a href="https://www.n1kdo.com" target="_blank">N1KDO</a> 20250728</div>
+    <div class="author"><a href="https://www.n1kdo.com" target="_blank">N1KDO</a> 20251222</div>
 </div>
 </body>
 </html>

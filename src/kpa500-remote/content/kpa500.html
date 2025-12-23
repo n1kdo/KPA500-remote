@@ -1,370 +1,394 @@
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/html" lang="en">
-<!-- Copyright 2022, J. B. Otterson N1KDO. -->
+<html lang="en">
+<!-- Copyright 2022, 2025, J. B. Otterson N1KDO. -->
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=0.75, minimum-scale=0.6, maximum-scale=1.5">
-    <!--<link rel="shortcut icon" href="favicon.png" type="image/png">-->
-
     <title>KPA500 Web Remote</title>
-</head>
-<style>
-    body {
-        background-color: #ddd;
-        border-style: double;
-        font-family: sans-serif;
-        font-size: 10pt;
-        margin: 0;
-        height: 350px;
-        width: 500px;
-    }
-    .author {
-        font-size: 8pt;
-        font-weight: bold;
-        text-align: right;
-        position: absolute;
-        top: 340px;
-        left: 400px;
-        width: 100px;
-    }
-    .author a:link, .author a:visited, .author a:hover {
-        color: black;
-        text-decoration: none;
-    }
-    .bottom_links {
-        font-size: 8pt;
-        font-weight: bold;
-        color: black;
-        text-align: left;
-        position: absolute;
-        top: 340px;
-        width: 120px;
-    }
-    .bottom_links a:link, .bottom_links a:visited, .bottom_links a:hover {
-        color: blue;
-        text-decoration: none;
-        padding-right: 4px;
-    }
-    .data_table {
-        display: grid;
-        grid-template-columns: 60px 60px 360px;
-        margin: 10px 0 0 0;
-    }
-    .dt_label {
-        text-align: right;
-    }
-    .dt_value {
-        margin-left: 2px;
-    }
-    .dt_meter {
-        width: 360px;
-        height: 2em;
-        position: relative;
-        top: -0.5em;
-    }
-    #fan_range {
-        position: relative;
-        top: -6px;
-        width: 360px;
-    }
-    .fault_text {
-        border: 1px solid black;
-        font-size: 12pt;
-        font-weight: bold;
-        padding: 1px 0 0 0;
-        text-align: center;
-    }
-    .header {
-        text-align: center;
-        font-size: 24pt;
-        font-weight: bold;
-        border-bottom: 24px;
-    }
-    div.refresh_radio {
-        border: 1px solid black;
-        margin: 10px 150px 0 150px;
-        text-align: left;
-    }
-    .refresh_radio_label {
-        font-weight: bold;
-        text-align: center;
-    }
-    #operate_radio_button, #standby_radio_button {
-        margin: 3px 10px 0 0;
-    }
-    .three_columns {
-        display: grid;
-        grid-row-gap: 10px;
-        grid-template-columns: 138px 220px 138px;
-        padding: 0 2px;
-    }
-    .two_columns {
-        display: grid;
-        grid-template-columns: 120px 380px;
-    }
+    <style>
+        body {
+            background-color: #ddd;
+            border-style: double;
+            font-family: sans-serif;
+            font-size: 10pt;
+            margin: 0;
+            height: 350px;
+            width: 500px;
+        }
 
-</style>
-<!--suppress JSUnusedLocalSymbols -->
-<script>
-    let auto_updates = 0;
-    let update_secs = 0;
-    let update_timeout = 0;
-    let kpa500_data = [];
+        .author {
+            font-size: 8pt;
+            font-weight: bold;
+            text-align: right;
+            position: absolute;
+            top: 340px;
+            left: 400px;
+            width: 100px;
+        }
 
-    function page_load() {
-        // look to see if update time is set in url search string
-        let search = window.location.search;
-        if (search !== "") {
-            search = search.substring(1);
-            let pairs = search.split("&");
-            let parts = search.split("=");
-            for (const pair of pairs) {
-                let parts = pair.split("=");
-                if (parts[0] === "update") {
-                    let i = parseInt(parts[1]);
-                    if (!isNaN(i)) {
-                        if ([0,1,5].includes(i)) { // only 0, 1, 5 supported for this page.
-                            update_secs = i;
+        .author a:link, .author a:visited, .author a:hover {
+            color: black;
+            text-decoration: none;
+        }
+
+        .bottom_links {
+            font-size: 8pt;
+            font-weight: bold;
+            color: black;
+            text-align: left;
+            position: absolute;
+            top: 340px;
+            width: 120px;
+        }
+
+        .bottom_links a:link, .bottom_links a:visited, .bottom_links a:hover {
+            color: blue;
+            text-decoration: none;
+            padding-right: 4px;
+        }
+
+        .data_table {
+            display: grid;
+            grid-template-columns: 60px 60px 360px;
+            margin: 10px 0 0 0;
+        }
+
+        .dt_label {
+            text-align: right;
+        }
+
+        .dt_value {
+            margin-left: 2px;
+        }
+
+        .dt_meter {
+            width: 360px;
+            height: 2em;
+            position: relative;
+            top: -0.5em;
+        }
+
+        #fan_range {
+            position: relative;
+            top: -6px;
+            width: 360px;
+        }
+
+        .fault_text {
+            border: 1px solid black;
+            font-size: 12pt;
+            font-weight: bold;
+            padding: 1px 0 0 0;
+            text-align: center;
+        }
+
+        .header {
+            text-align: center;
+            font-size: 24pt;
+            font-weight: bold;
+            border-bottom: 24px;
+        }
+
+        div.refresh_radio {
+            border: 1px solid black;
+            margin: 10px 150px 0 150px;
+            text-align: left;
+        }
+
+        .refresh_radio_label {
+            font-weight: bold;
+            text-align: center;
+        }
+
+        #operate_radio_button, #standby_radio_button {
+            margin: 3px 10px 0 0;
+        }
+
+        .three_columns {
+            display: grid;
+            grid-row-gap: 10px;
+            grid-template-columns: 138px 220px 138px;
+            padding: 0 2px;
+        }
+
+        .two_columns {
+            display: grid;
+            grid-template-columns: 120px 380px;
+        }
+
+    </style>
+    <!--suppress JSUnusedLocalSymbols -->
+    <script>
+        let auto_updates = 0;
+        let update_secs = 0;
+        let update_timeout = 0;
+        let kpa500_data = [];
+
+        function page_load() {
+            // look to see if update time is set in url search string
+            let search = window.location.search;
+            if (search !== "") {
+                search = search.substring(1);
+                let pairs = search.split("&");
+                for (const pair of pairs) {
+                    let parts = pair.split("=");
+                    if (parts[0] === "update") {
+                        let i = parseInt(parts[1]);
+                        if (!isNaN(i)) {
+                            if ([0, 1, 5].includes(i)) { // only 0, 1, 5 supported for this page.
+                                update_secs = i;
+                            }
                         }
                     }
                 }
             }
-        }
-        get_status();
-    }
-
-    function post_request(url, payload) {
-        let xmlHttp = new XMLHttpRequest();
-        if (xmlHttp == null) {
-            alert("no xmlhttp -- try a newer browser?");
-            return;
-        }
-        xmlHttp.open("POST", url, true);
-        xmlHttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-        xmlHttp.send(payload);
-        // update the UI after a short period
-        if (update_timeout !== 0) {
-            clearTimeout(update_timeout)
-            update_timeout = 0;
-        }
-        update_timeout = setTimeout(get_status, 500);
-    }
-
-    function toggle_power() {
-        let payload;
-        if (kpa500_data[4] === "1") {
-            payload = "state=0";
-        } else {
-            payload = "state=1";
-        }
-        auto_updates = 5;
-        post_request("/api/kpa_set_power", payload);
-    }
-
-    function toggle_operate() {
-        let state;
-        if (kpa500_data[0] === "1") {
-            state = "0";
-        } else {
-            state = "1";
-        }
-        let payload = "state=" + state;
-        post_request("/api/kpa_set_operate", payload);
-    }
-
-    function radio_operate(state) {
-        post_request("/api/kpa_set_operate", "state=" + state.toString());
-    }
-
-    function select_band_changed() {
-        let selected_band = document.getElementById("select_band").value;
-        post_request("/api/kpa_set_band", "band=" + selected_band);
-    }
-
-    function fan_speed_change() {
-        let fan_speed = document.getElementById("fan_range").value;
-        post_request("/api/kpa_set_fan_speed", "speed="+ fan_speed.toString());
-    }
-
-    function speaker_alarm_button_click() {
-        let state;
-        if (kpa500_data[3] === "1") {
-            state = "0";
-        } else {
-            state = "1";
-        }
-        post_request("/api/kpa_set_speaker_alarm", "state=" + state);
-    }
-
-    function clear_fault_button_click() {
-        post_request("/api/kpa_clear_fault", "");
-    }
-
-    function process_get_status_response(message) {
-        let status_data = JSON.parse(message);
-        kpa500_data = status_data["kpa500_data"];
-        let power_button = document.getElementById("power_button");
-        let operate_button = document.getElementById("operate_button");
-        let operate_radio_button = document.getElementById("operate_radio_button");
-        let operate_radio_button_label = document.getElementById("operate_radio_button_label")
-        let standby_radio_button = document.getElementById("standby_radio_button");
-        let standby_radio_button_label = document.getElementById("standby_radio_button_label");
-        let select_band = document.getElementById("select_band");
-        let power_value = document.getElementById("power_value");
-        let power_meter = document.getElementById("power_meter")
-        let swr_value = document.getElementById("swr_value");
-        let swr_meter = document.getElementById("swr_meter");
-        let current_value = document.getElementById("current_value");
-        let current_meter = document.getElementById("current_meter");
-        let voltage_value = document.getElementById("voltage_value");
-        let voltage_meter = document.getElementById("voltage_meter");
-        let temp_value = document.getElementById("temp_value");
-        let temp_meter = document.getElementById("temp_meter");
-        let fan_range = document.getElementById("fan_range");
-        let fan_range_label = document.getElementById("fan_range_label");
-        let speaker_button = document.getElementById("speaker_button");
-        let fault_text = document.getElementById("fault_text");
-
-        // power button
-        if (kpa500_data[4] === "1") {
-            power_button.style.color = "#080";
-        } else {
-            power_button.style.color = "#800";
-        }
-        // operate_button & related radio buttons
-        if (kpa500_data[0] === "1") {
-            operate_button.style.color = "#080";
-            operate_button.value = "Standby";
-            operate_radio_button.checked = true;
-            operate_radio_button_label.style.color = "#080";
-            operate_radio_button_label.style.fontWeight = "bold"
-            standby_radio_button_label.style.color = "black";
-            standby_radio_button_label.style.fontWeight = "normal";
-        } else {
-            operate_button.style.color = "#800";
-            operate_button.value = "Operate";
-            standby_radio_button.checked = true;
-            operate_radio_button_label.style.color = "black";
-            operate_radio_button_label.style.fontWeight = "normal"
-            standby_radio_button_label.style.color = "#800";
-            standby_radio_button_label.style.fontWeight = "bold";
-        }
-        // band dropdown
-        select_band.value = kpa500_data[5];
-        // power text and meter
-        let power = parseInt(kpa500_data[10]);
-        power_value.innerHTML = power.toString() + " W";
-        power_meter.value = power;
-        // SWR meter
-        let swr = parseInt(kpa500_data[11]) / 10.0;
-        if (swr === 0) {
-            swr_value.innerHTML = "NO RF";
-            swr_meter.value = 0.0;
-        } else {
-            swr_value.innerHTML = swr.toFixed(1) + " to 1";
-            swr_meter.value = swr;
-        }
-        // current meter
-        let amps = parseInt(kpa500_data[9]) / 10.0;
-        if (amps === 0.0) {
-            current_value.innerHTML = "PTT OFF";
-        } else {
-            current_value.innerHTML = amps.toString() + " A";
-        }
-        current_meter.value = amps;
-        // voltage meter
-        let volts = parseInt(kpa500_data[13]) / 10.0;
-        voltage_value.innerHTML = volts.toString() + " V";
-        voltage_meter.value = volts;
-        // temp meter
-        let temp = parseInt(kpa500_data[12])
-        temp_value.innerHTML = temp.toString() + " C";
-        temp_meter.value = temp;
-        // fan slider
-        let fan_speed = parseInt(kpa500_data[17]);
-        if (fan_speed === 0) {
-            fan_range_label.innerHTML = "Fan Speed: Auto";
-        } else {
-            fan_range_label.innerHTML = "Fan Speed: " + fan_speed.toString();
-        }
-        fan_range.value = kpa500_data[17];
-        // speaker button
-        if (kpa500_data[3] === "1") {
-            speaker_button.style.color = "#080";
-            speaker_button.style.fontWeight = "bold";
-        } else {
-            speaker_button.style.color = "#833"
-            speaker_button.style.fontWeight = "normal";
-        }
-        // fault text
-        if (kpa500_data[6] === "AMP ON") {
-            fault_text.style.background = '#9e9';
-        } else {
-            fault_text.style.background = '#fa7';
-        }
-        fault_text.innerHTML = kpa500_data[6];
-
-        if (update_timeout !== 0) {
-            clearTimeout(update_timeout)
-            update_timeout = 0;
+            get_status();
         }
 
-        let button_secs = update_secs;
-        if (auto_updates > 0) {
-            update_timeout = setTimeout(get_status, 1000);
-            button_secs = 1;
-            auto_updates--;
-        } else {
-            if (update_secs > 0) {
-                update_timeout = setTimeout(get_status, update_secs * 1000);
+        function post_request(url, payload) {
+            let xmlHttp = new XMLHttpRequest();
+            if (xmlHttp == null) {
+                alert("no xmlhttp -- try a newer browser?");
+                return;
             }
-        }
-
-        // set the radio buttons for automatic updating
-        document.getElementById('refresh_radio_0').checked = (button_secs === 0);
-        document.getElementById('refresh_radio_1').checked = (button_secs === 1);
-        document.getElementById('refresh_radio_5').checked = (button_secs === 5);
-
-    }
-
-    function get_status() {
-        let xmlHttp = new XMLHttpRequest();
-        if (xmlHttp == null) {
-            alert("get a better browser!");
-            return;
-        }
-        xmlHttp.onreadystatechange = function () {
-            if (xmlHttp.readyState === 4 && xmlHttp.status === 200) {
-                process_get_status_response(xmlHttp.responseText);
-            }
-        }
-        xmlHttp.onerror = function () {
-            if (update_secs > 0) {
-                update_timeout = setTimeout(get_status, update_secs * 1000);
-            }
-        }
-        xmlHttp.ontimeout = function () {
-            if (update_secs > 0) {
-                update_timeout = setTimeout(get_status, update_secs * 1000);
-            }
-        }
-        xmlHttp.open("GET", "/api/kpa_status", true);
-        xmlHttp.send();
-    }
-
-    function set_refresh(secs) {
-        update_secs = secs
-        if (update_secs === 0) {
+            xmlHttp.open("POST", url, true);
+            xmlHttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+            xmlHttp.send(payload);
+            // update the UI after a short period
             if (update_timeout !== 0) {
                 clearTimeout(update_timeout)
                 update_timeout = 0;
             }
-        } else {
-            get_status();
+            update_timeout = setTimeout(get_status, 500);
         }
-    }
 
-</script>
-<body onload="page_load()">
+        function toggle_power() {
+            let payload;
+            if (kpa500_data[4] === "1") {
+                payload = "state=0";
+            } else {
+                payload = "state=1";
+            }
+            auto_updates = 5;
+            post_request("/api/kpa_set_power", payload);
+        }
+
+        function toggle_operate() {
+            let state;
+            if (kpa500_data[0] === "1") {
+                state = "0";
+            } else {
+                state = "1";
+            }
+            let payload = "state=" + state;
+            post_request("/api/kpa_set_operate", payload);
+        }
+
+        function radio_operate(state) {
+            post_request("/api/kpa_set_operate", "state=" + state.toString());
+        }
+
+        function select_band_changed() {
+            let selected_band = document.getElementById("select_band").value;
+            post_request("/api/kpa_set_band", "band=" + selected_band);
+        }
+
+        function fan_speed_change() {
+            let fan_speed = document.getElementById("fan_range").value;
+            post_request("/api/kpa_set_fan_speed", "speed=" + fan_speed.toString());
+        }
+
+        function speaker_alarm_button_click() {
+            let state;
+            if (kpa500_data[3] === "1") {
+                state = "0";
+            } else {
+                state = "1";
+            }
+            post_request("/api/kpa_set_speaker_alarm", "state=" + state);
+        }
+
+        function clear_fault_button_click() {
+            post_request("/api/kpa_clear_fault", "");
+        }
+
+        function process_get_status_response(message) {
+            let status_data;
+            try {
+                status_data = JSON.parse(message);
+            } catch (e) {
+                alert("Invalid status data received.");
+                return;
+            }
+            kpa500_data = status_data["kpa500_data"];
+            let power_button = document.getElementById("power_button");
+            let operate_button = document.getElementById("operate_button");
+            let operate_radio_button = document.getElementById("operate_radio_button");
+            let operate_radio_button_label = document.getElementById("operate_radio_button_label")
+            let standby_radio_button = document.getElementById("standby_radio_button");
+            let standby_radio_button_label = document.getElementById("standby_radio_button_label");
+            let select_band = document.getElementById("select_band");
+            let power_value = document.getElementById("power_value");
+            let power_meter = document.getElementById("power_meter")
+            let swr_value = document.getElementById("swr_value");
+            let swr_meter = document.getElementById("swr_meter");
+            let current_value = document.getElementById("current_value");
+            let current_meter = document.getElementById("current_meter");
+            let voltage_value = document.getElementById("voltage_value");
+            let voltage_meter = document.getElementById("voltage_meter");
+            let temp_value = document.getElementById("temp_value");
+            let temp_meter = document.getElementById("temp_meter");
+            let fan_range = document.getElementById("fan_range");
+            let fan_range_label = document.getElementById("fan_range_label");
+            let speaker_button = document.getElementById("speaker_button");
+            let fault_text = document.getElementById("fault_text");
+
+            // power button
+            if (kpa500_data[4] === "1") {
+                power_button.style.color = "#080";
+            } else {
+                power_button.style.color = "#800";
+            }
+            // operate_button & related radio buttons
+            if (kpa500_data[0] === "1") {
+                operate_button.style.color = "#080";
+                operate_button.value = "Standby";
+                operate_radio_button.checked = true;
+                operate_radio_button_label.style.color = "#080";
+                operate_radio_button_label.style.fontWeight = "bold"
+                standby_radio_button_label.style.color = "black";
+                standby_radio_button_label.style.fontWeight = "normal";
+            } else {
+                operate_button.style.color = "#800";
+                operate_button.value = "Operate";
+                standby_radio_button.checked = true;
+                operate_radio_button_label.style.color = "black";
+                operate_radio_button_label.style.fontWeight = "normal"
+                standby_radio_button_label.style.color = "#800";
+                standby_radio_button_label.style.fontWeight = "bold";
+            }
+            // band dropdown
+            select_band.value = kpa500_data[5];
+            // power text and meter
+            let power = parseInt(kpa500_data[10]);
+            power_value.innerHTML = power.toString() + " W";
+            power_meter.value = power;
+            // SWR meter
+            let swr = parseInt(kpa500_data[11]) / 10.0;
+            if (swr === 0) {
+                swr_value.innerHTML = "NO RF";
+                swr_meter.value = 0.0;
+            } else {
+                swr_value.innerHTML = swr.toFixed(1) + " to 1";
+                swr_meter.value = swr;
+            }
+            // current meter
+            let amps = parseInt(kpa500_data[9]) / 10.0;
+            if (amps === 0.0) {
+                current_value.innerHTML = "PTT OFF";
+            } else {
+                current_value.innerHTML = amps.toString() + " A";
+            }
+            current_meter.value = amps;
+            // voltage meter
+            let volts = parseInt(kpa500_data[13]) / 10.0;
+            voltage_value.innerHTML = volts.toString() + " V";
+            voltage_meter.value = volts;
+            // temp meter
+            let temp = parseInt(kpa500_data[12])
+            temp_value.innerHTML = temp.toString() + " C";
+            temp_meter.value = temp;
+            // fan slider
+            let fan_speed = parseInt(kpa500_data[17]);
+            if (fan_speed === 0) {
+                fan_range_label.innerHTML = "Fan Speed: Auto";
+            } else {
+                fan_range_label.innerHTML = "Fan Speed: " + fan_speed.toString();
+            }
+            fan_range.value = kpa500_data[17];
+            // speaker button
+            if (kpa500_data[3] === "1") {
+                speaker_button.style.color = "#080";
+                speaker_button.style.fontWeight = "bold";
+            } else {
+                speaker_button.style.color = "#833"
+                speaker_button.style.fontWeight = "normal";
+            }
+            // fault text
+            if (kpa500_data[6] === "AMP ON") {
+                fault_text.style.background = '#9e9';
+            } else {
+                fault_text.style.background = '#fa7';
+            }
+            fault_text.innerHTML = kpa500_data[6];
+
+            if (update_timeout !== 0) {
+                clearTimeout(update_timeout)
+                update_timeout = 0;
+            }
+
+            let button_secs = update_secs;
+            if (auto_updates > 0) {
+                update_timeout = setTimeout(get_status, 1000);
+                button_secs = 1;
+                auto_updates--;
+            } else {
+                if (update_secs > 0) {
+                    update_timeout = setTimeout(get_status, update_secs * 1000);
+                }
+            }
+
+            // set the radio buttons for automatic updating
+            document.getElementById('refresh_radio_0').checked = (button_secs === 0);
+            document.getElementById('refresh_radio_1').checked = (button_secs === 1);
+            document.getElementById('refresh_radio_5').checked = (button_secs === 5);
+
+        }
+
+        function get_status() {
+            let xmlHttp = new XMLHttpRequest();
+            if (xmlHttp == null) {
+                alert("get a better browser!");
+                return;
+            }
+            xmlHttp.onreadystatechange = function () {
+                if (xmlHttp.readyState !== 4)
+                    return;
+                if (xmlHttp.status === 200) {
+                    process_get_status_response(xmlHttp.responseText);
+                } else {
+                    alert("Failed to load status data.");
+                }
+            }
+            xmlHttp.onerror = function () {
+                if (update_secs > 0) {
+                    update_timeout = setTimeout(get_status, update_secs * 1000);
+                }
+            }
+            xmlHttp.ontimeout = function () {
+                if (update_secs > 0) {
+                    update_timeout = setTimeout(get_status, update_secs * 1000);
+                }
+            }
+            xmlHttp.open("GET", "/api/kpa_status", true);
+            xmlHttp.send();
+        }
+
+        function set_refresh(secs) {
+            update_secs = secs
+            if (update_secs === 0) {
+                if (update_timeout !== 0) {
+                    clearTimeout(update_timeout)
+                    update_timeout = 0;
+                }
+            } else {
+                get_status();
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", page_load);
+
+    </script>
+</head>
+<body>
 <div class="header">KPA500 Web Remote</div>
 <div class="three_columns">
     <div>
@@ -380,18 +404,18 @@
     <div style="text-align:right;">
         <label for="select_band">Band:</label>
         <select id="select_band" onchange="select_band_changed()">
-        <option value="160m">160m</option>
-        <option value="80m">80m</option>
-        <option value="60m">60m</option>
-        <option value="40m">40m</option>
-        <option value="30m">30m</option>
-        <option value="20m">20m</option>
-        <option value="17m">17m</option>
-        <option value="15m">15m</option>
-        <option value="12m">12m</option>
-        <option value="10m">10m</option>
-        <option value="6m">6m</option>
-    </select>
+            <option value="160m">160m</option>
+            <option value="80m">80m</option>
+            <option value="60m">60m</option>
+            <option value="40m">40m</option>
+            <option value="30m">30m</option>
+            <option value="20m">20m</option>
+            <option value="17m">17m</option>
+            <option value="15m">15m</option>
+            <option value="12m">12m</option>
+            <option value="10m">10m</option>
+            <option value="6m">6m</option>
+        </select>
     </div>
 </div>
 <div class="data_table">
@@ -452,22 +476,22 @@
     </div>
 </div>
 <div class="row">
-        <div class="refresh_radio">
-            <div class="refresh_radio_label">Auto-Refresh</div>
-            <input type="radio" name="refresh_radio" id="refresh_radio_0" value="0" onclick="set_refresh(0)"/>
-            <label for="refresh_radio_0">Never</label><br>
-            <input type="radio" name="refresh_radio" id="refresh_radio_1" value="1" onclick="set_refresh(1)"/>
-            <label for="refresh_radio_1">1 second</label><br>
-            <input type="radio" name="refresh_radio" id="refresh_radio_5" value="5" onclick="set_refresh(5)"/>
-            <label for="refresh_radio_5">5 seconds</label><br>
-        </div>
+    <div class="refresh_radio">
+        <div class="refresh_radio_label">Auto-Refresh</div>
+        <input type="radio" name="refresh_radio" id="refresh_radio_0" value="0" onclick="set_refresh(0)"/>
+        <label for="refresh_radio_0">Never</label><br>
+        <input type="radio" name="refresh_radio" id="refresh_radio_1" value="1" onclick="set_refresh(1)"/>
+        <label for="refresh_radio_1">1 second</label><br>
+        <input type="radio" name="refresh_radio" id="refresh_radio_5" value="5" onclick="set_refresh(5)"/>
+        <label for="refresh_radio_5">5 seconds</label><br>
     </div>
+</div>
 <div class="row">
-        <div class="bottom_links">
-            <a href="kat500.html">KAT500</a>
-            <a href="setup.html">Setup</a>
-        </div>
-        <div class="author"><a href="https://www.n1kdo.com" target="_blank">N1KDO</a> 20250728</div>
+    <div class="bottom_links">
+        <a href="kat500.html">KAT500</a>
+        <a href="setup.html">Setup</a>
+    </div>
+    <div class="author"><a href="https://www.n1kdo.com" target="_blank">N1KDO</a> 20251223</div>
 </div>
 </body>
 </html>
