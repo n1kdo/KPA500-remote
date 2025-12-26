@@ -273,7 +273,7 @@
             try {
                 status_data = JSON.parse(message);
             } catch (e) {
-                alert("Invalid status data received.");
+                alert("KAT500 page: Invalid status data received.");
                 return;
             }
             kat500_data = status_data["kat500_data"];
@@ -428,7 +428,7 @@
         function get_status() {
             let xmlHttp = new XMLHttpRequest();
             if (xmlHttp == null) {
-                alert("get a better browser!");
+                alert("No XMLHttpRequest -- get a better browser!");
                 return;
             }
             xmlHttp.onreadystatechange = function () {
@@ -437,7 +437,7 @@
                 if (xmlHttp.status === 200) {
                     process_get_status_response(xmlHttp.responseText);
                 } else {
-                    alert("Failed to load status data.");
+                    alert("KAT500 page failed to load status data.");
                 }
             }
             xmlHttp.onerror = function () {
@@ -572,7 +572,7 @@
         <a href="kpa500.html">KPA500</a>
         <a href="setup.html">Setup</a>
     </div>
-    <div class="author"><a href="https://www.n1kdo.com" target="_blank">N1KDO</a> 20251222</div>
+    <div class="author"><a href="https://www.n1kdo.com" target="_blank">N1KDO</a> 20251226</div>
 </div>
 </body>
 </html>

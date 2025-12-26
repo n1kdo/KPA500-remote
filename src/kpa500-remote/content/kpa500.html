@@ -146,7 +146,7 @@
         function post_request(url, payload) {
             let xmlHttp = new XMLHttpRequest();
             if (xmlHttp == null) {
-                alert("no xmlhttp -- try a newer browser?");
+                alert("no xmlhttprequest -- try a newer browser?");
                 return;
             }
             xmlHttp.open("POST", url, true);
@@ -215,7 +215,7 @@
             try {
                 status_data = JSON.parse(message);
             } catch (e) {
-                alert("Invalid status data received.");
+                alert("KPA500 page: Invalid status data received.");
                 return;
             }
             kpa500_data = status_data["kpa500_data"];
@@ -346,7 +346,7 @@
         function get_status() {
             let xmlHttp = new XMLHttpRequest();
             if (xmlHttp == null) {
-                alert("get a better browser!");
+                alert("No XMLHttpRequest -- get a better browser!");
                 return;
             }
             xmlHttp.onreadystatechange = function () {
@@ -355,7 +355,7 @@
                 if (xmlHttp.status === 200) {
                     process_get_status_response(xmlHttp.responseText);
                 } else {
-                    alert("Failed to load status data.");
+                    alert("KPA500 page failed to load status data.");
                 }
             }
             xmlHttp.onerror = function () {
@@ -491,7 +491,7 @@
         <a href="kat500.html">KAT500</a>
         <a href="setup.html">Setup</a>
     </div>
-    <div class="author"><a href="https://www.n1kdo.com" target="_blank">N1KDO</a> 20251223</div>
+    <div class="author"><a href="https://www.n1kdo.com" target="_blank">N1KDO</a> 20251226</div>
 </div>
 </body>
 </html>
