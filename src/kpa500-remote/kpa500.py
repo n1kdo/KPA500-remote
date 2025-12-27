@@ -400,7 +400,7 @@ class KPA500(KDevice):
 
                 # send any outstanding data back...
                 if len(client_data.update_list) > 0:
-                    index = client_data.update_list.popleft(0)
+                    index = client_data.update_list.popleft()
                     client_data.update_set.discard(index)
                     writer.write(self.key_names[index])
                     payload = f'::{self.device_data[index]}\n'.encode()

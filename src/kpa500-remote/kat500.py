@@ -103,7 +103,7 @@ class KAT500(KDevice):
         self.device_data[4] = '1'
         self.device_data[6] = ''
         self.device_data[7] = ''
-        self.device_data[7] = ''
+        self.device_data[8] = ''
         self.device_data[13] = '1.0'
         self.device_data[14] = '1.0'
 

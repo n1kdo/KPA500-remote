@@ -69,7 +69,7 @@ class KDevice:
         self.username = username
         self.password = password
         self.port_name = port_name
-        self.device_command_queue = deque((), 32, 1)
+        self.device_command_queue = deque((), 64, 1)
         self.network_clients = []
         self.device_data = ['0'] * data_size
         self.device_port = SerialPort(name=port_name, baudrate=38400, timeout=0)  # timeout is zero for non-blocking
