@@ -205,7 +205,7 @@
             try {
                 status_data = JSON.parse(message);
             } catch (e) {
-                alert("KPA500 page: Invalid status data received.");
+                console.error("KPA500 page: Invalid status data received.");
                 return;
             }
             kpa500_data = status_data["kpa500_data"];
@@ -346,7 +346,7 @@
                 if (xmlHttp.status === 200) {
                     process_get_status_response(xmlHttp.responseText);
                 } else {
-                    alert("KPA500 page failed to load status data.");
+                    console.error("KPA500 page failed to load status data.");
                 }
             }
             xmlHttp.onerror = function () {
