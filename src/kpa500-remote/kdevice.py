@@ -25,6 +25,7 @@ OF THE POSSIBILITY OF SUCH DAMAGE.
 __version__ = '0.9.1'
 
 import asyncio
+from collections import deque
 import micro_logging as logging
 from serialport import SerialPort
 
@@ -34,7 +35,8 @@ class ClientData:
     """
     def __init__(self, client_name):
         self.client_name = client_name
-        self.update_list = []
+        self.update_list = deque((), 32, 1)
+        self.update_set = set()
         self.authorized = False
         self.connected = True
         self.last_activity = 0
@@ -67,7 +69,7 @@ class KDevice:
         self.username = username
         self.password = password
         self.port_name = port_name
-        self.device_command_queue = []
+        self.device_command_queue = deque((), 32, 1)
         self.network_clients = []
         self.device_data = ['0'] * data_size
         self.device_port = SerialPort(name=port_name, baudrate=38400, timeout=0)  # timeout is zero for non-blocking
@@ -77,7 +79,8 @@ class KDevice:
         if isinstance(command, bytes):
             dcq.append(command)
         elif isinstance(command, tuple):
-            dcq.extend(command)
+            for c in command:
+                dcq.append(c)
         else:
             logging.warning(f'enqueue command received command of type {type(command)} which was not processed.',
                             'enqueue_command')
@@ -86,14 +89,15 @@ class KDevice:
         dcq = self.device_command_queue
         if len(dcq) == 0:
             return None
-        return dcq.pop(0)
+        return dcq.popleft()
 
     def update_device_data(self, index, value):
         if self.device_data[index] != value:
             self.device_data[index] = value
-            for network_client in self.network_clients:
-                if index not in network_client.update_list:
-                    network_client.update_list.append(index)
+            for client in self.network_clients:
+                if index not in client.update_set:
+                    client.update_list.append(index)
+                    client.update_set.add(index)
 
     async def device_send_receive(self, message, buf_and_length, timeout=5.0, retries=1):
         retries_left = retries
