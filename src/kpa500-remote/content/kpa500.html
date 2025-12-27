@@ -138,7 +138,7 @@
                 alert("no xmlhttprequest -- try a newer browser?");
                 return;
             }
-            xmlHttp.timeout = 1000;
+            xmlHttp.timeout = 2000;
             xmlHttp.open("POST", url, true);
             xmlHttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
             xmlHttp.send(payload);
@@ -339,7 +339,7 @@
                 alert("No XMLHttpRequest -- get a better browser!");
                 return;
             }
-            xmlHttp.timeout = 1000;
+            xmlHttp.timeout = 2000;
             xmlHttp.onreadystatechange = function () {
                 if (xmlHttp.readyState !== 4)
                     return;
