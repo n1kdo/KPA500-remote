@@ -124,21 +124,10 @@
 
         function page_load() {
             // look to see if update time is set in url search string
-            let search = window.location.search;
-            if (search !== "") {
-                search = search.substring(1);
-                let pairs = search.split("&");
-                for (const pair of pairs) {
-                    let parts = pair.split("=");
-                    if (parts[0] === "update") {
-                        let i = parseInt(parts[1]);
-                        if (!isNaN(i)) {
-                            if ([0, 1, 5].includes(i)) { // only 0, 1, 5 supported for this page.
-                                update_secs = i;
-                            }
-                        }
-                    }
-                }
+            const params = new URLSearchParams(window.location.search);
+            const i = Number(params.get("update"));
+            if ([0, 1, 5, 60].includes(i)) {
+                update_secs = i;
             }
             get_status();
         }
@@ -149,6 +138,7 @@
                 alert("no xmlhttprequest -- try a newer browser?");
                 return;
             }
+            xmlHttp.timeout = 1000;
             xmlHttp.open("POST", url, true);
             xmlHttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
             xmlHttp.send(payload);
@@ -349,6 +339,7 @@
                 alert("No XMLHttpRequest -- get a better browser!");
                 return;
             }
+            xmlHttp.timeout = 1000;
             xmlHttp.onreadystatechange = function () {
                 if (xmlHttp.readyState !== 4)
                     return;
@@ -385,7 +376,6 @@
         }
 
         document.addEventListener("DOMContentLoaded", page_load);
-
     </script>
 </head>
 <body>
@@ -491,7 +481,7 @@
         <a href="kat500.html">KAT500</a>
         <a href="setup.html">Setup</a>
     </div>
-    <div class="author"><a href="https://www.n1kdo.com" target="_blank">N1KDO</a> 20251226</div>
+    <div class="author"><a href="https://www.n1kdo.com" target="_blank">N1KDO</a> 20251227</div>
 </div>
 </body>
 </html>
