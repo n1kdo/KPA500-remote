@@ -36,7 +36,6 @@
             text-align: left;
             position: absolute;
             top: 340px;
-            width: 120px;
         }
 
         .bottom_links a:link, .bottom_links a:visited, .bottom_links a:hover {
@@ -66,18 +65,21 @@
         }
 
         div.refresh_radio {
-            margin: 20px 0 0 200px;
-            text-align: left;
-            width: 100px;
+            margin-top: 10em;
+            display: flex;
+            justify-content: space-evenly;
+            flex-direction: row;
         }
 
-        legend {
+         legend {
             text-align: left;
         }
 
         .five_columns {
             display: flex;
             column-count: 5;
+            flex-direction: row;
+            justify-content: space-around;
         }
 
         #kat_approx_freq {
@@ -144,6 +146,10 @@
         #kat_vrfl {
             display: inline-block;
             width: 36px;
+        }
+        .selected {
+            color: red;
+            padding-right: 4px;
         }
     </style>
     <!--suppress JSUnusedLocalSymbols -->
@@ -552,19 +558,21 @@
     <fieldset>
         <legend>Auto-Refresh</legend>
         <input type="radio" name="refresh_radio" id="refresh_radio_0" value="0" onclick="set_refresh(0)"/>
-        <label for="refresh_radio_0">Never</label><br>
+        <label for="refresh_radio_0">Never&nbsp;&nbsp;&nbsp;&nbsp;</label>
         <input type="radio" name="refresh_radio" id="refresh_radio_1" value="1" onclick="set_refresh(1)"/>
-        <label for="refresh_radio_1">1 second</label><br>
+        <label for="refresh_radio_1">1 second&nbsp;&nbsp;&nbsp;&nbsp;</label>
         <input type="radio" name="refresh_radio" id="refresh_radio_5" value="5" onclick="set_refresh(5)"/>
-        <label for="refresh_radio_5">5 seconds</label><br>
+        <label for="refresh_radio_5">5 seconds</label>
     </fieldset>
 </div>
 <div>
     <div class="bottom_links">
+        <span class="selected">KAT500</span>
         <a href="kpa500.html">KPA500</a>
         <a href="setup.html">Setup</a>
+        <a href="files.html">Files</a>
     </div>
-    <div class="author"><a href="https://www.n1kdo.com" target="_blank">N1KDO</a> 20251227</div>
+    <div class="author"><a href="https://www.n1kdo.com" target="_blank">N1KDO</a> 20251228</div>
 </div>
 </body>
 </html>
