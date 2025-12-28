@@ -302,19 +302,15 @@
             let bypass_checkbox = document.getElementById("kat_bypass_button");
             // power button
             if (kat500_data[4] === "1") {
-                power_button.style.fontWeight = "bold";
-                power_button.style.backgroundColor = "#cef";
+                power_button.style.color = "#080";
             } else {
-                power_button.style.fontWeight = "normal";
-                power_button.style.backgroundColor = "#fff";
+                power_button.style.color = "#800";
             }
             // tune button
             if (kat500_data[5] === "1") {
-                tune_button.style.fontWeight = "bold";
-                tune_button.style.backgroundColor = "#cef";
+                tune_button.style.color = "#080";
             } else {
-                tune_button.style.fontWeight = "normal";
-                tune_button.style.backgroundColor = "#fff";
+                tune_button.style.color = "inherit";
             }
             // MODE button & related radio buttons
             if (kat500_data[8] === "Auto") {
