@@ -20,7 +20,7 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-__version__ = '0.10.4'  # 2025-12-27
+__version__ = '0.10.5'  # 2025-12-29
 
 import argparse
 import hashlib
@@ -52,7 +52,7 @@ class BytesConcatenator:
         self.data.extend(b.replace(b"\x04", b""))
 
     def __str__(self):
-        return self.data.decode('utf-8').replace('\r', '')
+        return self.data.decode('utf-8', errors='replace').replace('\r', '')
 
 
 def get_ports_list():
@@ -61,7 +61,7 @@ def get_ports_list():
 
 # noinspection PyUnusedLocal
 def put_file_progress_callback(bytes_so_far, bytes_total):
-    print(f'{bytes_so_far:05d}/{bytes_total:05d} bytes sent.\r',end='')
+    print(f'{bytes_so_far:05d}/{bytes_total:05d} bytes sent.\r', end='', flush=True)
 
 
 def put_file(filename, target, source_directory='.', src_file_name=None):
@@ -136,7 +136,7 @@ def loader_sha1(target, file=''):
     hash_data = BytesConcatenator()
     cmd = f"""import hashlib
 hasher = hashlib.sha1()
-with open('{file}', 'rb', encoding=None) as fp:
+with open('{file}', 'rb') as fp:
   while True:
     buffer = fp.read(2048)
     if buffer is None or len(buffer) == 0:
