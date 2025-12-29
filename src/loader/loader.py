@@ -223,7 +223,7 @@ def load_device(port, force, manifest_filename='loader_manifest.json', no_watchd
         if force or existing_file not in files_list:
             if existing_file[-1] == '/':
                 print(f'removing directory {existing_file[:-1]}')
-                target.fs_rm(existing_file[:-1])
+                target.fs_rmdir(existing_file[:-1])
             else:
                 print(f'removing file {existing_file}')
                 target.fs_rm(existing_file)
