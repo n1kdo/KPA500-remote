@@ -3,7 +3,7 @@
 #
 __author__ = 'J. B. Otterson'
 __copyright__ = 'Copyright 2023, 2024, 2025 J. B. Otterson N1KDO.'
-__version__ = '0.9.5'
+__version__ = '0.9.6'  # 2025-12-29
 
 #
 # Copyright 2023, 2024, 2025 J. B. Otterson N1KDO.
@@ -63,12 +63,6 @@ BUFFER_SIZE = 4096
 CONFIG_FILE = 'data/config.json'
 CONTENT_DIR = 'content/'
 
-DANGER_ZONE_FILE_NAMES = (
-    'config.html',
-    'files.html',
-    'kat500.html',
-    'kpa500.html',
-)
 # noinspection SpellCheckingInspection
 DEFAULT_SECRET = 'elecraft'
 DEFAULT_SSID = 'kpa500'
@@ -501,7 +495,7 @@ async def main():
     kat500_tcp_port_s = config.get('kat_tcp_port')
     if kat500_tcp_port_s is None:
         kat500_tcp_port_s = str(DEFAULT_KAT500_TCP_PORT)
-        config['kpa_kat_port'] = kat500_tcp_port_s
+        config['kat_tcp_port'] = kat500_tcp_port_s
 
     kpa500_tcp_port = safe_int(kpa500_tcp_port_s)
     if kpa500_tcp_port < 0 or kpa500_tcp_port > 65535:
