@@ -23,7 +23,7 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-__version__ = '0.9.4'
+__version__ = '0.9.5'  # 2025-12-29
 
 # disable pylint import error
 # pylint: disable=E0401
@@ -96,11 +96,11 @@ class MorseCode:
                                   'morse_code:morse_sender')
                     blink_pattern = patterns.get(' ')
                 blink_list = list(blink_pattern)
-                while len(blink_list) > 0:
-                    blink_time = blink_list.pop(0)
+                for blink_time in blink_list:
                     if blink_time > 0:
                         # blink time is in milliseconds!, but data is in 10 msec
                         led.on()
-                        await sleep(blink_time/100)
+                        await sleep(blink_time / 100)  # dit or dah
                         led.off()
-                    await sleep(morse_esp / 100 if len(blink_list) > 0 else morse_lsp / 100)
+                    await sleep(morse_esp / 100)  # dit length element space
+                await sleep(morse_lsp / 100)  # + inter-letter space
