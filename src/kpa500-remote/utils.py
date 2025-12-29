@@ -22,7 +22,7 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-__version__ = '0.9.2'
+__version__ = '0.9.3'  # 2025-12-29
 
 import sys
 import time
@@ -30,6 +30,16 @@ import time
 upython = sys.implementation.name == 'micropython'
 if upython:
     import micropython
+else:
+    # provide no-op native and viper decorators
+    class _MP:
+        @staticmethod
+        def native(f):
+            return f
+        @staticmethod
+        def viper(f):
+            return f
+    micropython = _MP()
 
 
 BITS = bytes([0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4])
