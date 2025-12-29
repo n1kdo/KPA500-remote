@@ -95,8 +95,7 @@ class MorseCode:
                     logging.debug(f'[MORSE_CODE] Warning: no pattern for letter {morse_letter}',
                                   'morse_code:morse_sender')
                     blink_pattern = patterns.get(' ')
-                blink_list = list(blink_pattern)
-                for blink_time in blink_list:
+                for blink_time in blink_pattern:
                     if blink_time > 0:
                         # blink time is in milliseconds!, but data is in 10 msec
                         led.on()
