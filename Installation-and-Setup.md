@@ -131,4 +131,6 @@ completeness.
 | diagnasties/kat500-remote-client.py   | a tool I made to help reverse-engineer the KAT500 remote network wire protocol. |
 | diagnasties/kat500-serial-listener.py | a tool I made to help reverse-engineer the KAT500 remote serial wire protocol.  |
 | diagnasties/kpa500-remote-client.py   | a tool I made to help reverse-engineer the KPA500 remote network wire protocol. |
-| diagnasties/kpa500-serial-listener.py | a tool I mare to help reverse-engineer the KPA500 remote serial wire protocol.  |
+| diagnasties/kpa500-serial-listener.py | a tool I made to help reverse-engineer the KPA500 remote serial wire protocol.  |
+
+n1kdo 20260204
