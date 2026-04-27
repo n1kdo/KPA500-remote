@@ -314,19 +314,11 @@ def main():
                         help='name of manifest file',
                         default='loader_manifest.json')
     args = parser.parse_args()
-    if 'bootloader' in args:
-        bootloader = args.bootloader
-    else:
-        bootloader = False
-    if 'force' in args:
-        force = args.force
-    else:
-        force = False
-    if 'no_watchdog' in args:
-        no_watchdog = args.no_watchdog
-    else:
-        no_watchdog = False
-    if 'port' in args and args.port is not None:
+    bootloader = args.bootloader
+    force = args.force
+    no_watchdog = args.no_watchdog
+
+    if args.port is not None:
         picow_port = args.port
     else:
         print('Disconnect the Pico-W if it is connected.')
