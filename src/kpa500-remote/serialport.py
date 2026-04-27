@@ -64,16 +64,25 @@ class SerialPort:
             elif name == '1':
                 tx_pin = machine.Pin(4)
                 rx_pin = machine.Pin(5)
+            else:
+                tx_pin = None
+                rx_pin = None
+
             timeout_msec = int(timeout * 1000)
             timeout_char_msec = int(timeout * 100)
-            self.port = machine.UART(int(name),
-                                     baudrate=baudrate,
-                                     parity=None,
-                                     stop=1,
-                                     timeout=timeout_msec,
-                                     timeout_char=timeout_char_msec,
-                                     tx=tx_pin,
-                                     rx=rx_pin)
+
+            kwargs = {
+                'baudrate': baudrate,
+                'parity': None,
+                'stop': 1,
+                'timeout': timeout_msec,
+                'timeout_char': timeout_char_msec
+            }
+            if tx_pin is not None and rx_pin is not None:
+                kwargs['tx'] = tx_pin
+                kwargs['rx'] = rx_pin
+
+            self.port = machine.UART(int(name), **kwargs)
         else:
             raise RuntimeError(f'no support for {impl_name}.')
 
@@ -84,18 +93,17 @@ class SerialPort:
         if upython:
             return self.port.any()
         else:
-            x = self.port.in_waiting
-            return x != 0
+            return self.port.in_waiting
 
     def flush_input(self):
         if upython:
-            if self.any():
-                _ = self.port.read()
+            while self.any():
+                _ = self.port.read(self.any())
         else:
             self.port.reset_input_buffer()
 
     def write(self, buffer):
-        self.port.write(buffer)
+        return self.port.write(buffer)
 
     def read(self, size=16):
         buffer = self.port.read(size)
