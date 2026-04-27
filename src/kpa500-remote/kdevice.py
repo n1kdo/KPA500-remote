@@ -1,9 +1,8 @@
 #
 # Superclass for device management for KAT500 & KPA-500
 #
-__author__ = 'J. B. Otterson'
 __copyright__ = """
-Copyright 2022, 2025, J. B. Otterson N1KDO.
+Copyright 2022, 2025, 2026 J. B. Otterson N1KDO.
 Redistribution and use in source and binary forms, with or without modification, 
 are permitted provided that the following conditions are met:
   1. Redistributions of source code must retain the above copyright notice, 
