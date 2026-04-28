@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <!-- Copyright 2024, 2025, 2026 J. B. Otterson N1KDO. -->
+
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=0.8, minimum-scale=0.5, maximum-scale=2.0">
     <title>Setup</title>
@@ -15,7 +16,9 @@
             width: 90px;
         }
 
-        .author a:link, .author a:visited, .author a:hover {
+        .author a:link,
+        .author a:visited,
+        .author a:hover {
             color: black;
             text-decoration: none;
         }
@@ -49,7 +52,9 @@
             width: 200px;
         }
 
-        .bottom_links a:link, .bottom_links a:visited, .bottom_links a:hover {
+        .bottom_links a:link,
+        .bottom_links a:visited,
+        .bottom_links a:hover {
             color: blue;
             text-decoration: none;
             padding-right: 4px;
@@ -82,7 +87,8 @@
         }
 
         /* ensures the increment/decrement arrows always display */
-        input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button {
+        input[type=number]::-webkit-inner-spin-button,
+        input[type=number]::-webkit-outer-spin-button {
             opacity: 1;
         }
 
@@ -110,7 +116,6 @@
             color: red;
             padding-right: 4px;
         }
-
     </style>
     <script>
 
@@ -150,7 +155,7 @@
             if (config.secret !== undefined) {
                 secret = config.secret;
             }
-            let dhcp_bool = config.dhcp === 1
+            let dhcp_bool = !!config.dhcp;
             document.getElementById("secret_input").value = secret;
             document.getElementById("kpa_tcp_port_input").value = config.kpa_tcp_port;
             document.getElementById("kat_tcp_port_input").value = config.kat_tcp_port;
@@ -191,7 +196,7 @@
                 alert("Invalid SSID!");
                 return;
             }
-            if (secret.length > 64) {
+            if (secret.length > 32) {
                 alert("Invalid Secret");
                 return;
             }
@@ -250,7 +255,7 @@
             config.web_port = web_port;
             config.username = username;
             config.password = password;
-            config.dhcp = dhcp ? 1 : 0;
+            config.dhcp = dhcp ? "1" : "0";
             config.hostname = hostname;
             config.ip_address = ip_address;
             config.netmask = netmask;
@@ -313,82 +318,81 @@
 
     </script>
 </head>
+
 <body>
-<div class="header">Setup</div>
-<div class="config_form">
-    <form>
-        <p>
-            <label for="ssid_input">SSID:</label>
-            <input type="text" id="ssid_input" maxlength="64">
-        </p>
-        <p>
-            <label for="secret_input">Secret:</label>
-            <input type="password" id="secret_input" maxlength="64">
-        </p>
-        <p>
-            <label for="kpa_tcp_port_input">KPA TCP Port:</label>
-            <input type="number" id="kpa_tcp_port_input" min="0" max="65535">
-        </p>
-        <p>
-            <label for="kat_tcp_port_input">KAT TCP Port:</label>
-            <input type="number" id="kat_tcp_port_input" min="0" max="65535">
-        </p>
-        <p>
-            <label for="web_port_input">Web Port:</label>
-            <input type="number" id="web_port_input" min="0" max="65535"/>
-        </p>
-        <p>
-            <label for="username_input">Remote Username:</label>
-            <input type="text" id="username_input" maxlength="16"/>
-        </p>
-        <p>
-            <label for="password_input">Remote Password:</label>
-            <input type="password" id="password_input" maxlength="16"/>
-        </p>
-        <p>
-            <label for="dhcp_input">Use DHCP:</label>
-            <input type="checkbox" id="dhcp_input" onchange="dhcp_change()"/>
-        </p>
-        <p>
-            <label for="hostname_input">Hostname:</label>
-            <input type="text" id="hostname_input" maxlength="64">
-        </p>
-        <p>
-            <label for="ip_address_input">IP Address:</label>
-            <input type="text" id="ip_address_input" maxlength="16"
-                   pattern="^(?!0)(?!.*\.$)((1?\d?\d|25[0-5]|2[0-4]\d)(\.|$)){4}$"/>
-        </p>
-        <p>
-            <label for="netmask_input">Network Mask:</label>
-            <input type="text" id="netmask_input" maxlength="16"
-                   pattern="^(?!0)(?!.*\.$)((1?\d?\d|25[0-5]|2[0-4]\d)(\.|$)){4}$"/>
-        </p>
-        <p>
-            <label for="gateway_input">Gateway Address:</label>
-            <input type="text" id="gateway_input" maxlength="16"
-                   pattern="^(?!0)(?!.*\.$)((1?\d?\d|25[0-5]|2[0-4]\d)(\.|$)){4}$"/>
-        </p>
-        <p>
-            <label for="dns_server_input">DNS Server:</label>
-            <input type="text" id="dns_server_input" maxlength="16"
-                   pattern="^(?!0)(?!.*\.$)((1?\d?\d|25[0-5]|2[0-4]\d)(\.|$)){4}$"/>
-        </p>
-    </form>
-    <div class="button_bar">
-        <input type="button" id="reset_button" value="Reset" title="Reload Configuration"
-               onclick="get_config()"/>
-        <input type="button" id="rstart_button" value="Restart" title="Restart Controller to use new setup"
-               onclick="restart()"/>
-        <input type="button" id="apply_button" value="Apply" title="Save Configuration"
-               onclick="set_config()"/>
+    <div class="header">Setup</div>
+    <div class="config_form">
+        <form>
+            <p>
+                <label for="ssid_input">SSID:</label>
+                <input type="text" id="ssid_input" maxlength="64">
+            </p>
+            <p>
+                <label for="secret_input">Secret:</label>
+                <input type="password" id="secret_input" maxlength="64">
+            </p>
+            <p>
+                <label for="kpa_tcp_port_input">KPA TCP Port:</label>
+                <input type="number" id="kpa_tcp_port_input" min="0" max="65535">
+            </p>
+            <p>
+                <label for="kat_tcp_port_input">KAT TCP Port:</label>
+                <input type="number" id="kat_tcp_port_input" min="0" max="65535">
+            </p>
+            <p>
+                <label for="web_port_input">Web Port:</label>
+                <input type="number" id="web_port_input" min="0" max="65535" />
+            </p>
+            <p>
+                <label for="username_input">Remote Username:</label>
+                <input type="text" id="username_input" maxlength="16" />
+            </p>
+            <p>
+                <label for="password_input">Remote Password:</label>
+                <input type="password" id="password_input" maxlength="16" />
+            </p>
+            <p>
+                <label for="dhcp_input">Use DHCP:</label>
+                <input type="checkbox" id="dhcp_input" onchange="dhcp_change()" />
+            </p>
+            <p>
+                <label for="hostname_input">Hostname:</label>
+                <input type="text" id="hostname_input" maxlength="64">
+            </p>
+            <p>
+                <label for="ip_address_input">IP Address:</label>
+                <input type="text" id="ip_address_input" maxlength="16"
+                    pattern="^(?!0)(?!.*\.$)((1?\d?\d|25[0-5]|2[0-4]\d)(\.|$)){4}$" />
+            </p>
+            <p>
+                <label for="netmask_input">Network Mask:</label>
+                <input type="text" id="netmask_input" maxlength="16"
+                    pattern="^(?!0)(?!.*\.$)((1?\d?\d|25[0-5]|2[0-4]\d)(\.|$)){4}$" />
+            </p>
+            <p>
+                <label for="gateway_input">Gateway Address:</label>
+                <input type="text" id="gateway_input" maxlength="16"
+                    pattern="^(?!0)(?!.*\.$)((1?\d?\d|25[0-5]|2[0-4]\d)(\.|$)){4}$" />
+            </p>
+            <p>
+                <label for="dns_server_input">DNS Server:</label>
+                <input type="text" id="dns_server_input" maxlength="16"
+                    pattern="^(?!0)(?!.*\.$)((1?\d?\d|25[0-5]|2[0-4]\d)(\.|$)){4}$" />
+            </p>
+        </form>
+        <div class="button_bar">
+            <input type="button" id="reset_button" value="Reset" title="Reload Configuration" onclick="get_config()" />
+            <input type="button" id="rstart_button" value="Restart" title="Restart Controller to use new setup"
+                onclick="restart()" />
+            <input type="button" id="apply_button" value="Apply" title="Save Configuration" onclick="set_config()" />
+        </div>
     </div>
-</div>
-<div class="bottom_links">
-    <a href="kpa500.html">KPA500</a>
-    <a href="kat500.html">KAT500</a>
-    <span class="selected">Setup</span>
-    <a href="files.html">Files</a>
-</div>
-<div class="author"><a href="https://www.n1kdo.com" target="_blank">N1KDO</a> 20251228</div>
+    <div class="bottom_links">
+        <a href="kat500.html">KAT500</a>
+        <a href="kpa500.html">KPA500</a>
+        <span class="selected">Setup</span>
+        <a href="files.html">Files</a>
+    </div>
+    <div class="author"><a href="https://www.n1kdo.com" target="_blank">N1KDO</a> 20260428</div>
 </body>
 </html>

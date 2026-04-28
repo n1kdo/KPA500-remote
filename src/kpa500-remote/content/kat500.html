@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <!-- Copyright 2023, 2025, 2026, J. B. Otterson N1KDO. -->
+
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=0.8, minimum-scale=0.5, maximum-scale=2.0">
     <title>KAT500 Web Remote</title>
@@ -25,7 +26,9 @@
             width: 100px;
         }
 
-        .author a:link, .author a:visited, .author a:hover {
+        .author a:link,
+        .author a:visited,
+        .author a:hover {
             color: black;
             text-decoration: none;
         }
@@ -39,7 +42,9 @@
             top: 340px;
         }
 
-        .bottom_links a:link, .bottom_links a:visited, .bottom_links a:hover {
+        .bottom_links a:link,
+        .bottom_links a:visited,
+        .bottom_links a:hover {
             color: blue;
             text-decoration: none;
             padding-right: 4px;
@@ -72,7 +77,7 @@
             flex-direction: row;
         }
 
-         legend {
+        legend {
             text-align: left;
         }
 
@@ -148,6 +153,7 @@
             display: inline-block;
             width: 36px;
         }
+
         .selected {
             color: red;
             padding-right: 4px;
@@ -172,7 +178,7 @@
 
         function post_request(url, payload) {
             let xmlHttp = new XMLHttpRequest();
-            if (xmlHttp == null) {
+            if (xmlHttp === null) {
                 alert("no xmlhttp -- try a newer browser?");
                 return;
             }
@@ -379,27 +385,27 @@
             }
             // vswr & etc.
             let vswr = kat500_data[13]
-            swr_value.innerHTML = vswr;
+            swr_value.textContent = vswr;
             swr_meter.value = parseFloat(vswr);
-            let mhz = Math.floor(parseInt(kat500_data[10]) / 100) / 10;
-            approx_freq.innerHTML = mhz.toFixed(1);
-            bypass_swr_value.innerHTML = kat500_data[14];
-            vfwd_value.innerHTML = kat500_data[11];
-            vrfl_value.innerHTML = kat500_data[12];
+            let mhz = Math.floor(parseInt(kat500_data[10], 10) / 100) / 10;
+            approx_freq.textContent = mhz.toFixed(1);
+            bypass_swr_value.textContent = kat500_data[14];
+            vfwd_value.textContent = kat500_data[11];
+            vrfl_value.textContent = kat500_data[12];
             // fault data
             let fault_code = kat500_data[9];
             if (fault_code === "0") {
-                fault_code_value.innerHTML = "&check;";
+                fault_code_value.textContent = "✓";
                 fault_code_value.style.backgroundColor = "#3b7";
             } else {
-                fault_code_value.innerHTML = fault_code;
+                fault_code_value.textContent = fault_code;
                 fault_code_value.style.backgroundColor = "#f99";
             }
             // checkboxes
             ampi_checkbox.checked = (kat500_data[0] === "1");
             attn_checkbox.checked = (kat500_data[1] === "1");
             bypass_checkbox.checked = (kat500_data[2] === "B");
-            band_value.innerHTML = kat500_data[7];
+            band_value.textContent = kat500_data[7];
 
             let button_secs = update_secs;
             if (auto_updates > 0) {
@@ -463,113 +469,118 @@
         document.addEventListener("DOMContentLoaded", page_load);
     </script>
 </head>
+
 <body>
-<div class="header">KAT500 Web Remote</div>
-<div class="five_columns">
-    <div>
-        <input type="button" class="kat_button" id="kat_power_button" value="Power" onclick="kat_click_power()"><br>
-        <input type="button" class="kat_button" id="kat_tune_button" value="Tune" onclick="kat_click_tune()"><br>
-        <input type="button" class="kat_button" id="kat_antenna_button" value="Antenna"
-               onclick="kat_click_antenna()"><br>
-        <input type="button" class="kat_button" id="kat_mode_button" value="Mode" onclick="kat_click_mode()"><br>
-    </div>
-    <div>
-        <fieldset>
-            <legend>Mode</legend>
-            <input type="radio" name="kat_mode_auto" class="kat_radio" id="kat_mode_auto_button" value="Auto"
-                   onclick="kat_mode('A')">
-            <label for="kat_mode_auto_button" class="kat_radio_label" id="kat_mode_auto_button_label">Auto</label>
-            <br>
-            <input type="radio" name="kat_mode_manual" class="kat_radio" id="kat_mode_manual_button" value="Manual"
-                   onclick="kat_mode('M')">
-            <label for="kat_mode_manual_button" class="kat_radio_label" id="kat_mode_manual_button_label">Manual</label>
-            <br>
-            <input type="radio" name="kat_mode_bypass" class="kat_radio" id="kat_mode_bypass_button" value="Bypass"
-                   onclick="kat_mode('B')">
-            <label for="kat_mode_bypass_button" class="kat_radio_label" id="kat_mode_bypass_button_label">Bypass</label>
-        </fieldset>
-    </div>
-    <div>
-        <fieldset>
-            <legend>Antenna</legend>
-            <input type="radio" name="kat_antenna_one" class="kat_radio" id="kat_antenna_one_button" value="One"
-                   onclick="kat_antenna(1)">
-            <label for="kat_antenna_one_button" class="kat_radio_label" id="kat_antenna_one_button_label">One</label>
-            <br>
-            <input type="radio" name="kat_antenna_two" class="kat_radio" id="kat_antenna_two_button" value="Two"
-                   onclick="kat_antenna(2)">
-            <label for="kat_antenna_two_button" class="kat_radio_label" id="kat_antenna_two_button_label">Two</label>
-            <br>
-            <input type="radio" name="kat_antenna_three" class="kat_radio" id="kat_antenna_three_button" value="Three"
-                   onclick="kat_antenna(3)">
-            <label for="kat_antenna_three_button" class="kat_radio_label"
-                   id="kat_antenna_three_button_label">Three</label>
-        </fieldset>
-    </div>
-    <div>
-        <fieldset>
-            <legend>Last Observed Stats</legend>
-            <span class="text_right">SWR:</span>
-            <span class="kat_swr_value" id="kat_swr_value"></span>
-            <span>
-                <meter id="kat_swr_meter" class="kat_swr_meter" min="1" max="3" low="1.5" high="2.5" optimum="1.1"
-                       value="0"></meter>
-            </span>
+    <div class="header">KAT500 Web Remote</div>
+    <div class="five_columns">
+        <div>
+            <input type="button" class="kat_button" id="kat_power_button" value="Power" onclick="kat_click_power()"><br>
+            <input type="button" class="kat_button" id="kat_tune_button" value="Tune" onclick="kat_click_tune()"><br>
+            <input type="button" class="kat_button" id="kat_antenna_button" value="Antenna"
+                onclick="kat_click_antenna()"><br>
+            <input type="button" class="kat_button" id="kat_mode_button" value="Mode" onclick="kat_click_mode()"><br>
+        </div>
+        <div>
+            <fieldset>
+                <legend>Mode</legend>
+                <input type="radio" name="kat_mode" class="kat_radio" id="kat_mode_auto_button" value="Auto"
+                    onclick="kat_mode('A')">
+                <label for="kat_mode_auto_button" class="kat_radio_label" id="kat_mode_auto_button_label">Auto</label>
+                <br>
+                <input type="radio" name="kat_mode" class="kat_radio" id="kat_mode_manual_button" value="Manual"
+                    onclick="kat_mode('M')">
+                <label for="kat_mode_manual_button" class="kat_radio_label"
+                    id="kat_mode_manual_button_label">Manual</label>
+                <br>
+                <input type="radio" name="kat_mode" class="kat_radio" id="kat_mode_bypass_button" value="Bypass"
+                    onclick="kat_mode('B')">
+                <label for="kat_mode_bypass_button" class="kat_radio_label"
+                    id="kat_mode_bypass_button_label">Bypass</label>
+            </fieldset>
+        </div>
+        <div>
+            <fieldset>
+                <legend>Antenna</legend>
+                <input type="radio" name="kat_antenna" class="kat_radio" id="kat_antenna_one_button" value="One"
+                    onclick="kat_antenna(1)">
+                <label for="kat_antenna_one_button" class="kat_radio_label"
+                    id="kat_antenna_one_button_label">One</label>
+                <br>
+                <input type="radio" name="kat_antenna" class="kat_radio" id="kat_antenna_two_button" value="Two"
+                    onclick="kat_antenna(2)">
+                <label for="kat_antenna_two_button" class="kat_radio_label"
+                    id="kat_antenna_two_button_label">Two</label>
+                <br>
+                <input type="radio" name="kat_antenna" class="kat_radio" id="kat_antenna_three_button" value="Three"
+                    onclick="kat_antenna(3)">
+                <label for="kat_antenna_three_button" class="kat_radio_label"
+                    id="kat_antenna_three_button_label">Three</label>
+            </fieldset>
+        </div>
+        <div>
+            <fieldset>
+                <legend>Last Observed Stats</legend>
+                <span class="text_right">SWR:</span>
+                <span class="kat_swr_value" id="kat_swr_value"></span>
+                <span>
+                    <meter id="kat_swr_meter" class="kat_swr_meter" min="1" max="3" low="1.5" high="2.5" optimum="1.1"
+                        value="0"></meter>
+                </span>
+                <div class="kat_stats_text">
+                    Aprox Freq: <span id="kat_approx_freq"></span> MHz
+                </div>
+                <div class="kat_stats_text">
+                    Bypass SWR: <span id="kat_bypass_swr"></span>
+                </div>
+            </fieldset>
             <div class="kat_stats_text">
-                Aprox Freq: <span id="kat_approx_freq"></span> MHz
+                VFWD: <span id="kat_vfwd"></span>
+                VRFL: <span id="kat_vrfl"></span>
             </div>
+        </div>
+        <div>
+            <fieldset>
+                <legend>Fault Code</legend>
+                <div>
+                    <span id="kat_fault_code">?</span>
+                </div>
+                <div class="center">
+                    <input type="button" class="kat_button" id="kat_clear_fault_button" value="Clear"
+                        onclick="kat_click_clear()">
+                </div>
+            </fieldset>
             <div class="kat_stats_text">
-                Bypass SWR: <span id="kat_bypass_swr"></span>
+                <span id="kat_band"></span>
             </div>
-        </fieldset>
-        <div class="kat_stats_text">
-            VFWD: <span id="kat_vfwd"></span>
-            VRFL: <span id="kat_vrfl"></span>
         </div>
     </div>
-    <div>
+    <div class="center">
+        <input type="checkbox" name="kat_ampi" id="kat_ampi_button" value="AMPI" onclick="kat_ampi()">
+        <label for="kat_ampi_button" id="kat_ampi_button_label">Amp Key Interrupt</label>
+        <input type="checkbox" name="kat_attn" id="kat_attn_button" value="ATTN" onclick="kat_attn()">
+        <label for="kat_attn_button" id="kat_attn_button_label">Attenuator</label>
+        <input type="checkbox" name="kat_bypass" id="kat_bypass_button" value="BYPASS" onclick="kat_bypass()">
+        <label for="kat_bypass_button" id="kat_bypass_button_label">Bypass</label>
+    </div>
+    <div class="refresh_radio">
         <fieldset>
-            <legend>Fault Code</legend>
-            <div>
-                <span id="kat_fault_code">?</span>
-            </div>
-            <div class="center">
-                <input type="button" class="kat_button" id="kat_clear_fault_button" value="Clear"
-                       onclick="kat_click_clear()">
-            </div>
+            <legend>Auto-Refresh</legend>
+            <input type="radio" name="refresh_radio" id="refresh_radio_0" value="0" onclick="set_refresh(0)" />
+            <label for="refresh_radio_0">Never&nbsp;&nbsp;&nbsp;&nbsp;</label>
+            <input type="radio" name="refresh_radio" id="refresh_radio_1" value="1" onclick="set_refresh(1)" />
+            <label for="refresh_radio_1">1 second&nbsp;&nbsp;&nbsp;&nbsp;</label>
+            <input type="radio" name="refresh_radio" id="refresh_radio_5" value="5" onclick="set_refresh(5)" />
+            <label for="refresh_radio_5">5 seconds</label>
         </fieldset>
-        <div class="kat_stats_text">
-            <span id="kat_band"></span>
+    </div>
+    <div>
+        <div class="bottom_links">
+            <span class="selected">KAT500</span>
+            <a href="kpa500.html">KPA500</a>
+            <a href="setup.html">Setup</a>
+            <a href="files.html">Files</a>
         </div>
+        <div class="author"><a href="https://www.n1kdo.com" target="_blank">N1KDO</a> 20260428</div>
     </div>
-</div>
-<div class="center">
-    <input type="checkbox" name="kat_ampi" id="kat_ampi_button" value="AMPI" onclick="kat_ampi()">
-    <label for="kat_ampi_button" id="kat_ampi_button_label">Amp Key Interrupt</label>
-    <input type="checkbox" name="kat_attn" id="kat_attn_button" value="ATTN" onclick="kat_attn()">
-    <label for="kat_attn_button" id="kat_attn_button_label">Attenuator</label>
-    <input type="checkbox" name="kat_bypass" id="kat_bypass_button" value="BYPASS" onclick="kat_bypass()">
-    <label for="kat_bypass_button" id="kat_bypass_button_label">Bypass</label>
-</div>
-<div class="refresh_radio">
-    <fieldset>
-        <legend>Auto-Refresh</legend>
-        <input type="radio" name="refresh_radio" id="refresh_radio_0" value="0" onclick="set_refresh(0)"/>
-        <label for="refresh_radio_0">Never&nbsp;&nbsp;&nbsp;&nbsp;</label>
-        <input type="radio" name="refresh_radio" id="refresh_radio_1" value="1" onclick="set_refresh(1)"/>
-        <label for="refresh_radio_1">1 second&nbsp;&nbsp;&nbsp;&nbsp;</label>
-        <input type="radio" name="refresh_radio" id="refresh_radio_5" value="5" onclick="set_refresh(5)"/>
-        <label for="refresh_radio_5">5 seconds</label>
-    </fieldset>
-</div>
-<div>
-    <div class="bottom_links">
-        <span class="selected">KAT500</span>
-        <a href="kpa500.html">KPA500</a>
-        <a href="setup.html">Setup</a>
-        <a href="files.html">Files</a>
-    </div>
-    <div class="author"><a href="https://www.n1kdo.com" target="_blank">N1KDO</a> 20260107</div>
-</div>
 </body>
 </html>
