@@ -3,7 +3,7 @@
 #
 __author__ = 'J. B. Otterson'
 __copyright__ = 'Copyright 2024, 2025 J. B. Otterson N1KDO.'
-__version__ = '0.10.2'  # 2025-12-31
+__version__ = '0.10.3'  # 2026-04-27
 #
 # Copyright 2024, 2025, J. B. Otterson N1KDO.
 #
@@ -64,11 +64,11 @@ class PicowNetwork:
         self._keepalive = False
         self._message_func = message_func
         self._long_messages = long_messages
-        self._ssid = config.get('SSID') or default_ssid
-        if len(self._ssid) == 0 or len(self._ssid) > 64:
+        self._ssid = config.get('SSID')
+        if not self._ssid or len(self._ssid) > 64:
             self._ssid = default_ssid
-        self._secret = config.get('secret') or default_secret
-        if self._secret is None or len(self._secret) == 0:
+        self._secret = config.get('secret')
+        if self._secret is None:
             self._secret = default_secret
         if len(self._secret) > 64:
             self._secret = self._secret[:64]
@@ -158,7 +158,9 @@ class PicowNetwork:
             if mac_addr is not None:
                 mac = ''.join([f'{b:02x}' for b in mac_addr])
                 if len(mac) == 12:
-                    self._default_ssid = self._default_ssid + '-' + mac[6:]
+                    suffix = '-' + mac[6:]
+                    if not self._default_ssid.endswith(suffix):
+                        self._default_ssid = self._default_ssid + suffix
             self._wlan.config(ssid=self._default_ssid, key=self._default_secret, security=security)
             self._wlan.active(True)
             logging.info(f'  wlan.active()={self._wlan.active()}', 'PicowNetwork:connect_to_network')
@@ -208,7 +210,7 @@ class PicowNetwork:
             bssid = None
             best_rssi = -100
             for result in scan_results:
-                scan_ssid = result[0].decode()
+                scan_ssid = result[0].decode('utf-8', 'replace')
                 scan_bssid = ''.join([f'{b:02x}' for b in result[1]])
                 scan_channel = result[2]
                 scan_rssi = result[3]
