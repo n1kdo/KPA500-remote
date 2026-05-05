@@ -2,11 +2,11 @@
 # main.py -- this is the Raspberry Pi Pico W KAT500 & KPA500 Network Server.
 #
 __author__ = 'J. B. Otterson'
-__copyright__ = 'Copyright 2023, 2024, 2025 J. B. Otterson N1KDO.'
-__version__ = '0.9.6'  # 2025-12-29
+__copyright__ = 'Copyright 2023, 2024, 2025, 2026 J. B. Otterson N1KDO.'
+__version__ = '0.9.7'  # 2026-04-28
 
 #
-# Copyright 2023, 2024, 2025 J. B. Otterson N1KDO.
+# Copyright 2023, 2024, 2025, 2026 J. B. Otterson N1KDO.
 #
 # Redistribution and use in source and binary forms, with or without modification,
 # are permitted provided that the following conditions are met:
@@ -33,7 +33,6 @@ __version__ = '0.9.6'  # 2025-12-29
 
 import asyncio
 import json
-import sys
 
 from http_server import (HttpServer,
                          HTTP_STATUS_OK, HTTP_STATUS_BAD_REQUEST, HTTP_STATUS_MOVED_PERMANENTLY,
@@ -53,13 +52,13 @@ if upython:
         Watchdog = None
 else:
     from not_machine import machine
+    import sys
     Watchdog = None
 
 onboard = machine.Pin('LED', machine.Pin.OUT, value=0)
 morse_led = machine.Pin(2, machine.Pin.OUT, value=0)  # status LED
 reset_button = machine.Pin(3, machine.Pin.IN, machine.Pin.PULL_UP)
 
-BUFFER_SIZE = 4096
 CONFIG_FILE = 'data/config.json'
 CONTENT_DIR = 'content/'
 
@@ -87,7 +86,7 @@ def read_config():
         logging.error(f'failed to load configuration! {type(ex)} {ex}', 'main:read_config')
         config = {
             'SSID': DEFAULT_SSID,
-            'secret': DEFAULT_SSID,
+            'secret': DEFAULT_SECRET,
             'username': 'admin',
             'password': 'admin',
             'dhcp': True,
@@ -149,7 +148,7 @@ async def api_config_callback(http, verb, args, reader, writer, request_headers=
         if web_port is not None:
             web_port_int = safe_int(web_port, -2)
             if 0 <= web_port_int <= 65535:
-                config['web_port'] = web_port
+                config['web_port'] = web_port_int
                 dirty = True
             else:
                 errors.append('web_port')
@@ -188,7 +187,7 @@ async def api_config_callback(http, verb, args, reader, writer, request_headers=
             dirty = True
         dhcp_arg = args.get('dhcp')
         if dhcp_arg is not None:
-            dhcp = dhcp_arg == 1
+            dhcp = dhcp_arg == '1'
             config['dhcp'] = dhcp
             dirty = True
         hostname = args.get('hostname')
@@ -225,7 +224,7 @@ async def api_config_callback(http, verb, args, reader, writer, request_headers=
             http_status = HTTP_STATUS_BAD_REQUEST
             bytes_sent = await http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
     else:
-        response = b'GET or PUT only.'
+        response = b'GET or POST only.'
         http_status = HTTP_STATUS_BAD_REQUEST
         bytes_sent = await http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
     return bytes_sent, http_status
@@ -278,7 +277,7 @@ async def api_kpa_set_band_callback(http, verb, args, reader, writer, request_he
 # noinspection PyUnusedLocal
 @http_server.route(b'/api/kpa_set_fan_speed')
 async def api_kpa_set_fan_speed_callback(http, verb, args, reader, writer, request_headers=None):
-    speed = safe_int(args.get('speed', -1))
+    speed = safe_int(args.get('speed'), -1)
     if 0 <= speed <= 6:
         command = f'^FC{speed};^FC;'.encode()
         kpa500.enqueue_command(command)
@@ -352,7 +351,7 @@ async def api_kpa_status_callback(http, verb, args, reader, writer, request_head
 # KAT500 specific APIs
 # noinspection PyUnusedLocal
 @http_server.route(b'/api/kat_status')
-async def api_kat_status_callback(http, verb, args, reader, writer, request_headers=None):  # '/api/kpa_status'
+async def api_kat_status_callback(http, verb, args, reader, writer, request_headers=None):  # '/api/kat_status'
     payload = {'kat500_data': kat500.device_data}
     response = json.dumps(payload).encode('utf-8')
     http_status = HTTP_STATUS_OK
@@ -409,9 +408,9 @@ async def api_kat_set_tune_callback(http, verb, args, reader, writer, request_he
     state = args.get('state')
     if state in ('0', '1'):
         if state == '1':
-            command = f'FT;TP;'.encode()
+            command = b'FT;TP;'
         else:
-            command = f'CT;TP;'.encode()
+            command = b'CT;TP;'
         kat500.enqueue_command(command)
         response = b'ok\r\n'
         http_status = HTTP_STATUS_OK
@@ -588,9 +587,10 @@ async def main():
                 config['ap_mode'] = ap_mode
                 save_config(config)
                 keep_running = False
-            if four_count >= 3:  # check for new message every one second
-                if picow_network.get_message() != last_message:
-                    last_message = picow_network.get_message()
+            if four_count >= 4:  # check for new message every one second
+                msg = picow_network.get_message()
+                if msg != last_message:
+                    last_message = msg
                     morse_code_sender.set_message(last_message)
                 four_count = 0
         else:

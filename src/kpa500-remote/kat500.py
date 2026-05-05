@@ -3,7 +3,7 @@
 #
 __author__ = 'J. B. Otterson'
 __copyright__ = """
-Copyright 2022, J. B. Otterson N1KDO.
+Copyright 2022, 2026, J. B. Otterson N1KDO.
 Redistribution and use in source and binary forms, with or without modification, 
 are permitted provided that the following conditions are met:
   1. Redistributions of source code must retain the above copyright notice, 
@@ -22,7 +22,7 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-__version__ = '0.9.2'  # 2025-12-27
+__version__ = '0.9.3'  # 2026-04-27
 
 # disable pylint import error
 # pylint: disable=E0401
@@ -121,127 +121,79 @@ class KAT500(KDevice):
         return fault_code
 
     def process_kat500_message(self, msg):
-        if msg is None or len(msg) == 0:
+        if not msg:
             logging.warning('empty message', 'kat500:process_kat500_message')
+            return
         if msg == ';':
             return
         if msg[-1] != ';':
-            logging.warning(f'bad data: {msg}' 'kat500:process_kat500_message')
+            logging.warning(f'bad data: {msg}', 'kat500:process_kat500_message')
             return
-        lm = len(msg)
-        if lm >= 7:  # check for 6 letter message names
-            fragment = msg[0:6]
-            if fragment == 'KAT500':
-                return  # just eat this.
-        if lm >= 6:  # check for 5 letter message names
-            fragment = msg[0:5]
-            if fragment == 'VSWRB':
-                data = msg[5:-1].strip()
-                if data is not None:
-                    self.update_device_data(14, data)
-                return
-        if lm >= 5:  # check for 4 letter message names. AMPI ATTN VFWD VRFL VSWR
-            fragment = msg[0:4]
-            if lm > 5:
-                data = msg[4:-1].strip()
-            else:
-                data = None
-            if fragment == 'AMPI':
-                if data is not None:
-                    self.update_device_data(0, data)
-                return
-            if fragment == 'ATTN':
-                if data is not None:
-                    self.update_device_data(1, data)
-                return
-            if fragment == 'VFWD':
-                if data is not None:
-                    self.update_device_data(11, data)
-                return
-            if fragment == 'VRFL':
-                if data is not None:
-                    self.update_device_data(12, data)
-                return
-            if fragment == 'VSWR':
-                if data is not None:
-                    self.update_device_data(13, data)
-                return
-        if lm >= 4:  # check for 3 letter message names. BYP FLT
-            fragment = msg[0:3]
-            if lm > 4:
-                data = msg[3:-1]
-            else:
-                data = None
-            if fragment == 'BYP':
-                if data is not None:
-                    self.update_device_data(2, data)
-                return
-            if fragment == 'FLT':
-                if data is not None:
-                    self.update_device_data(9, data)
-                return
-        if lm >= 3:  # check for 2 letter message names. AN BN MD PS RV SL SN TP
-            fragment = msg[0:2]
-            # logging.warning(f'fragment "{fragment}"', 'kat500:process_kat500_message')
-            if lm > 3:
-                data = msg[2:-1]
-            else:
-                data = None
-            if fragment == 'AN':
-                if data is not None:
-                    antenna_number = safe_int(data)
+
+        cmd = msg[:-1]
+        if not cmd:
+            return
+
+        if cmd.startswith('KAT500'):
+            pass  # just eat this.
+        elif cmd.startswith('VSWRB'):
+            self.update_device_data(14, cmd[5:].strip())
+        elif cmd.startswith('AMPI'):
+            self.update_device_data(0, cmd[4:].strip())
+        elif cmd.startswith('ATTN'):
+            self.update_device_data(1, cmd[4:].strip())
+        elif cmd.startswith('VFWD'):
+            self.update_device_data(11, cmd[4:].strip())
+        elif cmd.startswith('VRFL'):
+            self.update_device_data(12, cmd[4:].strip())
+        elif cmd.startswith('VSWR'):
+            self.update_device_data(13, cmd[4:].strip())
+        elif cmd.startswith('BYP'):
+            self.update_device_data(2, cmd[3:])
+        elif cmd.startswith('FLT'):
+            self.update_device_data(9, cmd[3:])
+        elif cmd.startswith('AN'):
+            data = cmd[2:]
+            if data:
+                antenna_number = safe_int(data)
+                if 1 <= antenna_number <= len(self.antenna_number_to_name):
                     antenna = self.antenna_number_to_name[antenna_number - 1]
                     self.update_device_data(6, antenna)
-                return
-            if fragment == 'BN':
-                if data is not None:
-                    band_number = safe_int(data)
+        elif cmd.startswith('BN'):
+            data = cmd[2:]
+            if data:
+                band_number = safe_int(data)
+                if 0 <= band_number < len(self.band_number_to_name):
                     band_name = self.band_number_to_name[band_number]
                     self.update_device_data(7, band_name)
-                return
-            if fragment == 'MD':
-                if data is not None:
-                    mode_name = self.mode_name_dict.get(data) or data
-                    self.update_device_data(8, mode_name)
-                return
-            if fragment == 'PS':
-                if data is not None:
-                    self.update_device_data(4, data)
-                return
-            if fragment == 'RV':
-                if data is None:
-                    logging.info('Revision Query', 'kat500:process_kat500_message')
-                else:
-                    logging.info(f'Revision {data}', 'kat500:process_kat500_message')
-                return
-            if fragment == 'SL':
-                if data is None:
-                    logging.info('SLeep Query', 'kat500:process_kat500_message')
-                else:
-                    logging.info(f'SLeep query {data}', 'kat500:process_kat500_message')
-                return
-            if fragment == 'SN':
-                if data is None:
-                    logging.info('Serial Number Query', 'kat500:process_kat500_message')
-                else:
-                    logging.info(f'Serial Number {data}', 'kat500:process_kat500_message')
-                return
-            if fragment == 'TP':
-                if data is not None:
-                    self.update_device_data(5, data)  # update tuning status
-                return
-        if lm >= 2:  # check for 1 letter message names. F
-            fragment = msg[0:1]
-            # logging.warning(f'fragment "{fragment}"', 'kat500:process_kat500_message')
-            if lm > 1:
-                data = msg[2:-1]
-            else:
-                data = None
-            if fragment == 'F':
-                if data is not None:
-                    self.update_device_data(10, data)
-                return
-        logging.error(f'unhandled: {msg} len {lm}', 'kat500:process_kat500_message')
+        elif cmd.startswith('MD'):
+            data = cmd[2:]
+            if data:
+                mode_name = self.mode_name_dict.get(data) or data
+                self.update_device_data(8, mode_name)
+        elif cmd.startswith('PS'):
+            data = cmd[2:]
+            if data:
+                self.update_device_data(4, data)
+        elif cmd.startswith('RV'):
+            data = cmd[2:]
+            logging.info(f'Revision {data}' if data else 'Revision Query', 'kat500:process_kat500_message')
+        elif cmd.startswith('SL'):
+            data = cmd[2:]
+            logging.info(f'SLeep query {data}' if data else 'SLeep Query', 'kat500:process_kat500_message')
+        elif cmd.startswith('SN'):
+            data = cmd[2:]
+            logging.info(f'Serial Number {data}' if data else 'Serial Number Query', 'kat500:process_kat500_message')
+        elif cmd.startswith('TP'):
+            data = cmd[2:]
+            if data:
+                self.update_device_data(5, data)  # update tuning status
+        elif cmd.startswith('F'):
+            data = cmd[1:]
+            if data:
+                self.update_device_data(10, data)
+        else:
+            logging.error(f'unhandled: {msg}', 'kat500:process_kat500_message')
 
     def set_tuner_off_data(self):
         # reset all the indicators when the amp is turned off.
@@ -293,7 +245,7 @@ class KAT500(KDevice):
                     self.update_device_data(9, '0')  # set FAULT to no fault
                     logging.info('tuner state 1-->2', 'kat500:kat500_server')
                 else:
-                        logging.warning(f'1: unexpected data {bl.buffer[:bl.bytes_received]}', 'kat500:kat500_server')
+                    logging.warning(f'1: unexpected data {bl.buffer[:bl.bytes_received]}', 'kat500:kat500_server')
             elif tuner_state == 2:  # connected, power off.
                 query = self.dequeue_command()
                 # throw away any queries except the ON command.
@@ -411,7 +363,8 @@ class KAT500(KDevice):
                                     command = b'MDA;MD;'
                                 elif value == 'Manual':
                                     command = b'MDM;MD;'
-                                self.enqueue_command(command)
+                                if command is not None:
+                                    self.enqueue_command(command)
                             elif message.startswith('tuner::dropdown::Antenna::'):
                                 value = message[26:]
                                 command = None
@@ -470,15 +423,16 @@ class KAT500(KDevice):
 
                 # send any outstanding data back...
                 if len(client_data.update_list) > 0:
-                    index = client_data.update_list.popleft()
-                    client_data.update_set.discard(index)
-                    writer.write(self.key_names[index])
-                    payload = f'::{self.device_data[index]}\n'.encode()
-                    writer.write(payload)
+                    while len(client_data.update_list) > 0:
+                        index = client_data.update_list.popleft()
+                        client_data.update_set.discard(index)
+                        writer.write(self.key_names[index])
+                        payload = f'::{self.device_data[index]}\n'.encode()
+                        writer.write(payload)
+                        logging.debug(f'sent "{self.key_names[index].decode()}{payload.decode().strip()}"',
+                                      'kat500:serve_kat500_remote_client')
                     await writer.drain()
                     client_data.last_activity = milliseconds()
-                    logging.debug(f'sent "{self.key_names[index].decode()}{payload.decode().strip()}"',
-                                  'kat500:serve_kat500_remote_client')
 
                 since_last_activity = milliseconds() - client_data.last_activity
                 if since_last_activity > 15000:
@@ -486,7 +440,7 @@ class KAT500(KDevice):
                     await writer.drain()
                     client_data.last_activity = milliseconds()
                     logging.debug(f'SENT keepalive TO client {client_name}', 'kat500:serve_kat500_remote_client')
-                gc.collect()
+                    gc.collect()
 
             # connection closing
             logging.info(f'client {client_name} connection closing...', 'kat500:serve_kat500_remote_client')

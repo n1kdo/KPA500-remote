@@ -3,7 +3,7 @@
 #
 __author__ = 'J. B. Otterson'
 __copyright__ = """
-Copyright 2022, J. B. Otterson N1KDO.
+Copyright 2022, 2026, J. B. Otterson N1KDO.
 Redistribution and use in source and binary forms, with or without modification, 
 are permitted provided that the following conditions are met:
   1. Redistributions of source code must retain the above copyright notice, 
@@ -22,7 +22,7 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-__version__ = '0.9.2'  # 2025-12-27
+__version__ = '0.9.3'  # 2026-04-27
 
 # disable pylint import error
 # pylint: disable=E0401
@@ -31,7 +31,7 @@ import asyncio
 import gc
 import micro_logging as logging
 from kdevice import KDevice, ClientData, BufferAndLength
-from utils import upython, milliseconds
+from utils import upython, milliseconds, safe_int
 
 
 if upython:
@@ -125,53 +125,69 @@ class KPA500(KDevice):
         return fault_code
 
     def process_kpa500_message(self, msg):
-        if msg is None or len(msg) == 0:
+        if not msg:
             logging.warning('empty message', 'process_kpa500_message')
+            return
         if msg == ';':
             return
         if msg[0] != '^':
             logging.warning(f'bad data: {msg}', 'process_kpa500_message')
             return
-        command_length = 3  # including the ^
-        if msg[command_length] >= 'A':  # there is another letter
-            command_length = 4
 
-        cmd = msg[1:command_length]
         semi_offset = msg.find(';')
-        cmd_data = msg[command_length:semi_offset]
+        if semi_offset < 0:
+            logging.warning(f'bad data (no semicolon): {msg}', 'process_kpa500_message')
+            return
+
+        cmd_str = msg[1:semi_offset]
+        if not cmd_str:
+            return
+
+        for i, c in enumerate(cmd_str):
+            if not ('A' <= c <= 'Z'):
+                cmd = cmd_str[:i]
+                cmd_data = cmd_str[i:]
+                break
+        else:
+            cmd = cmd_str
+            cmd_data = ''
+
         if cmd == 'BN':  # band
-            band_num = int(cmd_data)
-            if band_num <= 10:
+            band_num = safe_int(cmd_data)
+            if 0 <= band_num < len(self.band_number_to_name):
                 band_name = self.band_number_to_name[band_num]
                 self.update_device_data(5, band_name)
         elif cmd == 'FC':  # fan minimum speed
-            fan_min = int(cmd_data)
-            self.update_device_data(17, str(fan_min))
+            if cmd_data:
+                self.update_device_data(17, cmd_data)
         elif cmd == 'FL':
             fault = self.get_fault_text(cmd_data)
             self.update_device_data(6, fault)
-            # self.update_kpa500_data(2, '0' if cmd_data == '00' else '1')
         elif cmd == 'ON':
-            self.update_device_data(4, cmd_data)
+            if cmd_data:
+                self.update_device_data(4, cmd_data)
         elif cmd == 'OS':
-            operate = cmd_data
-            standby = '1' if cmd_data == '0' else '0'
-            self.update_device_data(0, operate)
-            self.update_device_data(1, standby)
+            if cmd_data:
+                operate = cmd_data
+                standby = '1' if cmd_data == '0' else '0'
+                self.update_device_data(0, operate)
+                self.update_device_data(1, standby)
         elif cmd == 'RVM':  # version
             self.update_device_data(7, cmd_data)
         elif cmd == 'SN':  # serial number
             self.update_device_data(16, cmd_data)
         elif cmd == 'SP':  # speaker on/off
-            self.update_device_data(3, cmd_data)
+            if cmd_data:
+                self.update_device_data(3, cmd_data)
         elif cmd == 'TM':  # temp
-            temp = int(cmd_data)
-            self.update_device_data(12, str(temp))
+            temp = safe_int(cmd_data)
+            if temp >= 0:
+                self.update_device_data(12, str(temp))
         elif cmd == 'VI':  # volts
             split_cmd_data = cmd_data.split(' ')
             if len(split_cmd_data) == 2:
-                volts = split_cmd_data[0]  # int(split_cmd_data[0])
-                amps = split_cmd_data[1]  # int(split_cmd_data[1])  # int breaks Elecraft client "Current: PTT OFF"
+                volts = split_cmd_data[0]
+                amps = split_cmd_data[1]  # int breaks Elecraft client "Current: PTT OFF"
                 if amps != '000' and amps[0] == '0':
                     amps = amps[1:]
                 self.update_device_data(13, str(volts))
@@ -400,15 +416,16 @@ class KPA500(KDevice):
 
                 # send any outstanding data back...
                 if len(client_data.update_list) > 0:
-                    index = client_data.update_list.popleft()
-                    client_data.update_set.discard(index)
-                    writer.write(self.key_names[index])
-                    payload = f'::{self.device_data[index]}\n'.encode()
-                    writer.write(payload)
+                    while len(client_data.update_list) > 0:
+                        index = client_data.update_list.popleft()
+                        client_data.update_set.discard(index)
+                        writer.write(self.key_names[index])
+                        payload = f'::{self.device_data[index]}\n'.encode()
+                        writer.write(payload)
+                        logging.debug(f'sent "{self.key_names[index].decode()}{payload.decode().strip()}"',
+                                      'serve_kpa500_remote_client')
                     await writer.drain()
                     client_data.last_activity = milliseconds()
-                    logging.debug(f'sent "{self.key_names[index].decode()}{payload.decode().strip()}"',
-                                  'serve_kpa500_remote_client')
 
                 since_last_activity = milliseconds() - client_data.last_activity
                 if since_last_activity > 15000:
@@ -417,7 +434,7 @@ class KPA500(KDevice):
                     client_data.last_activity = milliseconds()
                     logging.debug(f'SENT keepalive TO client {client_name}',
                                  'kpa500:serve_kpa500_remote_client')
-                gc.collect()
+                    gc.collect()
 
             # connection closing
             logging.info(f'client {client_name} connection closing...', 'serve_kpa500_remote_client')
