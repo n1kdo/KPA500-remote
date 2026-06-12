@@ -22,7 +22,7 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-__version__ = '0.1.2'  # 2026-04-27
+__version__ = '0.1.4'  # 2026-05-25
 
 from utils import get_timestamp, upython
 
@@ -63,43 +63,43 @@ def should_log(level):
     return level <= loglevel
 
 
-def _log(level: str, message: str|bytes, caller=None):
+def _log(level: str, message: str|bytes, caller:str = None):
     if isinstance(message, bytes):
-        message = message.decode()
+        message = message.decode('utf-8', errors='replace')
     if caller is None:
         print(get_timestamp(), level, message)
     else:
         print(get_timestamp(), ' ', level, ' [', caller, '] ', message, sep='')
 
 
-def debug(message, caller=None):
+def debug(message: str|bytes, caller: str = None):
     if loglevel >= DEBUG:
         _log('[DEBUG]    ', message, caller)
 
 
-def info(message, caller=None):
+def info(message: str|bytes, caller: str = None):
     if loglevel >= INFO:
         _log('[INFO]     ', message, caller)
 
 
-def warning(message, caller=None):
+def warning(message: str|bytes, caller: str = None):
     if loglevel >= WARNING:
         _log('[WARNING]  ', message, caller)
 
 
-def error(message, caller=None):
+def error(message: str|bytes, caller: str = None):
     if loglevel >= ERROR:
         _log('[ERROR]    ', message, caller)
 
 
-def exception(message:str, caller:str = None, exc_info:Exception = None) -> None:
+def exception(message: str|bytes, caller:str = None, exc_info:Exception = None) -> None:
     if exc_info is not None:
         _log('[EXCEPTION]', f'{message} {type(exc_info)} {exc_info}', caller)
     else:
         _log('[EXCEPTION]', message, caller)
 
 
-def critical(message, caller=None):
+def critical(message: str| bytes, caller: str = None):
     if loglevel >= CRITICAL:
         _log('[CRITICAL] ', message, caller)
 

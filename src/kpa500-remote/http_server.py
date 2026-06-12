@@ -23,8 +23,9 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-__version__ = '0.1.13'  # 2026-04-28
+__version__ = '0.1.16'  # 2026-05-29
 
+import asyncio
 import gc
 import json
 import os
@@ -63,10 +64,12 @@ DOTS = '..'
 SEP = '/'
 
 def _safe_content_path(content_dir: str, filename: str) -> str:
-    """Return the normalized content path if it is inside content_dir, else raise ValueError."""
-    if filename.startswith(SEP) or DOTS in filename:
+    """
+    Return a 'safe' content path for a relative filename,
+    or raise ValueError if filename contains '/' or '..'.
+    """
+    if SEP in filename or DOTS in filename:
         raise ValueError('forbidden path traversal')
-    # join then normpath to prevent traversal
     if content_dir.endswith(SEP):
         joined = content_dir + filename
     else:
@@ -128,6 +131,7 @@ class HttpServer:
 
         self.buffer = bytearray(_BUFFER_SIZE)
         self.bmv = memoryview(self.buffer)
+        self._content_lock = asyncio.Lock()
 
     def route(self, uri):
         if isinstance(uri, str):
@@ -147,37 +151,37 @@ class HttpServer:
             return (await self.send_simple_response(writer, HTTP_STATUS_FORBIDDEN, self.CT_TEXT_HTML, response),
                     HTTP_STATUS_FORBIDDEN)
         try:
-            content_length = os.stat(filename)[6]
-            content_length = safe_int(content_length, -1)
+            content_length = file_size(filename)
         except OSError:
             content_length = -1
         if content_length < 0:
             response = b'<html><body><p>404 -- File not found.</p></body></html>'
             return (await self.send_simple_response(writer, HTTP_STATUS_NOT_FOUND, self.CT_TEXT_HTML, response),
                     HTTP_STATUS_NOT_FOUND)
-        extension = filename.split('.')[-1]
+        extension = filename.split('.')[-1].lower()
         content_type = self.FILE_EXTENSION_TO_CONTENT_TYPE_MAP.get(extension, b'application/octet-stream')
         await self.start_response(writer, HTTP_STATUS_OK, content_type, content_length)
         try:
-            with open(filename, 'rb', _BUFFER_SIZE) as infile:
-                bytes_since_drain = 0
-                # Drain after roughly 16 KB or at EOF to reduce syscall overhead while preventing buffer bloat.
-                drain_threshold = _BUFFER_SIZE * 4
-                while True:
-                    bytes_read = infile.readinto(self.buffer)
-                    if bytes_read:
-                        writer.write(self.bmv[:bytes_read])
-                        bytes_since_drain += bytes_read
-                        if bytes_since_drain >= drain_threshold:
-                            await writer.drain()
-                            bytes_since_drain = 0
-                    if bytes_read < _BUFFER_SIZE:
-                        # EOF reached; ensure pending bytes are flushed.
-                        if bytes_since_drain:
-                            await writer.drain()
-                        break
+            async with self._content_lock:
+                with open(filename, 'rb', buffering=_BUFFER_SIZE) as infile:
+                    bytes_since_drain = 0
+                    # Drain after roughly 16 KB or at EOF to reduce syscall overhead while preventing buffer bloat.
+                    drain_threshold = _BUFFER_SIZE * 4
+                    while True:
+                        bytes_read = infile.readinto(self.buffer)
+                        if bytes_read:
+                            writer.write(self.bmv[:bytes_read])
+                            bytes_since_drain += bytes_read
+                            if bytes_since_drain >= drain_threshold:
+                                await writer.drain()
+                                bytes_since_drain = 0
+                        if bytes_read < _BUFFER_SIZE:
+                            break
+                    # EOF reached; ensure pending bytes are flushed.
+                    if bytes_since_drain:
+                        await writer.drain()
         except Exception as exc:
-            logging.error(f'{type(exc)} {exc}', 'http_server:serve_content')
+            logging.exception(f'error serving {filename}', 'http_server:serve_content', exc_info=exc)
         return content_length, HTTP_STATUS_OK
 
     async def start_response(self, writer, http_status:int=HTTP_STATUS_OK, content_type:bytes=b'', response_size:int=0, extra_headers:list[bytes]=None):
@@ -188,8 +192,8 @@ class HttpServer:
             writer.write(b'Content-type: ')
             writer.write(content_type)
             writer.write(b'; charset=UTF-8\r\n')
-        if response_size > 0:
-            writer.write(b'Content-length: %d \r\n' % response_size)
+        if response_size >= 0:
+            writer.write(b'Content-length: %d\r\n' % response_size)
         if extra_headers is not None:
             for header in extra_headers:
                 writer.write(header)
@@ -221,6 +225,7 @@ class HttpServer:
 
     @classmethod
     def url_unquote(cls, s):
+        s = s.replace('+', ' ')
         res = s.split('%')
         for i in range(1, len(res)):
             item = res[i]
@@ -240,7 +245,7 @@ class HttpServer:
         args = {}
         args_list = value.split('&')
         for arg in args_list:
-            arg_parts = arg.split('=')
+            arg_parts = arg.split('=', 1)
             if len(arg_parts) == 2:
                 args[cls.url_unquote(arg_parts[0])] = cls.url_unquote(arg_parts[1])
         return args
@@ -270,14 +275,14 @@ class HttpServer:
             protocol = pieces[2]
             # should validate protocol here...
             if b'?' in target:
-                pieces = target.split(b'?')
+                pieces = target.split(b'?', 1)
                 target = pieces[0]
                 query_args = pieces[1]
             else:
                 query_args = b''
             if verb not in [HTTP_VERB_GET, HTTP_VERB_POST]:
                 http_status = HTTP_STATUS_BAD_REQUEST
-                logging.warning(b'Bad request, wrong verb {verb}', 'http_server:serve_http_client')
+                logging.warning(f'Bad request, wrong verb {verb}', 'http_server:serve_http_client')
                 response = b'<html><body><p>only GET and POST are supported</p></body></html>'
                 bytes_sent = await self.send_simple_response(writer, http_status, self.CT_TEXT_HTML, response)
             elif protocol not in {b'HTTP/1.0', b'HTTP/1.1'}:
@@ -298,12 +303,12 @@ class HttpServer:
                     if b':' not in header:  # ignore malformed header
                         continue
                     parts = header.split(b':', 1)
-                    header_name = parts[0].strip()
+                    header_name = parts[0].strip().lower()
                     header_value = parts[1].strip()
                     request_headers[header_name] = header_value
-                    if header_name == b'Content-Length':
-                        request_content_length = int(header_value)
-                    elif header_name == b'Content-Type':
+                    if header_name == b'content-length':
+                        request_content_length = safe_int(header_value, -1)
+                    elif header_name == b'content-type':
                         request_content_type = header_value
                 args = {}
                 if verb == HTTP_VERB_GET:
@@ -374,7 +379,8 @@ def valid_filename(filename):
 
 def file_size(filename):
     try:
-        return os.stat(filename)[6]
+        # note that micropython os.stat()does not return a named tuple, so cannot access with .st_size
+        return safe_int(os.stat(filename)[6], -1)
     except OSError:
         return -1
 
@@ -397,7 +403,15 @@ async def api_upload_file_callback(http, verb, args, reader, writer, request_hea
     if verb == HTTP_VERB_POST:
         logging.debug('http post handler', 'http_server:api_upload_file_callback')
         boundary = None
-        request_content_type = request_headers.get(b'Content-Type') or b''
+        request_content_type = b''
+        request_content_length = -1
+        for header_name in request_headers.keys():
+            lower_header_name = header_name.lower()
+            if lower_header_name == b'content-type':
+                request_content_type = request_headers.get(header_name)
+            elif lower_header_name == b'content-length':
+                request_content_length = safe_int(request_headers.get(header_name), -1)
+
         if b';' in request_content_type:
             pieces = request_content_type.split(b';')
             request_content_type = pieces[0]
@@ -410,8 +424,10 @@ async def api_upload_file_callback(http, verb, args, reader, writer, request_hea
         else:
             response = b'unhandled problem'
             http_status = HTTP_STATUS_INTERNAL_SERVER_ERROR
-            request_content_length = safe_int(request_headers.get(b'Content-Length') or '0', 0)
-            if request_content_length == 0:
+            if request_content_length == -1:
+                response = b'invalid Content-Length'
+                http_status = HTTP_STATUS_BAD_REQUEST
+            elif request_content_length == 0:
                 response = b'file is too small'
                 http_status = HTTP_STATUS_LENGTH_REQUIRED
             elif request_content_length > _MAX_UPLOAD_SIZE:
@@ -429,68 +445,74 @@ async def api_upload_file_callback(http, verb, args, reader, writer, request_hea
                 output_file = None
                 more_bytes = True
                 leftover_bytes = b''
-                while more_bytes:
-                    buffer = await reader.read(_BUFFER_SIZE)
-                    remaining_content_length -= len(buffer)
-                    if remaining_content_length <= 0:
-                        more_bytes = False
-                    if len(leftover_bytes) != 0:
-                        buffer = leftover_bytes + buffer
-                        leftover_bytes = b''
-                    start = 0
-                    while start < len(buffer):
-                        if state == _MP_DATA:
-                            if not output_file:
-                                output_file = open(http.content_dir + 'uploaded_' + filename, 'wb')
-                            idx = buffer.find(search_boundary, start)
-                            if idx != -1:
-                                output_file.write(buffer[start:idx])
-                                state = _MP_END_BOUND
-                                output_file.close()
-                                output_file = None
-                                response = b'Uploaded "uploaded_%s" successfully' % filename.encode()
-                                http_status = HTTP_STATUS_CREATED
-                                start = idx + 2  # Advance past \r\n so the next line parsed is the boundary itself
-                            else:
-                                if more_bytes and len(buffer) - start > keep_len:
-                                    leftover_bytes = buffer[-keep_len:]
-                                    output_file.write(buffer[start:-keep_len])
-                                    start = len(buffer)
+                try:
+                    while more_bytes:
+                        buffer = await reader.read(_BUFFER_SIZE)
+                        remaining_content_length -= len(buffer)
+                        if remaining_content_length <= 0:
+                            more_bytes = False
+                        if len(leftover_bytes) != 0:
+                            buffer = leftover_bytes + buffer
+                            leftover_bytes = b''
+                        start = 0
+                        while start < len(buffer):
+                            if state == _MP_DATA:
+                                if not output_file:
+                                    output_filename = _safe_content_path(http.content_dir, 'uploaded_' + str(filename))
+                                    output_file = open(output_filename, 'wb')
+                                idx = buffer.find(search_boundary, start)
+                                if idx != -1:
+                                    output_file.write(buffer[start:idx])
+                                    state = _MP_END_BOUND
+                                    output_file.close()
+                                    output_file = None
+                                    response = b'Uploaded "uploaded_%s" successfully' % filename.encode()
+                                    http_status = HTTP_STATUS_CREATED
+                                    start = idx + 2  # Advance past \r\n so the next line parsed is the boundary itself
                                 else:
-                                    output_file.write(buffer[start:])
-                                    start = len(buffer)
-                        else:  # must be reading headers or boundary
-                            idx = buffer.find(b'\r\n', start)
-                            if idx != -1:
-                                line = buffer[start:idx]
-                                start = idx + 2
-                                if state == _MP_START_BOUND:
-                                    if line == start_boundary or line == b'':
-                                        if line == start_boundary:
-                                            state = _MP_HEADERS
-                                elif state == _MP_HEADERS:
-                                    if len(line) == 0:
-                                        state = _MP_DATA
-                                    elif line.startswith(b'Content-Disposition:'):
-                                        pieces = line.split(b';')
-                                        if len(pieces) >= 3:
-                                            fn = pieces[2].strip()
-                                            if fn.startswith(b'filename="'):
-                                                filename = fn[10:-1].decode()
-                                                if not valid_filename(filename):
-                                                    response = b'bad filename'
-                                                    http_status = HTTP_STATUS_BAD_REQUEST
-                                                    more_bytes = False
-                                                    start = len(buffer)
-                                elif state == _MP_END_BOUND:
-                                    if line == end_boundary or line == start_boundary or line == b'--':
-                                        state = _MP_START_BOUND
-                            else:
-                                if more_bytes:
-                                    leftover_bytes = buffer[start:]
-                                    start = len(buffer)
+                                    if more_bytes and len(buffer) - start > keep_len:
+                                        leftover_bytes = buffer[-keep_len:]
+                                        output_file.write(buffer[start:-keep_len])
+                                        start = len(buffer)
+                                    else:
+                                        output_file.write(buffer[start:])
+                                        start = len(buffer)
+                            else:  # must be reading headers or boundary
+                                idx = buffer.find(b'\r\n', start)
+                                if idx != -1:
+                                    line = buffer[start:idx]
+                                    start = idx + 2
+                                    if state == _MP_START_BOUND:
+                                        if line == start_boundary or line == b'':
+                                            if line == start_boundary:
+                                                state = _MP_HEADERS
+                                    elif state == _MP_HEADERS:
+                                        if len(line) == 0:
+                                            state = _MP_DATA
+                                        elif line.startswith(b'Content-Disposition:'):
+                                            pieces = line.split(b';')
+                                            if len(pieces) >= 3:
+                                                fn = pieces[2].strip()
+                                                if fn.startswith(b'filename="'):
+                                                    filename = fn[10:-1].decode()
+                                                    if not valid_filename(filename):
+                                                        response = b'bad filename'
+                                                        http_status = HTTP_STATUS_BAD_REQUEST
+                                                        more_bytes = False
+                                                        start = len(buffer)
+                                    elif state == _MP_END_BOUND:
+                                        if line == end_boundary or line == start_boundary or line == b'--':
+                                            state = _MP_START_BOUND
                                 else:
-                                    start = len(buffer)
+                                    if more_bytes:
+                                        leftover_bytes = buffer[start:]
+                                        start = len(buffer)
+                                    else:
+                                        start = len(buffer)
+                finally:
+                    if output_file is not None:
+                        output_file.close()
+                        output_file = None
         logging.info(f'upload response: {response}', 'http_server:api_upload_file_callback')
         bytes_sent = await http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
     else:
@@ -504,7 +526,7 @@ async def api_upload_file_callback(http, verb, args, reader, writer, request_hea
 async def api_remove_file_callback(http, verb, args, reader, writer, request_headers=None):
     filename = args.get('filename')
     if valid_filename(filename) and filename not in HttpServer.DANGER_ZONE_FILE_NAMES:
-        filename = http.content_dir + filename
+        filename = _safe_content_path(http.content_dir, filename)
         try:
             os.remove(filename)
             http_status = HTTP_STATUS_OK
@@ -524,8 +546,8 @@ async def api_rename_file_callback(http, verb, args, reader, writer, request_hea
     filename = args.get('filename')
     newname = args.get('newname')
     if valid_filename(filename) and valid_filename(newname):
-        filename = http.content_dir + filename
-        newname = http.content_dir + newname
+        filename = _safe_content_path(http.content_dir, filename)
+        newname = _safe_content_path(http.content_dir, newname)
         if file_size(newname) >= 0:
             http_status = HTTP_STATUS_CONFLICT
             response = f'new file {newname} already exists'.encode('utf-8')

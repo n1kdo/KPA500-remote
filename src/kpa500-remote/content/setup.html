@@ -201,17 +201,17 @@
                 return;
             }
             let x = parseInt(kpa_tcp_port);
-            if (x < 0 || x > 65535) {
+            if (x < 1 || x > 65535) {
                 alert("Invalid KPA TCP Port");
                 return;
             }
             x = parseInt(kat_tcp_port);
-            if (x < 0 || x > 65535) {
+            if (x < 1 || x > 65535) {
                 alert("Invalid KAT TCP Port");
                 return;
             }
             x = parseInt(web_port);
-            if (x < 0 || x > 65535) {
+            if (x < 1 || x > 65535) {
                 alert("Invalid Web Port");
                 return;
             }
@@ -393,6 +393,6 @@
         <span class="selected">Setup</span>
         <a href="files.html">Files</a>
     </div>
-    <div class="author"><a href="https://www.n1kdo.com" target="_blank">N1KDO</a> 20260428</div>
+    <div class="author"><a href="https://www.n1kdo.com" target="_blank">N1KDO</a> 20260525</div>
 </body>
 </html>

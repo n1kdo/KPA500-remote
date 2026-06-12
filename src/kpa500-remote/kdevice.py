@@ -21,7 +21,7 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-__version__ = '0.9.3'  # 2026-04-27
+__version__ = '0.9.4'  # 2026-04-29
 
 import asyncio
 from collections import deque
@@ -124,10 +124,12 @@ class KDevice:
             if buf_and_length.bytes_received > 0:
                 return
             if retries_left > 0:
-                logging.debug(f'received {buf_and_length.bytes_received} bytes response to {message}, {retries_left} retries left.',
-                              'kdevice:device_send_receive')
+                if logging.should_log(logging.DEBUG):
+                    logging.debug(f'received {buf_and_length.bytes_received} bytes response to {message}, {retries_left} retries left.',
+                                  'kdevice:device_send_receive')
             else:
-                logging.debug(f'timeout waiting for response to "{message}".', 'kdevice:device_send_receive')
+                if logging.should_log(logging.DEBUG):
+                    logging.debug(f'timeout waiting for response to "{message}".', 'kdevice:device_send_receive')
 
     @staticmethod
     async def read_network_client(reader):
@@ -136,7 +138,7 @@ class KDevice:
             return data.decode().strip()
         # except ConnectionResetError as cre:  # micropython does not support ConnectionResetError
         #    logging.warning(f'ConnectionResetError in read_network_client: {str(cre)}', 'read_network_client')
-        except Exception as ex:
-            logging.error(f'exception in read_network_client: {str(ex)}', 'kdevice:read_network_client')
-            # raise ex
+        except Exception as exc:
+            logging.exception(f'exception in read_network_client: {str(ex)}',
+                              'kdevice:read_network_client', exc_info=exc)
         return None

@@ -3,7 +3,7 @@
 #
 __author__ = 'J. B. Otterson'
 __copyright__ = 'Copyright 2023, 2024, 2025, 2026 J. B. Otterson N1KDO.'
-__version__ = '0.9.7'  # 2026-04-28
+__version__ = '0.9.8'  # 2026-05-28
 
 #
 # Copyright 2023, 2024, 2025, 2026 J. B. Otterson N1KDO.
@@ -82,8 +82,8 @@ def read_config():
     try:
         with open(CONFIG_FILE, 'r') as config_file:
             config = json.load(config_file)
-    except Exception as ex:
-        logging.error(f'failed to load configuration! {type(ex)} {ex}', 'main:read_config')
+    except Exception as exc:
+        logging.exception(f'failed to load configuration!', 'main:read_config', exc_info=exc)
         config = {
             'SSID': DEFAULT_SSID,
             'secret': DEFAULT_SECRET,
@@ -154,14 +154,14 @@ async def api_config_callback(http, verb, args, reader, writer, request_headers=
                 errors.append('web_port')
         ssid = args.get('SSID')
         if ssid is not None:
-            if 0 < len(ssid) < 64:
+            if 0 < len(ssid) <= 64:
                 config['SSID'] = ssid
                 dirty = True
             else:
                 errors.append('SSID')
         secret = args.get('secret')
         if secret is not None and len(secret):
-            if 8 <= len(secret) < 32:
+            if 8 <= len(secret) <= 32:
                 config['secret'] = secret
                 dirty = True
             else:
@@ -242,7 +242,7 @@ async def api_restart_callback(http, verb, args, reader, writer, request_headers
     else:
         http_status = HTTP_STATUS_BAD_REQUEST
         response = b'not permitted except on PICO-W'
-        bytes_sent = await http.send_simple_response(writer, http_status, http.CT_APP_JSON, response)
+        bytes_sent = await http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
     return bytes_sent, http_status
 
 
