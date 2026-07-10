@@ -1,2 +1,4 @@
 .idea/*
 /src/kpa500-remote/data/config.json
+/src/kpa500-remote/data/*.der
+/src/kpa500-remote/data/certificates.zip
