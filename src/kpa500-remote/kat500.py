@@ -329,7 +329,7 @@ class KAT500(KDevice):
                     message = None
                     timed_out = True
                 # Detect socket closure
-                if reader.at_eof():
+                if message == b'':
                     logging.info(f'client {client_name} closed connection', 'kpa500:serve_kpa5_remote_client')
                     client_data.connected = False
                     break
@@ -456,8 +456,6 @@ class KAT500(KDevice):
             await writer.drain()
             writer.close()
             await writer.wait_closed()
-        except ConnectionAbortedError as ex:
-            logging.warning(f'client {client_name} connection aborted.', 'kat500:serve_kat500_remote_client')
         except Exception as ex:
             logging.error(f'client {client_name} exception in serve_network_client: {type(ex)} {ex}',
                           'kat500:serve_kat500_remote_client')

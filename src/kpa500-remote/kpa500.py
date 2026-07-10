@@ -345,7 +345,7 @@ class KPA500(KDevice):
                     message = None
                     timed_out = True
                 # Detect socket closure
-                if reader.at_eof():
+                if message == b'':
                     logging.info(f'client {client_name} closed connection', 'kpa500:serve_kpa5_remote_client')
                     client_data.connected = False
                     break
