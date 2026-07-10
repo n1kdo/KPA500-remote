@@ -22,7 +22,7 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-__version__ = '0.9.3'  # 2026-04-27
+__version__ = '0.9.4'  # 2026-07-09
 
 # disable pylint import error
 # pylint: disable=E0401
@@ -328,6 +328,11 @@ class KAT500(KDevice):
                 except TimeoutError:
                     message = None
                     timed_out = True
+                # Detect socket closure
+                if message == b'':
+                    logging.info(f'client {client_name} closed connection', 'kpa500:serve_kpa5_remote_client')
+                    client_data.connected = False
+                    break
                 if message is not None and not timed_out:
                     client_data.last_activity = milliseconds()
                     if len(message) > 0:
@@ -426,9 +431,13 @@ class KAT500(KDevice):
                     while len(client_data.update_list) > 0:
                         index = client_data.update_list.popleft()
                         client_data.update_set.discard(index)
-                        writer.write(self.key_names[index])
-                        payload = f'::{self.device_data[index]}\n'.encode()
-                        writer.write(payload)
+                        try:
+                            writer.write(self.key_names[index])
+                            payload = f'::{self.device_data[index]}\n'.encode()
+                            writer.write(payload)
+                        except (BrokenPipeError, ConnectionResetError):
+                            client_data.connected = False
+                            break
                         logging.debug(f'sent "{self.key_names[index].decode()}{payload.decode().strip()}"',
                                       'kat500:serve_kat500_remote_client')
                     await writer.drain()
@@ -444,10 +453,9 @@ class KAT500(KDevice):
 
             # connection closing
             logging.info(f'client {client_name} connection closing...', 'kat500:serve_kat500_remote_client')
+            await writer.drain()
             writer.close()
             await writer.wait_closed()
-        except ConnectionAbortedError as ex:
-            logging.warning(f'client {client_name} connection aborted.', 'kat500:serve_kat500_remote_client')
         except Exception as ex:
             logging.error(f'client {client_name} exception in serve_network_client: {type(ex)} {ex}',
                           'kat500:serve_kat500_remote_client')
