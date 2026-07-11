@@ -21,7 +21,7 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-__version__ = '0.9.4'  # 2026-04-29
+__version__ = '0.9.5'  # 2026-07-10
 
 import asyncio
 from collections import deque
@@ -34,7 +34,7 @@ class ClientData:
     """
     def __init__(self, client_name):
         self.client_name = client_name
-        self.update_list = deque((), 32, 1)
+        self.update_list = deque((), 32, 1)  # this is the proper syntax for Micropython.
         self.update_set = set()
         self.authorized = False
         self.connected = True
@@ -68,7 +68,7 @@ class KDevice:
         self.username = username
         self.password = password
         self.port_name = port_name
-        self.device_command_queue = deque((), 64, 1)
+        self.device_command_queue = deque((), 64, 1)  # this is the proper syntax for Micropython.
         self.network_clients = []
         self.device_data = ['0'] * data_size
         self.device_port = SerialPort(name=port_name, baudrate=38400, timeout=0)  # timeout is zero for non-blocking
