@@ -95,9 +95,9 @@ def read_config():
             'netmask': '255.255.255.0',
             'gateway': '192.168.1.1',
             'dns_server': '8.8.8.8',
-            'kpa_tcp_port': str(DEFAULT_KPA500_TCP_PORT),
-            'kat_tcp_port': str(DEFAULT_KAT500_TCP_PORT),
-            'web_port': str(DEFAULT_WEB_PORT),
+            'kpa_tcp_port': DEFAULT_KPA500_TCP_PORT,
+            'kat_tcp_port': DEFAULT_KAT500_TCP_PORT,
+            'web_port': DEFAULT_WEB_PORT,
         }
     return config
 
@@ -606,6 +606,4 @@ if __name__ == '__main__':
         asyncio.run(main())
     except KeyboardInterrupt:
         logging.info('bye', 'main:__main__')
-    finally:
-        asyncio.new_event_loop()
     logging.info('done', 'main:__main__')
