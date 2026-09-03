@@ -3,7 +3,7 @@
 #
 __author__ = 'J. B. Otterson'
 __copyright__ = 'Copyright 2023, 2024, 2025, 2026 J. B. Otterson N1KDO.'
-__version__ = '0.9.8'  # 2026-05-28
+__version__ = '0.10.1'  # 2026-09-03
 
 #
 # Copyright 2023, 2024, 2025, 2026 J. B. Otterson N1KDO.
@@ -32,8 +32,11 @@ __version__ = '0.9.8'  # 2026-05-28
 # pylint: disable=E0401
 
 import asyncio
-import json
+import gc
 
+from config_data import (ConfigData,
+                         DEFAULT_SSID, DEFAULT_SECRET, DEFAULT_WEB_PORT,
+                         DEFAULT_KAT500_TCP_PORT, DEFAULT_KPA500_TCP_PORT)
 from http_server import (HttpServer,
                          HTTP_STATUS_OK, HTTP_STATUS_BAD_REQUEST, HTTP_STATUS_MOVED_PERMANENTLY,
                          HTTP_VERB_GET, HTTP_VERB_POST)
@@ -46,6 +49,7 @@ import micro_logging as logging
 if upython:
     import machine
     from picow_network import PicowNetwork
+
     try:
         from watchdog import Watchdog
     except ImportError:
@@ -53,58 +57,27 @@ if upython:
 else:
     from not_machine import machine
     import sys
+
     Watchdog = None
+
+picow_network = None
 
 onboard = machine.Pin('LED', machine.Pin.OUT, value=0)
 morse_led = machine.Pin(2, machine.Pin.OUT, value=0)  # status LED
 reset_button = machine.Pin(3, machine.Pin.IN, machine.Pin.PULL_UP)
 
-CONFIG_FILE = 'data/config.json'
 CONTENT_DIR = 'content/'
-
-# noinspection SpellCheckingInspection
-DEFAULT_SECRET = 'elecraft'
-DEFAULT_SSID = 'kpa500'
-DEFAULT_KPA500_TCP_PORT = 4626
-DEFAULT_KAT500_TCP_PORT = 4627
-DEFAULT_WEB_PORT = 80
 
 # globals...
 keep_running = True
 kpa500 = None
 kat500 = None
 
+# config data
+config = ConfigData()
+
 # http server
 http_server = HttpServer(content_dir=CONTENT_DIR)
-
-
-def read_config():
-    try:
-        with open(CONFIG_FILE, 'r') as config_file:
-            config = json.load(config_file)
-    except Exception as exc:
-        logging.exception(f'failed to load configuration!', 'main:read_config', exc_info=exc)
-        config = {
-            'SSID': DEFAULT_SSID,
-            'secret': DEFAULT_SECRET,
-            'username': 'admin',
-            'password': 'admin',
-            'dhcp': True,
-            'hostname': 'kpa500',
-            'ip_address': '192.168.1.73',
-            'netmask': '255.255.255.0',
-            'gateway': '192.168.1.1',
-            'dns_server': '8.8.8.8',
-            'kpa_tcp_port': DEFAULT_KPA500_TCP_PORT,
-            'kat_tcp_port': DEFAULT_KAT500_TCP_PORT,
-            'web_port': DEFAULT_WEB_PORT,
-        }
-    return config
-
-
-def save_config(config):
-    with open(CONFIG_FILE, 'w') as config_file:
-        json.dump(config, config_file)
 
 
 # noinspection PyUnusedLocal
@@ -119,21 +92,17 @@ async def slash_callback(http, verb, args, reader, writer, request_headers=None)
 @http_server.route(b'/api/config')
 async def api_config_callback(http, verb, args, reader, writer, request_headers=None):  # callback for '/api/config'
     if verb == HTTP_VERB_GET:
-        payload = read_config()
-        payload.pop('secret')  # do not return the secret
-        response = json.dumps(payload).encode('utf-8')
+        payload = config.get_data().copy()
+        payload.pop('secret', None)  # do not return the secret
         http_status = HTTP_STATUS_OK
-        bytes_sent = await http.send_simple_response(writer, http_status, http.CT_APP_JSON, response)
+        bytes_sent = await http.send_simple_response(writer, http_status, http.CT_APP_JSON, payload)
     elif verb == HTTP_VERB_POST:
-        config = read_config()
-        dirty = False
         errors = []
         kat_tcp_port = args.get('kat_tcp_port')
         if kat_tcp_port is not None:
             kat_tcp_port_int = safe_int(kat_tcp_port, -2)
             if 0 <= kat_tcp_port_int <= 65535:
                 config['kat_tcp_port'] = kat_tcp_port_int
-                dirty = True
             else:
                 errors.append('kat_tcp_port')
         kpa_tcp_port = args.get('kpa_tcp_port')
@@ -141,7 +110,6 @@ async def api_config_callback(http, verb, args, reader, writer, request_headers=
             kpa_tcp_port_int = safe_int(kpa_tcp_port, -2)
             if 0 <= kpa_tcp_port_int <= 65535:
                 config['kpa_tcp_port'] = kpa_tcp_port_int
-                dirty = True
             else:
                 errors.append('kpa_tcp_port')
         web_port = args.get('web_port')
@@ -149,73 +117,59 @@ async def api_config_callback(http, verb, args, reader, writer, request_headers=
             web_port_int = safe_int(web_port, -2)
             if 0 <= web_port_int <= 65535:
                 config['web_port'] = web_port_int
-                dirty = True
             else:
                 errors.append('web_port')
         ssid = args.get('SSID')
         if ssid is not None:
             if 0 < len(ssid) <= 64:
                 config['SSID'] = ssid
-                dirty = True
             else:
                 errors.append('SSID')
         secret = args.get('secret')
         if secret is not None and len(secret):
             if 8 <= len(secret) <= 32:
                 config['secret'] = secret
-                dirty = True
             else:
                 errors.append('secret')
         remote_username = args.get('username')
         if remote_username is not None:
             if 1 <= len(remote_username) <= 16:
                 config['username'] = remote_username
-                dirty = True
             else:
                 errors.append('username')
         remote_password = args.get('password')
         if remote_password is not None:
             if 1 <= len(remote_password) <= 16:
                 config['password'] = remote_password
-                dirty = True
             else:
                 errors.append('password')
         ap_mode_arg = args.get('ap_mode')
         if ap_mode_arg is not None:
             ap_mode = ap_mode_arg == '1'
             config['ap_mode'] = ap_mode
-            dirty = True
         dhcp_arg = args.get('dhcp')
         if dhcp_arg is not None:
             dhcp = dhcp_arg == '1'
             config['dhcp'] = dhcp
-            dirty = True
         hostname = args.get('hostname')
         if hostname is not None:
             if 1 <= len(hostname) <= 16:
                 config['hostname'] = hostname
-                dirty = True
             else:
                 errors.append('hostname')
         ip_address = args.get('ip_address')
         if ip_address is not None:
             config['ip_address'] = ip_address
-            dirty = True
         netmask = args.get('netmask')
         if netmask is not None:
             config['netmask'] = netmask
-            dirty = True
         gateway = args.get('gateway')
         if gateway is not None:
             config['gateway'] = gateway
-            dirty = True
         dns_server = args.get('dns_server')
         if dns_server is not None:
             config['dns_server'] = dns_server
-            dirty = True
         if not errors:
-            if dirty:
-                save_config(config)
             response = b'ok\r\n'
             http_status = HTTP_STATUS_OK
             bytes_sent = await http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
@@ -261,9 +215,10 @@ async def api_kpa_clear_fault_callback(http, verb, args, reader, writer, request
 @http_server.route(b'/api/kpa_set_band')
 async def api_kpa_set_band_callback(http, verb, args, reader, writer, request_headers=None):
     band_name = args.get('band')
-    band_number = kpa500.band_label_to_number(band_name)
+    # encode at the HTTP boundary so band_label_to_number() stays bytes-only
+    band_number = kpa500.band_label_to_number(band_name.encode()) if band_name is not None else None
     if band_number is not None:
-        command = f'^BN{band_number:02d};'.encode()
+        command = b'^BN%02d;' % band_number
         kpa500.enqueue_command(command)
         response = b'ok\r\n'
         http_status = HTTP_STATUS_OK
@@ -279,7 +234,7 @@ async def api_kpa_set_band_callback(http, verb, args, reader, writer, request_he
 async def api_kpa_set_fan_speed_callback(http, verb, args, reader, writer, request_headers=None):
     speed = safe_int(args.get('speed'), -1)
     if 0 <= speed <= 6:
-        command = f'^FC{speed};^FC;'.encode()
+        command = b'^FC%d;^FC;' % speed
         kpa500.enqueue_command(command)
         response = b'ok\r\n'
         http_status = HTTP_STATUS_OK
@@ -295,7 +250,7 @@ async def api_kpa_set_fan_speed_callback(http, verb, args, reader, writer, reque
 async def api_kpa_set_operate_callback(http, verb, args, reader, writer, request_headers=None):
     state = args.get('state')
     if state in ('0', '1'):
-        command = f'^OS{state};^OS;'.encode()
+        command = b'^OS1;^OS;' if state == '1' else b'^OS0;^OS;'
         kpa500.enqueue_command(command)
         response = b'ok\r\n'
         http_status = HTTP_STATUS_OK
@@ -311,7 +266,7 @@ async def api_kpa_set_operate_callback(http, verb, args, reader, writer, request
 async def api_kpa_set_power_callback(http, verb, args, reader, writer, request_headers=None):
     state = args.get('state')
     if state in ('0', '1'):
-        command = f'^ON{state};'.encode()
+        command = b'^ON1;' if state == '1' else b'^ON0;'
         kpa500.enqueue_command(command)
         response = b'ok\r\n'
         http_status = HTTP_STATUS_OK
@@ -327,7 +282,7 @@ async def api_kpa_set_power_callback(http, verb, args, reader, writer, request_h
 async def api_kpa_set_speaker_alarm_callback(http, verb, args, reader, writer, request_headers=None):
     state = args.get('state')
     if state in ('0', '1'):
-        command = f'^SP{state};^SP;'.encode()
+        command = b'^SP1;^SP;' if state == '1' else b'^SP0;^SP;'
         kpa500.enqueue_command(command)
         response = b'ok\r\n'
         http_status = HTTP_STATUS_OK
@@ -342,9 +297,8 @@ async def api_kpa_set_speaker_alarm_callback(http, verb, args, reader, writer, r
 @http_server.route(b'/api/kpa_status')
 async def api_kpa_status_callback(http, verb, args, reader, writer, request_headers=None):  # '/api/kpa_status'
     payload = {'kpa500_data': kpa500.device_data}
-    response = json.dumps(payload).encode('utf-8')
     http_status = HTTP_STATUS_OK
-    bytes_sent = await http.send_simple_response(writer, http_status, http.CT_APP_JSON, response)
+    bytes_sent = await http.send_simple_response(writer, http_status, http.CT_APP_JSON, payload)
     return bytes_sent, http_status
 
 
@@ -353,16 +307,16 @@ async def api_kpa_status_callback(http, verb, args, reader, writer, request_head
 @http_server.route(b'/api/kat_status')
 async def api_kat_status_callback(http, verb, args, reader, writer, request_headers=None):  # '/api/kat_status'
     payload = {'kat500_data': kat500.device_data}
-    response = json.dumps(payload).encode('utf-8')
     http_status = HTTP_STATUS_OK
-    bytes_sent = await http.send_simple_response(writer, http_status, http.CT_APP_JSON, response)
+    bytes_sent = await http.send_simple_response(writer, http_status, http.CT_APP_JSON, payload)
     return bytes_sent, http_status
+
 
 @http_server.route(b'/api/kat_set_power')
 async def api_kat_set_power_callback(http, verb, args, reader, writer, request_headers=None):
     state = args.get('state')
     if state in ('0', '1'):
-        command = f'PS{state};PS;'.encode()
+        command = b'PS1;PS;' if state == '1' else b'PS0;PS;'
         kat500.enqueue_command(command)
         response = b'ok\r\n'
         http_status = HTTP_STATUS_OK
@@ -377,7 +331,7 @@ async def api_kat_set_power_callback(http, verb, args, reader, writer, request_h
 async def api_kat_set_antenna_callback(http, verb, args, reader, writer, request_headers=None):
     antenna = args.get('antenna')
     if antenna in ('0', '1', '2', '3'):
-        command = f'AN{antenna};AN;'.encode()
+        command = b'AN0;AN;' if antenna == '0' else b'AN1;AN;' if antenna == '1' else b'AN2;AN;' if antenna == '2' else b'AN3;AN;'
         kat500.enqueue_command(command)
         response = b'ok\r\n'
         http_status = HTTP_STATUS_OK
@@ -392,7 +346,7 @@ async def api_kat_set_antenna_callback(http, verb, args, reader, writer, request
 async def api_kat_set_mode_callback(http, verb, args, reader, writer, request_headers=None):
     mode = args.get('mode')
     if mode in ('A', 'M', 'B'):
-        command = f'MD{mode};MD;'.encode()
+        command = b'MDA;MD;' if mode == 'A' else b'MDM;MD;' if mode == 'M' else b'MDB;MD;'
         kat500.enqueue_command(command)
         response = b'ok\r\n'
         http_status = HTTP_STATUS_OK
@@ -434,7 +388,7 @@ async def api_kat_clear_fault_callback(http, verb, args, reader, writer, request
 async def api_kat_set_ampi_callback(http, verb, args, reader, writer, request_headers=None):
     state = args.get('state')
     if state in ('0', '1'):
-        command = f'AMPI{state};AMPI;'.encode()
+        command = b'AMPI1;AMPI;' if state == '1' else b'AMPI0;AMPI;'
         kat500.enqueue_command(command)
         response = b'ok\r\n'
         http_status = HTTP_STATUS_OK
@@ -449,7 +403,7 @@ async def api_kat_set_ampi_callback(http, verb, args, reader, writer, request_he
 async def api_kat_set_attn_callback(http, verb, args, reader, writer, request_headers=None):
     state = args.get('state')
     if state in ('0', '1'):
-        command = f'ATTN{state};ATTN;'.encode()
+        command = b'ATTN1;ATTN;' if state == '1' else b'ATTN0;ATTN;'
         kat500.enqueue_command(command)
         response = b'ok\r\n'
         http_status = HTTP_STATUS_OK
@@ -479,13 +433,12 @@ async def api_kat_set_bypass_callback(http, verb, args, reader, writer, request_
 
 
 async def main():
-    global keep_running, kpa500, kat500
+    global keep_running, kpa500, kat500, picow_network
 
     logging.info('Starting...', 'main:main')
 
-    config = read_config()
-    username = config.get('username')
-    password = config.get('password')
+    username = config.get_bytes('username')
+    password = config.get_bytes('password')
 
     kpa500_tcp_port_s = config.get('kpa_tcp_port')
     if kpa500_tcp_port_s is None:
@@ -569,12 +522,12 @@ async def main():
         logging.error(e)
 
     reset_button_pressed_count = 0
-    four_count = 0
-    last_message = ''
+    ten_count = 0
+    last_message = b''
     while keep_running:
         if upython:
-            await asyncio.sleep(0.25)
-            four_count += 1
+            await asyncio.sleep(0.100)
+            ten_count += 1
             pressed = reset_button.value() == 0
             if pressed:
                 reset_button_pressed_count += 1
@@ -585,17 +538,25 @@ async def main():
                 logging.info('reset button pressed', 'main:main')
                 ap_mode = not ap_mode
                 config['ap_mode'] = ap_mode
-                save_config(config)
                 keep_running = False
-            if four_count >= 4:  # check for new message every one second
+
+            if ten_count == 5:
+                gc.collect()
+                free = gc.mem_free()
+                alloc = gc.mem_alloc()
+                if logging.should_log(logging.DEBUG):
+                    logging.debug(f'Memory: {alloc} allocated, {free} free ({free / (free + alloc) * 100:6.2f}% free)')
+
+            if ten_count >= 10:  # check for new message every one second
                 msg = picow_network.get_message()
                 if msg != last_message:
                     last_message = msg
                     morse_code_sender.set_message(last_message)
-                four_count = 0
+                ten_count = 0
         else:
             await asyncio.sleep(10.0)
     if upython:
+        config.flush()  # persist any pending config (e.g. ap_mode) before the reset
         machine.soft_reset()
 
 
@@ -606,4 +567,11 @@ if __name__ == '__main__':
         asyncio.run(main())
     except KeyboardInterrupt:
         logging.info('bye', 'main:__main__')
+    finally:
+        logging.info('finally', 'main:__main__')
+        # de-init the network
+        if picow_network is not None:
+            picow_network.deinit()
+    config.flush()
+
     logging.info('done', 'main:__main__')

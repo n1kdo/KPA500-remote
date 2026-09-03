@@ -21,8 +21,9 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-__version__ = '0.9.5'  # 2026-07-10
+__version__ = '0.9.8'  # 2026-08-31
 
+from utils import upython
 import asyncio
 from collections import deque
 import micro_logging as logging
@@ -34,7 +35,10 @@ class ClientData:
     """
     def __init__(self, client_name):
         self.client_name = client_name
-        self.update_list = deque((), 32, 1)  # this is the proper syntax for Micropython.
+        if upython:
+            self.update_list = deque((), 32, 1)  # this is the proper syntax for Micropython.
+        else:
+            self.update_list = deque((), 32)  # cpython syntax
         self.update_set = set()
         self.authorized = False
         self.connected = True
@@ -47,8 +51,8 @@ class BufferAndLength:
         self._max_size = len(buffer)
         self.bytes_received = 0
 
-    def data(self) -> bytearray:
-        return self.buffer[:self.bytes_received]
+    def data(self) -> bytes:
+        return bytes(memoryview(self.buffer)[:self.bytes_received])
 
     def __str__(self) -> str:
         return self.buffer[:self.bytes_received].decode()
@@ -64,13 +68,16 @@ class BufferAndLength:
 
 
 class KDevice:
-    def __init__(self, username=None, password=None, port_name=None, data_size=0):
+    def __init__(self, username:bytes|None=None, password:bytes|None=None, port_name=None, data_size=0):
         self.username = username
         self.password = password
         self.port_name = port_name
-        self.device_command_queue = deque((), 64, 1)  # this is the proper syntax for Micropython.
+        if upython:
+            self.device_command_queue = deque((), 64, 1)  # this is the proper syntax for Micropython.
+        else:
+            self.device_command_queue = deque((), 64)  # this is the cpython syntax.
         self.network_clients = []
-        self.device_data = ['0'] * data_size
+        self.device_data = [b'0'] * data_size
         self.device_port = SerialPort(name=port_name, baudrate=38400, timeout=0)  # timeout is zero for non-blocking
 
     def enqueue_command(self, command):
@@ -90,7 +97,7 @@ class KDevice:
             return None
         return dcq.popleft()
 
-    def update_device_data(self, index, value):
+    def update_device_data(self, index : int, value : bytes):
         if self.device_data[index] != value:
             self.device_data[index] = value
             for client in self.network_clients:
@@ -107,17 +114,18 @@ class KDevice:
             while True:
                 buf_and_length.bytes_received = device_port.readinto(buf_and_length.buffer)
                 if  buf_and_length.bytes_received > 0:
-                    logging.warning(f'waiting to send "{message}", rx buffer was not empty: "{buf_and_length}".',
-                             'kdevice:device_send_receive')
+                    logging.warning(b'waiting to send "%s", rx buffer was not empty: "%s".' % (message, buf_and_length.data()),
+                                    'kdevice:device_send_receive')
                 else:
                     break
             device_port.write(message)
             device_port.flush()
             await asyncio.sleep(0.1)  # TODO FIXME
 
-            while timeout > 0:
+            read_timeout = timeout
+            while read_timeout > 0:
                 await asyncio.sleep(0.01)
-                timeout -= 0.01
+                read_timeout -= 0.01
                 if device_port.any() > 0:
                     break
             buf_and_length.bytes_received = device_port.readinto(buf_and_length.buffer)
@@ -132,13 +140,15 @@ class KDevice:
                     logging.debug(f'timeout waiting for response to "{message}".', 'kdevice:device_send_receive')
 
     @staticmethod
-    async def read_network_client(reader):
+    async def read_network_client(reader) -> bytes | None:
         try:
             data = await reader.readline()
-            return data.decode().strip()
+            if data == b'':          # EOF — peer closed
+                return None          # callers already treat None as disconnect
+            return data.strip()
         # except ConnectionResetError as cre:  # micropython does not support ConnectionResetError
         #    logging.warning(f'ConnectionResetError in read_network_client: {str(cre)}', 'read_network_client')
         except Exception as exc:
-            logging.exception(f'exception in read_network_client: {str(ex)}',
+            logging.exception(f'exception in read_network_client: {str(exc)}',
                               'kdevice:read_network_client', exc_info=exc)
         return None

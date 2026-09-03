@@ -3,6 +3,8 @@
   "files": [
     "content/",
     "data/",
+    "cached_config_data.py",
+    "config_data.py",
     "http_server.py",
     "kdevice.py",
     "kat500.py",
