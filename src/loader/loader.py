@@ -20,7 +20,7 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-__version__ = '0.10.8'  # 2026-04-27
+__version__ = '0.10.9'  # 2026-09-04
 
 """
 Note: to edit linux forced device names, edit
@@ -138,6 +138,11 @@ for f in uos.ilistdir('{src}'):
 
 
 def loader_reset(target):
+    time.sleep(2)
+    target.serial.write(b"\x04")  # control-D -- restart
+    time.sleep(2)
+
+def old_loader_reset(target):
     files_data = BytesConcatenator()
     cmd = f"""import machine
 machine.reset()
@@ -203,20 +208,23 @@ def load_device(port, force=False,
             restart = True
 
     if restart:
+        disconnected = False
         try:
+            target.close()
+            disconnected = True
             print('resetting target device...')
-            loader_reset(target)
         except SerialException as e:
+            print('got serial exception, must have disconnected...')
+            disconnected = True
             time.sleep(3)
-        else:
-            print('expected disconnect on reset, something is wrong?')
 
-        try:
-            print('reconnecting to target device...')
-            target = Pyboard(port, _BAUD_RATE)
-        except PyboardError:
-            print(f'cannot connect to device {port}')
-            sys.exit(1)
+        if disconnected:
+            try:
+                print('reconnecting to target device...')
+                target = Pyboard(port, _BAUD_RATE)
+            except PyboardError:
+                print(f'cannot connect to device {port}')
+                sys.exit(1)
 
         target.enter_raw_repl()
 
