@@ -4,7 +4,11 @@ I wanted to Internet-enable my KPA500 amplifier and KAT500 auto-tuner.  This pro
 provides a Web Client for both the KPA500 and KAT500.  In addition, it also works
 as a server for the KPA-500 Remote and KAT-500 Remote software from Elecraft.
 
-This runs on the [Pico-W-Dual-Serial](https://github.com/n1kdo/pico-w-dual-serial) board.
+This runs on the [Pico-W-Dual-Serial](https://github.com/n1kdo/pico-w-dual-serial) board.  
+
+It can also run on "conventional" CPython on Windows or Linux, although the serial port
+names are currently hard-coded to com1 and com2 for Windows and /dev/ttyS4 and /dev/ttyS5
+for Linux.
 
 This project uses a lot of the same code as my [Antenna Rotator Controller Controller](https://github.com/n1kdo/rotator-controller-controller)
 
@@ -17,6 +21,10 @@ the complexity of the software.
 The project supports both of the 
 [Elecraft Remote Control clients](https://elecraft.com/pages/kpa1500-kpa500-kat500-remote-software) 
 as well as web pages that emulate the remote control clients. 
+
+In addition to that, the project also provides TCP/IP endpoints that can be
+used by directly access the serial API for things that need a network 'serial port'
+connection, such as Com0Com's com2tcp, or on Linux, socat.
 
 ![ecosystem](kpa500-remote-ecosystem.png)
 
