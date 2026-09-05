@@ -3,7 +3,7 @@
 #
 __author__ = 'J. B. Otterson'
 __copyright__ = 'Copyright 2023, 2024, 2025, 2026 J. B. Otterson N1KDO.'
-__version__ = '0.10.1'  # 2026-09-03
+__version__ = '0.10.2'  # 2026-09-05
 
 #
 # Copyright 2023, 2024, 2025, 2026 J. B. Otterson N1KDO.
@@ -60,7 +60,7 @@ else:
 
     Watchdog = None
 
-picow_network = None
+picow_network: PicowNetwork | None = None
 
 onboard = machine.Pin('LED', machine.Pin.OUT, value=0)
 morse_led = machine.Pin(2, machine.Pin.OUT, value=0)  # status LED
@@ -70,8 +70,8 @@ CONTENT_DIR = 'content/'
 
 # globals...
 keep_running = True
-kpa500 = None
-kat500 = None
+kpa500 : KPA500 | None = None
+kat500 : KAT500 | None = None
 
 # config data
 config = ConfigData()
@@ -519,7 +519,7 @@ async def main():
     try:
         web_server = asyncio.create_task(asyncio.start_server(http_server.serve_http_client, '0.0.0.0', web_port))
     except Exception as e:
-        logging.error(e)
+        logging.exception('could not start web server', 'main:main', e)
 
     reset_button_pressed_count = 0
     ten_count = 0
