@@ -22,10 +22,6 @@ The project supports both of the
 [Elecraft Remote Control clients](https://elecraft.com/pages/kpa1500-kpa500-kat500-remote-software) 
 as well as web pages that emulate the remote control clients. 
 
-In addition to that, the project also provides TCP/IP endpoints that can be
-used by directly access the serial API for things that need a network 'serial port'
-connection, such as Com0Com's com2tcp, or on Linux, socat.
-
 ![ecosystem](kpa500-remote-ecosystem.png)
 
 ## Web Clients
