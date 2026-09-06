@@ -540,14 +540,12 @@ async def main():
                 config['ap_mode'] = ap_mode
                 keep_running = False
 
-            if ten_count == 5:
-                gc.collect()
-                free = gc.mem_free()
-                alloc = gc.mem_alloc()
+            if ten_count >= 10:  # every one second
+                # gc.collect()
                 if logging.should_log(logging.DEBUG):
+                    free = gc.mem_free()
+                    alloc = gc.mem_alloc()
                     logging.debug(f'Memory: {alloc} allocated, {free} free ({free / (free + alloc) * 100:6.2f}% free)')
-
-            if ten_count >= 10:  # check for new message every one second
                 msg = picow_network.get_message()
                 if msg != last_message:
                     last_message = msg

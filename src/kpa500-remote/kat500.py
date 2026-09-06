@@ -28,11 +28,10 @@ __version__ = '0.9.8'  # 2026-09-03
 # pylint: disable=E0401
 
 import asyncio
-import gc
 import micro_logging as logging
 
 from kdevice import KDevice, ClientData, BufferAndLength
-from utils import upython, milliseconds, safe_int
+from utils import upython, milliseconds, elapsed_ms, safe_int, LineReader
 
 if upython:
     from asyncio import TimeoutError
@@ -200,105 +199,112 @@ class KAT500(KDevice):
         run_loop = True
 
         while run_loop:
-            if tuner_state == 0:  # unknown / no response state
-                # poke at the tuner -- is it connected?
-                await self.device_send_receive(b';', bl)
-                # connected will return a ';' here
-                if bl.bytes_received != 1 or bl.buffer[0] != 59:
-                    self.update_device_data(9, b'5')
-                else:
-                    tuner_state = 1
-                    logging.info('tuner state 0-->1', 'kat500:kat500_server')
-            elif tuner_state == 1:  # apparently connected
-                # ask if it is turned on.
-                await self.device_send_receive(b'PS;', bl)  # power up.
-                # is b'PS1;' when tuner is on.
-                # is b'PS0;' when tuner is off
-                # is b'' when tuner is not found.
-                if bl.bytes_received == 0:
-                    tuner_state = 0
-                    self.update_device_data(4, b'0')  # set POWER to not powered
-                    self.update_device_data(9, b'5')  # set FAULT to NO TUNER
-                    logging.info('1: no response, amp state 1-->0', 'kat500:kat500_server')
-                elif bl.bytes_received == 4 and bl.buffer[2] == 49:  # '1', tuner appears on
-                    tuner_state = 3  # tuner is powered on.
-                    self.update_device_data(4, b'1')  # set POWER to POWERED
-                    self.update_device_data(9, b'0')  # set FAULT to no fault
-                    self.enqueue_command(self.initial_queries)
-                    logging.info('tuner state 1-->3', 'kat500:kat500_server')
-                elif bl.bytes_received == 4 and bl.buffer[2] == 48:  # '0', tuner connected but off.
-                    tuner_state = 2
-                    self.update_device_data(4, b'0')  # set POWER to not powered
-                    self.update_device_data(9, b'0')  # set FAULT to no fault
-                    logging.info('tuner state 1-->2', 'kat500:kat500_server')
-                else:
-                    logging.warning(f'1: unexpected data {bl.buffer[:bl.bytes_received]}', 'kat500:kat500_server')
-            elif tuner_state == 2:  # connected, power off.
-                query = self.dequeue_command()
-                # throw away any queries except the ON command.
-                if query is not None and query == b'PS1;':  # turn on tuner
-                    await self.device_send_receive(b'PS1', bl)
-                    self.update_device_data(9, b'6')  # set FAULT to powering up
-                    await asyncio.sleep(1.50)
-                    tuner_state = 0  # test state again.
-                    logging.info('tuner state 2-->0', 'kat500:kat500_server')
-                else:
-                    await self.device_send_receive(b'PS1;', bl, timeout=1.5)  # hi there.
+            try:
+                if tuner_state == 0:  # unknown / no response state
+                    # poke at the tuner -- is it connected?
+                    await self.device_send_receive(b';', bl)
+                    # connected will return a ';' here
+                    if bl.bytes_received != 1 or bl.buffer[0] != 59:
+                        self.update_device_data(9, b'5')
+                    else:
+                        tuner_state = 1
+                        logging.info('tuner state 0-->1', 'kat500:kat500_server')
+                elif tuner_state == 1:  # apparently connected
+                    # ask if it is turned on.
+                    await self.device_send_receive(b'PS;', bl)  # power up.
                     # is b'PS1;' when tuner is on.
                     # is b'PS0;' when tuner is off
                     # is b'' when tuner is not found.
                     if bl.bytes_received == 0:
-                        tuner_state = 1
+                        tuner_state = 0
                         self.update_device_data(4, b'0')  # set POWER to not powered
-                        self.update_device_data(9, b'5')  # set FAULT to not found
-                        logging.info('no data, tuner state 2-->1', 'kat500:kat500_server')
+                        self.update_device_data(9, b'5')  # set FAULT to NO TUNER
+                        logging.info('1: no response, amp state 1-->0', 'kat500:kat500_server')
                     elif bl.bytes_received == 4 and bl.buffer[2] == 49:  # '1', tuner appears on
                         tuner_state = 3  # tuner is powered on.
-                        self.update_device_data(4, b'1')  # set POWER to powered on
+                        self.update_device_data(4, b'1')  # set POWER to POWERED
                         self.update_device_data(9, b'0')  # set FAULT to no fault
                         self.enqueue_command(self.initial_queries)
-                        logging.info('tuner state 2-->3', 'kat500:kat500_server')
+                        logging.info('tuner state 1-->3', 'kat500:kat500_server')
                     elif bl.bytes_received == 4 and bl.buffer[2] == 48:  # '0', tuner connected but off.
-                        pass  # this is the expected result when tuner is off
+                        tuner_state = 2
+                        self.update_device_data(4, b'0')  # set POWER to not powered
+                        self.update_device_data(9, b'0')  # set FAULT to no fault
+                        logging.info('tuner state 1-->2', 'kat500:kat500_server')
                     else:
-                        logging.info(f'2: unexpected data {bl.buffer[:bl.bytes_received]}', 'kat500:kat500_server')
-            elif tuner_state == 3:  # connected, power on.
-                query = self.dequeue_command()
-                if query is None:
-                    query = self.normal_queries[next_command]
-                    if next_command == len(self.normal_queries) - 1:  # this is the last one
-                        next_command = 0
+                        logging.warning(f'1: unexpected data {bl.buffer[:bl.bytes_received]}', 'kat500:kat500_server')
+                elif tuner_state == 2:  # connected, power off.
+                    query = self.dequeue_command()
+                    # throw away any queries except the ON command.
+                    if query is not None and query == b'PS1;':  # turn on tuner
+                        await self.device_send_receive(b'PS1;', bl)
+                        self.update_device_data(9, b'6')  # set FAULT to powering up
+                        await asyncio.sleep(1.50)
+                        tuner_state = 0  # test state again.
+                        logging.info('tuner state 2-->0', 'kat500:kat500_server')
                     else:
-                        next_command += 1
+                        await self.device_send_receive(b'PS1;', bl, timeout=1.5)  # hi there.
+                        # is b'PS1;' when tuner is on.
+                        # is b'PS0;' when tuner is off
+                        # is b'' when tuner is not found.
+                        if bl.bytes_received == 0:
+                            tuner_state = 1
+                            self.update_device_data(4, b'0')  # set POWER to not powered
+                            self.update_device_data(9, b'5')  # set FAULT to not found
+                            logging.info('no data, tuner state 2-->1', 'kat500:kat500_server')
+                        elif bl.bytes_received == 4 and bl.buffer[2] == 49:  # '1', tuner appears on
+                            tuner_state = 3  # tuner is powered on.
+                            self.update_device_data(4, b'1')  # set POWER to powered on
+                            self.update_device_data(9, b'0')  # set FAULT to no fault
+                            self.enqueue_command(self.initial_queries)
+                            logging.info('tuner state 2-->3', 'kat500:kat500_server')
+                        elif bl.bytes_received == 4 and bl.buffer[2] == 48:  # '0', tuner connected but off.
+                            pass  # this is the expected result when tuner is off
+                        else:
+                            logging.info(f'2: unexpected data {bl.buffer[:bl.bytes_received]}', 'kat500:kat500_server')
+                elif tuner_state == 3:  # connected, power on.
+                    query = self.dequeue_command()
+                    if query is None:
+                        query = self.normal_queries[next_command]
+                        if next_command == len(self.normal_queries) - 1:  # this is the last one
+                            next_command = 0
+                        else:
+                            next_command += 1
 
-                # timeout = 2.0 if query in (b'MDA;', b'MDB;', b'MDM;') else 0.05
-                await self.device_send_receive(query, bl, retries=3)
-                if query == b'PS0;':
-                    tuner_state = 1
-                    logging.info('power off command, tuner state 3-->1', 'kat500:kat500_server')
-                    self.update_device_data(4, b'0')  # set POWER to not powered
-                    self.update_device_data(9, b'0')  # set FAULT  to no fault
-                    self.set_tuner_off_data()
-                    await asyncio.sleep(1.50)
-                else:
-                    if bl.bytes_received > 0:
-                        self.process_kat500_message(bl.data())
-                    else:
-                        tuner_state = 0
-                        self.update_device_data(9, b'5')  # set FAULT to NO TUNER
+                    # timeout = 2.0 if query in (b'MDA;', b'MDB;', b'MDM;') else 0.05
+                    await self.device_send_receive(query, bl, retries=3)
+                    if query == b'PS0;':
+                        tuner_state = 1
+                        logging.info('power off command, tuner state 3-->1', 'kat500:kat500_server')
+                        self.update_device_data(4, b'0')  # set POWER to not powered
+                        self.update_device_data(9, b'0')  # set FAULT  to no fault
                         self.set_tuner_off_data()
-                        logging.info(f'no response to command {query}, tuner state 3-->0', 'kat500:kat500_server')
-            else:
-                logging.error(f'invalid tuner state: {tuner_state}, bye bye.', 'kat500:kat500_server')
-                run_loop = False
+                        await asyncio.sleep(1.50)
+                    else:
+                        if bl.bytes_received > 0:
+                            self.process_kat500_message(bl.data())
+                        else:
+                            tuner_state = 0
+                            self.update_device_data(9, b'5')  # set FAULT to NO TUNER
+                            self.set_tuner_off_data()
+                            logging.info(f'no response to command {query}, tuner state 3-->0', 'kat500:kat500_server')
+                else:
+                    logging.error(f'invalid tuner state: {tuner_state}, bye bye.', 'kat500:kat500_server')
+                    run_loop = False
 
+            except Exception as ex:
+                msg = f'kat500_server exception: {type(ex)} {ex}; resetting state for re-detection'
+                logging.error(msg, 'kat500:kat500_server')
+                tuner_state = 0
+                bl = BufferAndLength(bytearray(16))
+                next_command = 0
+                await asyncio.sleep(1)  # backoff so a persistent fault cannot spin the log
             await asyncio.sleep(0.025)  # 40/sec
 
-    async def serve_kat500_remote_client(self, reader, writer, verbosity=3):
+    async def serve_kat500_remote_client(self, reader, writer):
         """
         this provides KAT500-Remote compatible control.
         """
-        # verbosity = 4  # 1 is error, 2 is warn, 3 is info, 4 is debug, 5 is trace, or something like that.
         t0 = milliseconds()
         extra = writer.get_extra_info('peername')
         client_name = f'{extra[0]}:{extra[1]}'
@@ -307,10 +313,14 @@ class KAT500(KDevice):
         self.network_clients.append(client_data)
         logging.info(f'client {client_name} connected', 'kat500:serve_kat500_remote_client')
 
+        lines = LineReader(reader)
         try:
             while client_data.connected:
                 try:
-                    message = await asyncio.wait_for(self.read_network_client(reader), 0.05)
+                    # 250 ms idle read timeout: bounds how often the loop iterates when the
+                    # client is quiet (each iteration costs a Task + TimeoutError) while keeping
+                    # update push latency and the 15 s keepalive check comfortably tight.
+                    message = await asyncio.wait_for(self.read_network_client(lines), 0.25)
                     timed_out = False
                 except TimeoutError:
                     message = None
@@ -435,7 +445,7 @@ class KAT500(KDevice):
                     await writer.drain()
                     client_data.last_activity = milliseconds()
 
-                since_last_activity = milliseconds() - client_data.last_activity
+                since_last_activity = elapsed_ms(client_data.last_activity)
                 if since_last_activity > 15000:
                     writer.write(b'\n')
                     await writer.drain()
@@ -443,7 +453,6 @@ class KAT500(KDevice):
                     if logging.should_log(logging.DEBUG):
                         logging.debug(f'SENT keepalive TO client {client_name}',
                                       'kat500:serve_kat500_remote_client')
-                    gc.collect()
 
             # connection closing
             logging.info(f'client {client_name} connection closing...', 'kat500:serve_kat500_remote_client')
@@ -465,6 +474,5 @@ class KAT500(KDevice):
                 self.network_clients.remove(found_network_client)
                 logging.info(f'client {client_name} removed from network_clients list.',
                              'kat500:serve_kat500_remote_client')
-        tc = milliseconds()
-        logging.info(f'client {client_name} disconnected, elapsed time {((tc - t0) / 1000.0):6.3f} seconds',
+        logging.info(f'client {client_name} disconnected, elapsed time {(elapsed_ms(t0) / 1000.0):6.3f} seconds',
                      'kat500:serve_kat500_remote_client')

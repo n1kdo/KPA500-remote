@@ -61,6 +61,17 @@ def milliseconds():
     return time.ticks_ms() if upython else int(time.time() * 1000)
 
 
+def elapsed_ms(start):
+    """
+    milliseconds elapsed since `start` (a value from milliseconds()).
+    uses time.ticks_diff() on MicroPython so the result stays correct
+    across the ticks_ms() wraparound (~12.4 days on the Pico-W).
+    """
+    if upython:
+        return time.ticks_diff(time.ticks_ms(), start)
+    return int(time.time() * 1000) - start
+
+
 @micropython.native
 def safe_int(value, default:int=-1) -> int:
     if value is None:
@@ -71,6 +82,76 @@ def safe_int(value, default:int=-1) -> int:
         return int(value)
     except ValueError:
         return default
+
+
+class LineReader:
+    """
+    wraps an asyncio stream reader to provide a length-limited readline().
+
+    MicroPython's Stream.readline() accumulates bytes without bound until it
+    finds a newline or EOF, so a hostile or broken client could exhaust the
+    heap by streaming data that contains no newline.  This wrapper reads in
+    small chunks, keeps any surplus bytes past the newline for the next call,
+    and raises ValueError if a line exceeds max_line_length.
+
+    return value semantics match reader.readline(): b'' on a clean EOF and
+    the partial line (without trailing newline) if EOF arrives mid-line.
+
+    read() and readexactly() also serve bytes that readline() pulled past the
+    end of a line, so callers can safely mix line reads and body reads on the
+    same stream without losing data.
+    """
+    def __init__(self, reader, max_line_length=1024, chunk_size=256):
+        self._reader = reader
+        self._max_line_length = max_line_length
+        self._chunk_size = chunk_size
+        self._pending = b''
+
+    async def readline(self):
+        pending = self._pending
+        while True:
+            idx = pending.find(b'\n')
+            if idx >= 0:
+                if idx + 1 > self._max_line_length:  # the line itself is too long.
+                    self._pending = b''
+                    raise ValueError('line too long')
+                line = pending[:idx + 1]
+                self._pending = pending[idx + 1:]
+                return line
+            if len(pending) >= self._max_line_length:  # no newline in max_line_length bytes.
+                self._pending = b''
+                raise ValueError('line too long')
+            data = await self._reader.read(self._chunk_size)
+            if not data:  # EOF
+                self._pending = b''
+                return pending
+            pending += data
+
+    async def read(self, n):
+        """
+        read up to n bytes.  any surplus held by readline() is served first;
+        returns b'' on EOF.
+        """
+        if self._pending:
+            data = self._pending[:n]
+            self._pending = self._pending[n:]
+            return data
+        return await self._reader.read(n)
+
+    async def readexactly(self, n):
+        """
+        read exactly n bytes or raise EOFError.  any surplus held by
+        readline() is served first.
+        """
+        pending = self._pending
+        while len(pending) < n:
+            data = await self._reader.read(self._chunk_size)
+            if not data:  # EOF
+                self._pending = b''
+                raise EOFError('unexpected end of stream')
+            pending += data
+        self._pending = pending[n:]
+        return pending[:n]
 
 
 @micropython.native

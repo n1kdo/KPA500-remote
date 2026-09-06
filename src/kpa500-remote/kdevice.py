@@ -120,7 +120,9 @@ class KDevice:
                     break
             device_port.write(message)
             device_port.flush()
-            await asyncio.sleep(0.1)  # TODO FIXME
+            # brief grace period for the device to start responding before we begin
+            # polling; the read_timeout loop below catches the response whenever it arrives.
+            await asyncio.sleep(0.02)
 
             read_timeout = timeout
             while read_timeout > 0:
@@ -131,21 +133,24 @@ class KDevice:
             buf_and_length.bytes_received = device_port.readinto(buf_and_length.buffer)
             if buf_and_length.bytes_received > 0:
                 return
+            # TEMP (field observation): logged at INFO instead of DEBUG so timeout/retry
+            # events are visible at the normal startup log level.  Revert to DEBUG after.
             if retries_left > 0:
-                if logging.should_log(logging.DEBUG):
-                    logging.debug(f'received {buf_and_length.bytes_received} bytes response to {message}, {retries_left} retries left.',
-                                  'kdevice:device_send_receive')
+                logging.info(b'received %d bytes response to %s, %d retries left.' % (buf_and_length.bytes_received, message, retries_left),
+                             'kdevice:device_send_receive')
             else:
-                if logging.should_log(logging.DEBUG):
-                    logging.debug(f'timeout waiting for response to "{message}".', 'kdevice:device_send_receive')
+                logging.info(b'timeout waiting for response to "%s".' % (message,), 'kdevice:device_send_receive')
 
     @staticmethod
-    async def read_network_client(reader) -> bytes | None:
+    async def read_network_client(lines) -> bytes | None:
         try:
-            data = await reader.readline()
+            data = await lines.readline()
             if data == b'':          # EOF — peer closed
                 return None          # callers already treat None as disconnect
             return data.strip()
+        except ValueError:  # line exceeded LineReader's limit; drop the client.
+            logging.warning('client sent an overlong line, disconnecting', 'kdevice:read_network_client')
+            return None
         # except ConnectionResetError as cre:  # micropython does not support ConnectionResetError
         #    logging.warning(f'ConnectionResetError in read_network_client: {str(cre)}', 'read_network_client')
         except Exception as exc:

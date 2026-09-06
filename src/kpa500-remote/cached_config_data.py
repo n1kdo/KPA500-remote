@@ -135,9 +135,6 @@ class CachedConfigData:
 
     def flush(self):
         if self._dirty:
-            if self._deferred_writer_task is not None:
-                self._deferred_writer_task.cancel()
-                self._deferred_writer_task = None
             self._write_config_data()
 
     async def _deferred_writer(self):
