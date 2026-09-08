@@ -1,4 +1,9 @@
 .idea/*
+.git/*
+.github/*
+__pycache__/
+.venv/*
+test.sh
 /src/kpa500-remote/data/config.json
 /src/kpa500-remote/data/certificates.zip
 /src/kpa500-remote/data/*.der
