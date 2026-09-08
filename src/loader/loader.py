@@ -20,7 +20,7 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-__version__ = '0.10.8'  # 2026-04-27
+__version__ = '0.10.9'  # 2026-09-04
 
 """
 Note: to edit linux forced device names, edit
@@ -88,11 +88,17 @@ def put_file(filename, target, source_directory='.', src_file_name=None):
     else:
         try:
             os.stat(src_file_name)
+        except OSError:
+            print(f'cannot find source file {src_file_name}')
+            return False
+        try:
             print(f'sending file {src_file_name} to {filename}')
             target.fs_put(src_file_name, filename, progress_callback=put_file_progress_callback)
             print()
-        except OSError:
-            print(f'cannot find source file {src_file_name}')
+        except (OSError, SerialException) as exc:
+            # a transient USB/serial glitch surfaces here; the local file is fine.
+            # the next loader run re-sends any partially written file (sha1 mismatch).
+            print(f'error sending {src_file_name}: {exc}')
             return False
     return True
 
@@ -138,12 +144,9 @@ for f in uos.ilistdir('{src}'):
 
 
 def loader_reset(target):
-    files_data = BytesConcatenator()
-    cmd = f"""import machine
-machine.reset()
-"""
-    target.exec_(cmd, data_consumer=files_data.write_bytes)
-
+    time.sleep(2)
+    target.serial.write(b"\x04")  # control-D -- restart
+    time.sleep(2)
 
 def loader_sha1(target, file=''):
     hash_data = BytesConcatenator()
@@ -203,20 +206,23 @@ def load_device(port, force=False,
             restart = True
 
     if restart:
+        disconnected = False
         try:
+            target.close()
+            disconnected = True
             print('resetting target device...')
-            loader_reset(target)
         except SerialException as e:
+            print('got serial exception, must have disconnected...')
+            disconnected = True
             time.sleep(3)
-        else:
-            print('expected disconnect on reset, something is wrong?')
 
-        try:
-            print('reconnecting to target device...')
-            target = Pyboard(port, _BAUD_RATE)
-        except PyboardError:
-            print(f'cannot connect to device {port}')
-            sys.exit(1)
+        if disconnected:
+            try:
+                print('reconnecting to target device...')
+                target = Pyboard(port, _BAUD_RATE)
+            except PyboardError:
+                print(f'cannot connect to device {port}')
+                sys.exit(1)
 
         target.enter_raw_repl()
 
