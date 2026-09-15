@@ -22,7 +22,7 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-__version__ = '0.9.6'  # 2026-09-08
+__version__ = '0.9.7'  # 2026-09-13
 
 import sys
 import time
@@ -82,6 +82,48 @@ def safe_int(value, default:int=-1) -> int:
         return int(value)
     except ValueError:
         return default
+
+
+# conservative hostname character set: RFC 1123 plus underscore. A dotted-quad
+# IPv4 address is a valid member of this set, so is_hostname() accepts both.
+_HOSTNAME_CHARS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_'
+
+
+def is_ipv4(value) -> bool:
+    """
+    Return True if value is a dotted-quad IPv4 address string (0.0.0.0 through
+    255.255.255.255). Non-str values, whitespace and non-ASCII digits are
+    rejected.
+    """
+    if not isinstance(value, str):
+        return False
+    parts = value.split('.')
+    if len(parts) != 4:
+        return False
+    for part in parts:
+        if not part or len(part) > 3:
+            return False
+        for c in part:
+            if c < '0' or c > '9':
+                return False
+        if int(part) > 255:
+            return False
+    return True
+
+
+def is_hostname(value) -> bool:
+    """
+    Return True if value is a conservative hostname: 1-63 characters drawn from
+    [A-Za-z0-9.-_]. Accepts dotted-quad IPv4 addresses as well.
+    """
+    if not isinstance(value, str):
+        return False
+    if not (0 < len(value) <= 63):
+        return False
+    for c in value:
+        if c not in _HOSTNAME_CHARS:
+            return False
+    return True
 
 
 class LineReader:
@@ -162,6 +204,11 @@ def num_bits_set(n: int) -> int:
 
     nn = n
     set_bits = 0
+    if nn < 0:
+        # negative: count the bits of the 32-bit two's complement representation.
+        # bit 31 is always set; bits 0-30 are n & 0x7fffffff.
+        set_bits = 1
+        nn &= 0x7fffffff
     while nn:
         set_bits += BITS[nn & 0x0f]
         nn >>= 4
