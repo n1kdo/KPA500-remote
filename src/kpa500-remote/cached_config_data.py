@@ -4,7 +4,7 @@
 
 __author__ = 'J. B. Otterson'
 __copyright__ = 'Copyright 2026 J. B. Otterson N1KDO.'
-__version__ = '0.0.5'  # 2026-09-03
+__version__ = '0.0.6'  # 2026-09-18
 
 #
 # Copyright 2026 J. B. Otterson N1KDO.
@@ -71,8 +71,12 @@ class CachedConfigData:
         self._config_data_bytes = {}
 
     def _write_config_data(self):
+        tmp_file = self._config_file_name + '.tmp'
         try:
-            tmp_file = self._config_file_name + '.tmp'
+            try:
+                os.remove(tmp_file)  # clear any orphan from a previously interrupted write
+            except OSError:
+                pass
             with open(tmp_file, 'w') as config_file:
                 json.dump(self._config_data, config_file)
             os.rename(tmp_file, self._config_file_name)
@@ -82,6 +86,10 @@ class CachedConfigData:
             logging.exception(f'failed to write configuration data to {self._config_file_name}',
                               'cached_config_data:_write_config_data()',
                               ex)
+            try:
+                os.remove(tmp_file)  # don't leave a partial tmp behind
+            except OSError:
+                pass
         finally:
             # this is suboptimal since failed writes won't be retried, but if
             # it failed once, it is not likely to succeed on retry.

@@ -23,7 +23,7 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-__version__ = '0.9.9'  # 2026-08-06
+__version__ = '0.10.0'  # 2026-09-18
 
 # disable pylint import error
 # pylint: disable=E0401
@@ -88,6 +88,9 @@ class MorseCode:
 
         while self.keep_running:
             msg = self.message
+            if not msg:
+                await sleep_ms(morse_esp)  # empty message: nothing to send; yield so we don't hog the loop
+                continue
             logging.debug(f'starting message "{msg}"', 'morse_code:morse_sender')
             for morse_letter in msg:
                 blink_pattern = patterns.get(morse_letter)

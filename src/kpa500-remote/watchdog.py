@@ -6,7 +6,7 @@ watchdog processor for micropython IOT projects.
 
 __author__ = 'J. B. Otterson'
 __copyright__ = 'Copyright 2025 J. B. Otterson N1KDO.'
-__version__ = '0.0.1'
+__version__ = '0.0.2'  # 2026-09-14
 
 #
 # Copyright 2025, J. B. Otterson N1KDO.
@@ -37,9 +37,9 @@ from machine import WDT
 class Watchdog:
     __slots__ = ('_wdt', '_period')
 
-    def __init__(self, threshold:int=5000, period:int=1000)->None:
+    def __init__(self, threshold:int=8000, period:int=1000)->None:
         """
-        :param threshold: watchdog timeout in milliseconds, default 5000ms
+        :param threshold: watchdog timeout in milliseconds, default 8000ms.  max on RP2040 is 8388 ms.
         :param period: feed period in milliseconds, default 1000ms
         """
         if period >= threshold:
