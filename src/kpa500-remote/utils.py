@@ -22,7 +22,7 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-__version__ = '0.9.7'  # 2026-09-13
+__version__ = '0.9.8'  # 2026-09-18
 
 import sys
 import time
@@ -38,9 +38,12 @@ else:
         @staticmethod
         def native(f):
             return f
+
         @staticmethod
         def viper(f):
             return f
+
+
     micropython = _MP()
 
 
@@ -73,7 +76,7 @@ def elapsed_ms(start):
 
 
 @micropython.native
-def safe_int(value, default:int=-1) -> int:
+def safe_int(value, default: int = -1) -> int:
     if value is None:
         return default
     if isinstance(value, int):
@@ -142,7 +145,12 @@ class LineReader:
     read() and readexactly() also serve bytes that readline() pulled past the
     end of a line, so callers can safely mix line reads and body reads on the
     same stream without losing data.
+
+    self._pending is persisted before every await, so if the caller's task is
+    cancelled mid-read (e.g. by an asyncio.wait_for timeout), no already-
+    received bytes are lost; the next call resumes with all data read so far.
     """
+
     def __init__(self, reader, max_line_length=1024, chunk_size=256):
         self._reader = reader
         self._max_line_length = max_line_length
@@ -163,6 +171,8 @@ class LineReader:
             if len(pending) >= self._max_line_length:  # no newline in max_line_length bytes.
                 self._pending = b''
                 raise ValueError('line too long')
+            # Persist before the await so cancellation cannot lose data.
+            self._pending = pending
             data = await self._reader.read(self._chunk_size)
             if not data:  # EOF
                 self._pending = b''
@@ -187,6 +197,8 @@ class LineReader:
         """
         pending = self._pending
         while len(pending) < n:
+            # Persist before the await so cancellation cannot lose data.
+            self._pending = pending
             data = await self._reader.read(self._chunk_size)
             if not data:  # EOF
                 self._pending = b''
@@ -213,4 +225,3 @@ def num_bits_set(n: int) -> int:
         set_bits += BITS[nn & 0x0f]
         nn >>= 4
     return set_bits
-
