@@ -1,15 +1,13 @@
-"""
-watchdog processor for micropython IOT projects.
-1. set up the watchdog.
-2. periodically reset the watchdog.
-"""
+#
+# config_data.py -- KPA500 remote configuration data class.
+#
 
 __author__ = 'J. B. Otterson'
-__copyright__ = 'Copyright 2025 J. B. Otterson N1KDO.'
-__version__ = '0.0.2'  # 2026-09-14
+__copyright__ = 'Copyright 2026 J. B. Otterson N1KDO.'
+__version__ = '0.0.2'  # 2026-09-01
 
 #
-# Copyright 2025, J. B. Otterson N1KDO.
+# Copyright 2026 J. B. Otterson N1KDO.
 #
 # Redistribution and use in source and binary forms, with or without modification,
 # are permitted provided that the following conditions are met:
@@ -31,28 +29,36 @@ __version__ = '0.0.2'  # 2026-09-14
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import asyncio
-from machine import WDT
+from cached_config_data import CachedConfigData
 
-class Watchdog:
-    __slots__ = ('_wdt', '_period')
+CONFIG_FILE = 'data/config.json'
 
-    def __init__(self, threshold:int=8000, period:int=1000)->None:
-        """
-        :param threshold: watchdog timeout in milliseconds, default 8000ms.  max on RP2040 is 8388 ms.
-        :param period: feed period in milliseconds, default 1000ms
-        """
-        if period >= threshold:
-            raise ValueError('period must be less than threshold')
-        self._period = period
-        self._wdt = WDT(timeout=threshold)
-        asyncio.create_task(self._feeder())
+# noinspection SpellCheckingInspection
+DEFAULT_SECRET = 'elecraft'
+DEFAULT_SSID = 'kpa500'
+DEFAULT_KPA500_TCP_PORT = 4626
+DEFAULT_KAT500_TCP_PORT = 4627
+DEFAULT_WEB_PORT = 80
 
-    async def _feeder(self):
-        feed = self._wdt.feed
-        period = self._period  # Cache period
-        asleep = asyncio.sleep_ms  # Cache sleep function
 
-        while True:
-            feed()
-            await asleep(period)
+class ConfigData(CachedConfigData):
+    def __init__(self):
+        super().__init__(CONFIG_FILE)
+
+    @staticmethod
+    def _default_config_data():
+        return {
+            'SSID': DEFAULT_SSID,
+            'secret': DEFAULT_SECRET,
+            'username': 'admin',
+            'password': 'admin',
+            'dhcp': True,
+            'hostname': 'kpa500',
+            'ip_address': '192.168.1.73',
+            'netmask': '255.255.255.0',
+            'gateway': '192.168.1.1',
+            'dns_server': '8.8.8.8',
+            'kpa_tcp_port': DEFAULT_KPA500_TCP_PORT,
+            'kat_tcp_port': DEFAULT_KAT500_TCP_PORT,
+            'web_port': DEFAULT_WEB_PORT,
+}
