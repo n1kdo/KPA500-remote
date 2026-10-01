@@ -64,7 +64,7 @@ picow_network: PicowNetwork | None = None
 
 onboard = machine.Pin('LED', machine.Pin.OUT, value=0)
 morse_led = machine.Pin(2, machine.Pin.OUT, value=0)  # status LED
-reset_button = machine.Pin(3, machine.Pin.IN, machine.Pin.PULL_UP)
+ap_mode_button = machine.Pin(3, machine.Pin.IN, machine.Pin.PULL_UP)
 
 CONTENT_DIR = 'content/'
 
@@ -144,10 +144,6 @@ async def api_config_callback(http, verb, args, reader, writer, request_headers=
                 config['password'] = remote_password
             else:
                 errors.append('password')
-        ap_mode_arg = args.get('ap_mode')
-        if ap_mode_arg is not None:
-            ap_mode = ap_mode_arg == '1'
-            config['ap_mode'] = ap_mode
         dhcp_arg = args.get('dhcp')
         if dhcp_arg is not None:
             dhcp = dhcp_arg == '1'
@@ -489,10 +485,10 @@ async def main():
         web_port = DEFAULT_WEB_PORT
         config['web_port'] = str(web_port)
 
-    ap_mode = config.get('ap_mode', False)
+    ap_mode = ap_mode_button.value() == 0
 
     if upython:
-        picow_network = PicowNetwork(config, DEFAULT_SSID, DEFAULT_SECRET)
+        picow_network = PicowNetwork(config, DEFAULT_SSID, DEFAULT_SECRET, access_point_mode=ap_mode)
         morse_code_sender = MorseCode(morse_led)
         if logging.loglevel != logging.DEBUG and Watchdog is not None:
             _ = Watchdog()
@@ -545,24 +541,12 @@ async def main():
         logging.exception('could not start web server', 'main:main', e)
         web_server = None
 
-    reset_button_pressed_count = 0
     ten_count = 0
     last_message = b''
     while keep_running:
         if upython:
             await asyncio.sleep(0.100)
             ten_count += 1
-            pressed = reset_button.value() == 0
-            if pressed:
-                reset_button_pressed_count += 1
-            else:
-                if reset_button_pressed_count > 0:
-                    reset_button_pressed_count -= 1
-            if reset_button_pressed_count > 7:
-                logging.info('reset button pressed', 'main:main')
-                ap_mode = not ap_mode
-                config['ap_mode'] = ap_mode
-                keep_running = False
 
             if ten_count >= 10:  # every one second
                 gc.collect()
@@ -578,7 +562,7 @@ async def main():
         else:
             await asyncio.sleep(10.0)
     if upython:
-        config.flush()  # persist any pending config (e.g. ap_mode) before the reset
+        config.flush()
         machine.soft_reset()
 
 
