@@ -21,7 +21,7 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-__version__ = '0.9.9'  # 2026-09-06
+__version__ = '0.9.91'  # 2026-10-01
 
 from utils import upython
 import asyncio
@@ -33,12 +33,13 @@ class ClientData:
     """
     class holds data for each KPA500-Remote (Elecraft) client.
     """
+    UPDATE_LIST_MAXLEN = 32
     def __init__(self, client_name):
         self.client_name = client_name
         if upython:
-            self.update_list = deque((), 32, 1)  # this is the proper syntax for Micropython.
+            self.update_list = deque((), self.UPDATE_LIST_MAXLEN, 1)  # Micropython syntax.
         else:
-            self.update_list = deque((), 32)  # cpython syntax
+            self.update_list = deque((), self.UPDATE_LIST_MAXLEN)  # cpython syntax
         self.update_set = set()
         self.authorized = False
         self.connected = True
@@ -68,14 +69,15 @@ class BufferAndLength:
 
 
 class KDevice:
+    COMMAND_QUEUE_MAXLEN = 64
     def __init__(self, username:bytes|None=None, password:bytes|None=None, port_name=None, data_size=0):
         self.username = username
         self.password = password
         self.port_name = port_name
         if upython:
-            self.device_command_queue = deque((), 64, 1)  # this is the proper syntax for Micropython.
+            self.device_command_queue = deque((), self.COMMAND_QUEUE_MAXLEN, 1)  # Micropython syntax.
         else:
-            self.device_command_queue = deque((), 64)  # this is the cpython syntax.
+            self.device_command_queue = deque((), self.COMMAND_QUEUE_MAXLEN)  # cpython syntax.
         self.network_clients = []
         self.device_data = [b'0'] * data_size
         self.device_port = SerialPort(name=port_name, baudrate=38400, timeout=0)  # timeout is zero for non-blocking
@@ -83,13 +85,21 @@ class KDevice:
     def enqueue_command(self, command):
         dcq = self.device_command_queue
         if isinstance(command, bytes):
-            dcq.append(command)
+            commands = (command,)
         elif isinstance(command, tuple):
-            for c in command:
-                dcq.append(c)
+            commands = command
         else:
             logging.warning(f'enqueue command received command of type {type(command)} which was not processed.',
                             'enqueue_command')
+            return
+        for c in commands:
+            # CPython's deque.append() silently evicts the oldest item when full while
+            # MicroPython raises IndexError; an explicit length check keeps the behavior
+            # identical on both platforms: drop the new command and log it.
+            if len(dcq) < self.COMMAND_QUEUE_MAXLEN:
+                dcq.append(c)
+            else:
+                logging.warning(f'device command queue full, dropping "{c}"', 'kdevice:enqueue_command')
 
     def dequeue_command(self):
         dcq = self.device_command_queue
@@ -102,8 +112,16 @@ class KDevice:
             self.device_data[index] = value
             for client in self.network_clients:
                 if index not in client.update_set:
-                    client.update_list.append(index)
-                    client.update_set.add(index)
+                    # Same cross-platform deque behavior concern as enqueue_command();
+                    # when full, skip rather than evict. The next change to this index
+                    # will re-queue it, so at most one update is delayed.
+                    if len(client.update_list) < ClientData.UPDATE_LIST_MAXLEN:
+                        client.update_list.append(index)
+                        client.update_set.add(index)
+                    else:
+                        logging.warning(
+                            f'client {client.client_name} update list full, skipping index {index}',
+                            'kdevice:update_device_data')
 
     async def device_send_receive(self, message, buf_and_length, timeout=5.0, retries=1):
         retries_left = retries

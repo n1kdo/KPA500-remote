@@ -3,7 +3,7 @@
 #
 __author__ = 'J. B. Otterson'
 __copyright__ = 'Copyright 2023, 2024, 2025, 2026 J. B. Otterson N1KDO.'
-__version__ = '0.10.3'  # 2026-09-06
+__version__ = '0.10.31'  # 2026-10-01
 
 #
 # Copyright 2023, 2024, 2025, 2026 J. B. Otterson N1KDO.
@@ -43,7 +43,7 @@ from http_server import (HttpServer,
 from kpa500 import KPA500
 from kat500 import KAT500
 from morse_code import MorseCode
-from utils import upython, safe_int
+from utils import upython, safe_int, is_ipv4, is_hostname
 import micro_logging as logging
 
 if upython:
@@ -121,7 +121,8 @@ async def api_config_callback(http, verb, args, reader, writer, request_headers=
                 errors.append('web_port')
         ssid = args.get('SSID')
         if ssid is not None:
-            if 0 < len(ssid) <= 64:
+            # PicowNetwork only accepts SSIDs of 32 chars or fewer.
+            if 0 < len(ssid) <= 32:
                 config['SSID'] = ssid
             else:
                 errors.append('SSID')
@@ -153,22 +154,34 @@ async def api_config_callback(http, verb, args, reader, writer, request_headers=
             config['dhcp'] = dhcp
         hostname = args.get('hostname')
         if hostname is not None:
-            if 1 <= len(hostname) <= 16:
+            if 1 <= len(hostname) <= 16 and is_hostname(hostname):
                 config['hostname'] = hostname
             else:
                 errors.append('hostname')
         ip_address = args.get('ip_address')
         if ip_address is not None:
-            config['ip_address'] = ip_address
+            if is_ipv4(ip_address):
+                config['ip_address'] = ip_address
+            else:
+                errors.append('ip_address')
         netmask = args.get('netmask')
         if netmask is not None:
-            config['netmask'] = netmask
+            if is_ipv4(netmask):
+                config['netmask'] = netmask
+            else:
+                errors.append('netmask')
         gateway = args.get('gateway')
         if gateway is not None:
-            config['gateway'] = gateway
+            if is_ipv4(gateway):
+                config['gateway'] = gateway
+            else:
+                errors.append('gateway')
         dns_server = args.get('dns_server')
         if dns_server is not None:
-            config['dns_server'] = dns_server
+            if is_ipv4(dns_server):
+                config['dns_server'] = dns_server
+            else:
+                errors.append('dns_server')
         if not errors:
             response = b'ok\r\n'
             http_status = HTTP_STATUS_OK
@@ -492,8 +505,13 @@ async def main():
     if kpa500_tcp_port != 0:
         kpa500 = KPA500(username=username, password=password, port_name=kpa500_port)
         logging.info(f'Starting KPA500 client service on port {kpa500_tcp_port}', 'main:main')
-        kpa500_client_server = asyncio.create_task(asyncio.start_server(kpa500.serve_kpa500_remote_client,
-                                                                        '0.0.0.0', kpa500_tcp_port))
+        try:
+            kpa500_client_server = await asyncio.start_server(kpa500.serve_kpa500_remote_client,
+                                                              '0.0.0.0', kpa500_tcp_port)
+        except Exception as e:
+            logging.exception(f'could not start KPA500 client service on port {kpa500_tcp_port}',
+                              'main:main', e)
+            kpa500_client_server = None
         # this task talks to the amplifier hardware.
         logging.info(f'Starting KPA500 amplifier service', 'main:main')
         kpa500_server = asyncio.create_task(kpa500.kpa500_server())
@@ -505,8 +523,13 @@ async def main():
     if kat500_tcp_port != 0:
         kat500 = KAT500(username=username, password=password, port_name=kat500_port)
         logging.info(f'Starting KAT500 client service on port {kat500_tcp_port}', 'main:main')
-        kat500_client_server = asyncio.create_task(asyncio.start_server(kat500.serve_kat500_remote_client,
-                                                                        '0.0.0.0', kat500_tcp_port))
+        try:
+            kat500_client_server = await asyncio.start_server(kat500.serve_kat500_remote_client,
+                                                              '0.0.0.0', kat500_tcp_port)
+        except Exception as e:
+            logging.exception(f'could not start KAT500 client service on port {kat500_tcp_port}',
+                              'main:main', e)
+            kat500_client_server = None
         # this task talks to the tuner hardware.
         logging.info(f'Starting KAT500 tuner service', 'main:main')
         kat500_server = asyncio.create_task(kat500.kat500_server())
@@ -517,9 +540,10 @@ async def main():
 
     logging.info(f'Starting web service on port {web_port}', 'main:main')
     try:
-        web_server = asyncio.create_task(asyncio.start_server(http_server.serve_http_client, '0.0.0.0', web_port))
+        web_server = await asyncio.start_server(http_server.serve_http_client, '0.0.0.0', web_port)
     except Exception as e:
         logging.exception('could not start web server', 'main:main', e)
+        web_server = None
 
     reset_button_pressed_count = 0
     ten_count = 0
