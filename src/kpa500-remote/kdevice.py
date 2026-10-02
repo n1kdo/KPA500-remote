@@ -21,7 +21,7 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-__version__ = '0.9.91'  # 2026-10-01
+__version__ = '0.9.92'  # 2026-10-02
 
 from utils import upython
 import asyncio
@@ -60,12 +60,6 @@ class BufferAndLength:
 
     def clear(self):
         self.bytes_received = 0
-
-    def last(self) -> int | None:
-        if self.bytes_received > 0:
-            return self.buffer[self.bytes_received-1]
-        else:
-            return None
 
 
 class KDevice:

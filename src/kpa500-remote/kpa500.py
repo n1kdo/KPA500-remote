@@ -22,7 +22,7 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-__version__ = '0.9.91'   # 2026-10-01
+__version__ = '0.9.92'   # 2026-10-02
 
 # disable pylint import error
 # pylint: disable=E0401
@@ -444,7 +444,7 @@ class KPA500(KDevice):
                                              'kpa500:serve_kpa500_remote_client')
                 else:  # response was None
                     if not timed_out:
-                        logging.info(f'client {client_data} response was None, setting connected=false',
+                        logging.info(f'client {client_name} response was None, setting connected=false',
                                      'kpa500:serve_kpa500_remote_client')
                         client_data.connected = False
 
