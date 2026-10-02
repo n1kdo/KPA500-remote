@@ -20,13 +20,19 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-__version__ = '0.10.9'  # 2026-09-04
+__version__ = '0.10.91'  # 2026-10-01
 
 """
 Note: to edit linux forced device names, edit
 /etc/udev/rules.d/99-usb-serial.rules
 see: https://programmador.com/posts/2023/linux-usb-serial-device-name-binding/
 see: https://k4sbc.com/consistently-name-usb-serial-ports/
+
+plug in the device, the data you need will be shown by `dmesg`
+edit the file /etc/udev/rules.d/99-usb-serial.rules
+then 
+$ udevadm control --reload-rules
+$ udevadm trigger
 """
 import argparse
 import hashlib

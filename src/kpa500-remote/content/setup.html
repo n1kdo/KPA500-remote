@@ -192,7 +192,7 @@
             let netmask = document.getElementById("netmask_input").value;
             let gateway = document.getElementById("gateway_input").value;
             let dns_server = document.getElementById("dns_server_input").value;
-            if (ssid.length < 1 || ssid.length > 64) {
+            if (ssid.length < 1 || ssid.length > 32) {
                 alert("Invalid SSID!");
                 return;
             }
@@ -261,7 +261,6 @@
             config.netmask = netmask;
             config.gateway = gateway;
             config.dns_server = dns_server;
-            config.ap_mode = "0";
             let payload = JSON.stringify(config);
             let xmlHttp = new XMLHttpRequest();
             if (xmlHttp == null) {
@@ -382,7 +381,7 @@
         </form>
         <div class="button_bar">
             <input type="button" id="reset_button" value="Reset" title="Reload Configuration" onclick="get_config()" />
-            <input type="button" id="rstart_button" value="Restart" title="Restart Controller to use new setup"
+            <input type="button" id="restart_button" value="Restart" title="Restart Controller to use new setup"
                 onclick="restart()" />
             <input type="button" id="apply_button" value="Apply" title="Save Configuration" onclick="set_config()" />
         </div>
@@ -393,6 +392,6 @@
         <span class="selected">Setup</span>
         <a href="files.html">Files</a>
     </div>
-    <div class="author"><a href="https://www.n1kdo.com" target="_blank">N1KDO</a> 20260525</div>
+    <div class="author"><a href="https://www.n1kdo.com" target="_blank">N1KDO</a> 20261001</div>
 </body>
 </html>

@@ -22,7 +22,7 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-__version__ = '0.9.8'  # 2026-09-06
+__version__ = '0.9.91'  # 2026-10-01
 
 # disable pylint import error
 # pylint: disable=E0401
@@ -475,5 +475,10 @@ class KAT500(KDevice):
                 self.network_clients.remove(found_network_client)
                 logging.info(f'client {client_name} removed from network_clients list.',
                              'kat500:serve_kat500_remote_client')
+            try:
+                writer.close()
+                await writer.wait_closed()
+            except Exception:
+                pass  # connection may already be closed or broken
         logging.info(f'client {client_name} disconnected, elapsed time {(elapsed_ms(t0) / 1000.0):6.3f} seconds',
                      'kat500:serve_kat500_remote_client')
