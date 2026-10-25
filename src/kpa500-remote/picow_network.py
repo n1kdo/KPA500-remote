@@ -3,7 +3,7 @@
 #
 __author__ = 'J. B. Otterson'
 __copyright__ = 'Copyright 2024, 2025, 2026  J. B. Otterson N1KDO.'
-__version__ = '0.10.15'  # 2026-09-29
+__version__ = '0.10.16'  # 2026-10-25
 
 #
 # Copyright 2024, 2025, 2026 J. B. Otterson N1KDO.
@@ -203,13 +203,6 @@ class PicowNetwork:
             self._wlan.config(pm=self._wlan.PM_NONE)  # disable power save, this is a server.
             await sleep(0.1)
             logging.debug('Connecting to WLAN...1', 'PicowNetwork:connect_to_network')
-            self._wlan.active(True)
-            await sleep(0.1)
-            logging.info(b'  wlan.active()=%d' % self._wlan.active(), 'PicowNetwork:connect_to_network (new)')
-            # wlan.deinit turns off the onboard LED because it is connected to the CYW43
-            # turn it on again.
-            onboard = machine.Pin('LED', machine.Pin.OUT, value=0)
-            onboard.on()
             try:
                 if self._long_messages:
                     await self.set_message(b'Setting hostname\n%s' % self._hostname_bytes)
@@ -222,6 +215,13 @@ class PicowNetwork:
                 else:
                     await self.set_message(b'ERROR ', -10)
                 logging.error('Failed to set hostname.', 'PicowNetwork:connect_to_network')
+            self._wlan.active(True)
+            await sleep(0.1)
+            logging.info(b'  wlan.active()=%d' % self._wlan.active(), 'PicowNetwork:connect_to_network (new)')
+            # wlan.deinit turns off the onboard LED because it is connected to the CYW43
+            # turn it on again.
+            onboard = machine.Pin('LED', machine.Pin.OUT, value=0)
+            onboard.on()
             logging.debug('Connecting to WLAN...6', 'PicowNetwork:connect_to_network')
             await sleep(0.1)
 
