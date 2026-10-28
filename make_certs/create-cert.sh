@@ -13,6 +13,15 @@ read -rp "Enter your amateur radio callsign: " callsign
 callsign="${callsign,,}"
 ca_name="${callsign}-root-ca"
 #
+# the CA must already exist; a mistyped callsign would otherwise cascade into
+# confusing openssl failures and a false "Created:" message at the end
+#
+if [ ! -f "$ca_name.crt" ] || [ ! -f "$ca_name.key" ]; then
+  echo "CA '$ca_name' not found ($ca_name.crt / $ca_name.key)." >&2
+  echo "Run create-ca.sh first, or check the callsign." >&2
+  exit 1
+fi
+#
 # prompt for the subject name (hostname) of the certificate
 #
 read -rp "Enter hostname (subject name) for the certificate: " host

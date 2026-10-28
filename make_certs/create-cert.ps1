@@ -1,89 +1,88 @@
-# create-cert.ps1 -- Windows PowerShell equivalent of create-cert.sh
-# requires openssl in PATH and the private CA created by create-ca.ps1
-param([switch]$Verbose)  # -v / -Verbose / --verbose prints the certificate details at the end
 #
+# Windows twin of create-cert.sh, using only stock Windows/PowerShell built-ins
+# (New-SelfSignedCertificate + Export-Certificate). The CA must have been
+# created by create-ca.ps1 on this machine: -Signer needs its private key,
+# which lives in the certificate store.
+#
+# -verbose prints the certificate details at the end.
+#
+# Must be run from an elevated (Administrator) prompt: it writes to
+# Cert:\LocalMachine.
+#
+param([switch]$verbose)
+
+$admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
+    [Security.Principal.WindowsBuiltInRole]::Administrator)
+if (-not $admin) {
+    Write-Error "This script must run from an elevated (Administrator) prompt."
+    exit 1
+}
+
 # prompt for the operator's amateur radio callsign; it names the CA that signs this cert
-$callsign = Read-Host -Prompt "Enter your amateur radio callsign:"
-# force lowercase so the CA file names are predictable
+$callsign = Read-Host "Enter your amateur radio callsign"
+# force lowercase so the CA name is predictable
 $callsign = $callsign.ToLower()
-$caName = "${callsign}-root-ca"
-#
-# prompt for the subject name (hostname) of the certificate
-# ($host is a PowerShell automatic variable, so use $hostname instead)
-#
-$hostname = Read-Host -Prompt "Enter hostname (subject name) for the certificate:"
+$ca_name = "$callsign-root-ca"
+
+# the CA must already exist in the store; a mistyped callsign would otherwise
+# cascade into confusing failures and a false "Created:" message at the end
+$rootCA = Get-ChildItem "Cert:\LocalMachine\My" | Where-Object { $_.Subject -eq "CN=$ca_name" } | Select-Object -First 1
+if (-not $rootCA) {
+    Write-Error "CA '$ca_name' not found in Cert:\LocalMachine\My."
+    Write-Error "Run create-ca.ps1 first, or check the callsign."
+    exit 1
+}
+
+# prompt for the subject name (hostname) of the certificate.
+# ($host is a PowerShell automatic variable, so the local name is $hostname.)
+$hostname = Read-Host "Enter hostname (subject name) for the certificate"
 # force lowercase; DNS names are case-insensitive and this keeps the cert predictable
 $hostname = $hostname.ToLower()
-#
+
 # prompt for zero or more subject alternative names; a blank line ends input
-#
-$sanEntries = ""
+$sans = @()
 while ($true) {
-    $san = Read-Host -Prompt "Subject alternative name (blank to finish):"
-    if (-not $san) { break }
+    $san = Read-Host "Subject alternative name (blank to finish)"
+    if ($san -eq "") { break }
     # same lowercase treatment as the subject name
-    $san = $san.ToLower()
-    if ($sanEntries) { $sanEntries += ", " }
-    $sanEntries += "DNS:$san"
+    $sans += $san.ToLower()
 }
-#
-# generate private key for host.
-# EC P-256, not RSA: the Pico W's mbedTLS cannot perform an RSA private key
-# operation during the TLS handshake (the temporary bignum buffers exceed the
-# MicroPython heap -- MBEDTLS_ERR_MPI_ALLOC_FAILED).  An ECDHE-ECDSA
-# handshake needs only a few hundred bytes.
-openssl ecparam -name prime256v1 -genkey -noout -out "$hostname.key.pem"
-#
-# convert key to DER
-#
-openssl ec -in "$hostname.key.pem" -outform DER -out "$hostname.key.der"
-#
-# create config file for signing
-#
-$extText = @"
-[ req ]
-days = 3652
-default_md = sha256
-distinguished_name = req_distinguished_name
-x509_extensions = v3_ca
-prompt = no
 
-[ req_distinguished_name ]
-CN = $hostname
-
-[ v3_ca ]
-subjectKeyIdentifier = hash
-authorityKeyIdentifier = keyid:always,issuer
-basicConstraints = CA:false
-keyUsage = digitalSignature
-"@
-[System.IO.File]::WriteAllText("create_cert.ext", $extText)
-#
-# if any subject alternative names were given, include the subject name plus all of them
-#
-if ($sanEntries) {
-    [System.IO.File]::AppendAllText("create_cert.ext", "subjectAltName = DNS:$hostname, $sanEntries`n")
+# issue the EC P-256 leaf certificate signed by the private CA. ~9.9-year
+# validity, matching create-cert.sh. The TextExtension adds the Server Auth
+# extended key usage. -DnsName (subject name plus all SANs) is only given
+# when at least one SAN was entered; with no SANs the certificate carries no
+# subjectAltName at all, matching create-cert.sh.
+$leafArgs = @{
+    Type              = 'Custom'
+    Subject           = "CN=$hostname"
+    Signer            = $rootCA
+    KeyAlgorithm      = 'ECDSA_Cert'
+    KeyLength         = 256
+    KeyExportPolicy   = 'Exportable'
+    KeyUsage          = 'DigitalSignature', 'KeyEncipherment'
+    TextExtension     = @("2.5.29.37={text}1.3.6.1.5.5.7.3.1")
+    CertStoreLocation = "Cert:\LocalMachine\My"
+    NotAfter          = (Get-Date).AddDays(3652)
 }
-#
-# create signing request for host
-openssl req -verbose -new -key "$hostname.key.pem" -out "$hostname.csr" -config create_cert.ext
-#
-# use private CA to sign this cert.
-openssl x509 -req -in "$hostname.csr" -CA "$caName.crt" -CAkey "$caName.key" -days 3652 -sha256 -extfile create_cert.ext -extensions v3_ca -out "$hostname.crt.pem"
-#
-# make that certificate into a DER file
-openssl x509 -inform PEM -in "$hostname.crt.pem" -outform DER -out "$hostname.crt.der" -extfile create_cert.ext
-#
-# remove the certificate signing request (.csr) file now
-Remove-Item "$hostname.csr"
-# and the openssl config file
-Remove-Item create_cert.ext
-# and the PEM copies of the key and certificate (only the DER files are needed)
-Remove-Item "$hostname.key.pem", "$hostname.crt.pem"
-#
+if ($sans.Count -gt 0) {
+    $leafArgs['DnsName'] = @($hostname) + $sans
+}
+$leafCert = New-SelfSignedCertificate @leafArgs
+
+# deliverables: the certificate as DER and the EC P-256 private key as
+# unencrypted PKCS#8 DER (what MicroPython's load_cert_chain/load_key want)
+Export-Certificate -Cert $leafCert -Type CERT -FilePath "$hostname.crt.der" | Out-Null
+$ecKey = [System.Security.Cryptography.X509Certificates.ECDsaCertificateExtensions]::GetECDsaPrivateKey($leafCert)
+[System.IO.File]::WriteAllBytes("$hostname.key.der", $ecKey.ExportPkcs8PrivateKey())
+
 # tell me about the new cert, if asked for
-if ($Verbose) {
-    openssl x509 -noout -text -inform DER -in "$hostname.crt.der"
+if ($verbose) {
+    Write-Host "Subject:    $($leafCert.Subject)"
+    Write-Host "Issuer:     $($leafCert.Issuer)"
+    Write-Host "Expires:    $($leafCert.NotAfter)"
+    Write-Host "Thumbprint: $($leafCert.Thumbprint)"
 }
+
 # list the files this run created
 Write-Host "Created: $hostname.key.der $hostname.crt.der"
