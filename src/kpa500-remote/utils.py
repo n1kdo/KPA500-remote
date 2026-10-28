@@ -22,8 +22,9 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-__version__ = '0.9.9'  # 2026-10-25
+__version__ = '0.9.10'  # 2026-10-25
 
+import ssl
 import sys
 import time
 
@@ -128,6 +129,27 @@ def is_hostname(value) -> bool:
         if c not in _HOSTNAME_CHARS:
             return False
     return True
+
+
+def make_ssl_server_context(hostname):
+    """
+    Build an SSL context for serving HTTPS/TLS from the convention-named
+    cert/key files:
+        data/<hostname>.local.crt.der (certificate)
+        data/<hostname>.local.key.der (private key)
+    Returns a ssl.SSLContext, or None if either file is missing or invalid.
+    """
+    cert_file = 'data/%s.local.crt.der' % hostname
+    key_file = 'data/%s.local.key.der' % hostname
+    try:
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ctx.load_cert_chain(cert_file, key_file)
+    except Exception as exc:
+        import micro_logging as _logging  # deferred: micro_logging imports utils
+        _logging.warning('certificate missing or invalid: %s' % exc,
+                          'utils:make_ssl_server_context')
+        return None
+    return ctx
 
 
 class LineReader:
