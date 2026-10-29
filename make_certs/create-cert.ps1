@@ -1,13 +1,8 @@
 #
-# Windows twin of create-cert.sh, using only stock Windows/PowerShell built-ins
-# (New-SelfSignedCertificate + Export-Certificate). The CA must have been
-# created by create-ca.ps1 on this machine: -Signer needs its private key,
-# which lives in the certificate store.
+# Zero-dependency Windows twin of create-cert.sh using only stock Windows/PowerShell 5.1.
+# Packs raw EC math coordinates into a strict, padded 32-byte SEC1 structure for MicroPython.
 #
-# -verbose prints the certificate details at the end.
-#
-# Must be run from an elevated (Administrator) prompt: it writes to
-# Cert:\LocalMachine.
+# Must be run from an elevated (Administrator) prompt.
 #
 param([switch]$verbose)
 
@@ -18,52 +13,35 @@ if (-not $admin) {
     exit 1
 }
 
-# prompt for the operator's amateur radio callsign; it names the CA that signs this cert
 $callsign = Read-Host "Enter your amateur radio callsign"
-# force lowercase so the CA name is predictable
 $callsign = $callsign.ToLower()
 $ca_name = "$callsign-root-ca"
 
-# the CA must already exist in the store; a mistyped callsign would otherwise
-# cascade into confusing failures and a false "Created:" message at the end
 $rootCA = Get-ChildItem "Cert:\LocalMachine\My" | Where-Object { $_.Subject -eq "CN=$ca_name" } | Select-Object -First 1
 if (-not $rootCA) {
     Write-Error "CA '$ca_name' not found in Cert:\LocalMachine\My."
-    Write-Error "Run create-ca.ps1 first, or check the callsign."
     exit 1
 }
 
-# prompt for the subject name (hostname) of the certificate.
-# ($host is a PowerShell automatic variable, so the local name is $hostname.)
-$hostname = Read-Host "Enter hostname (subject name) for the certificate"
-# force lowercase; DNS names are case-insensitive and this keeps the cert predictable
-$hostname = $hostname.ToLower()
+$hostname = (Read-Host "Enter hostname (subject name) for the certificate").ToLower()
 
-# Define absolute output paths so System32 context doesn't break file writing
 $certDerPath = Join-Path $PSScriptRoot "$hostname.crt.der"
 $certKeyPath = Join-Path $PSScriptRoot "$hostname.key.der"
 
-# prompt for zero or more subject alternative names; a blank line ends input
 $sans = @()
 while ($true) {
     $san = Read-Host "Subject alternative name (blank to finish)"
     if ($san -eq "") { break }
-    # same lowercase treatment as the subject name
     $sans += $san.ToLower()
 }
 
-# issue the EC P-256 leaf certificate signed by the private CA. ~9.9-year
-# validity, matching create-cert.sh. The TextExtension adds the Server Auth
-# extended key usage. -DnsName (subject name plus all SANs) is only given
-# when at least one SAN was entered; with no SANs the certificate carries no
-# subjectAltName at all, matching create-cert.sh.
 $leafArgs = @{
     Type              = 'Custom'
     Subject           = "CN=$hostname"
     Signer            = $rootCA
     KeyAlgorithm      = 'ECDSA_P256'
     KeyExportPolicy   = 'Exportable'
-    KeyUsage          = 'DigitalSignature'
+    KeyUsage          = 'DigitalSignature', 'KeyEncipherment'
     TextExtension     = @("2.5.29.37={text}1.3.6.1.5.5.7.3.1")
     CertStoreLocation = "Cert:\LocalMachine\My"
     NotAfter          = (Get-Date).AddDays(3652)
@@ -73,19 +51,50 @@ if ($sans.Count -gt 0) {
 }
 $leafCert = New-SelfSignedCertificate @leafArgs
 
-# deliverables: the certificate as DER and the EC P-256 private key as
-# unencrypted PKCS#8 DER (what MicroPython's load_cert_chain/load_key want)
-# Use absolute paths for both outputs.
+# 1. Output the public certificate as standard raw DER
 Export-Certificate -Cert $leafCert -Type CERT -FilePath $certDerPath | Out-Null
 
-# Safely capture the live ECDsaCng object directly from the certificate
+# 2. Extract raw cryptographic parameters via .NET properties
 $ecKey = [System.Security.Cryptography.X509Certificates.ECDsaCertificateExtensions]::GetECDsaPrivateKey($leafCert)
+$ecParameters = $ecKey.ExportParameters($true)
 
-# Export standard, unencrypted binary PKCS8 bytes rather than a Windows CNG envelope
-$pkcs8Bytes = $ecKey.ExportPkcs8PrivateKey()
-[System.IO.File]::WriteAllBytes($certKeyPath, $pkcs8Bytes)
+# Helper function to enforce exact 32-byte mathematical width required by mbedtls
+function Pad-To32Bytes([byte[]]$bytes) {
+    if ($bytes.Length -eq 32) { return ,$bytes }
+    $padded = New-Object byte[] 32
+    $offset = 32 - $bytes.Length
+    [System.Array]::Copy($bytes, 0, $padded, $offset, $bytes.Length)
+    return ,$padded
+}
 
-# tell me about the new cert, if asked for
+$dKey = Pad-To32Bytes $ecParameters.D
+$qX   = Pad-To32Bytes $ecParameters.Q.X
+$qY   = Pad-To32Bytes $ecParameters.Q.Y
+
+# 3. Manually construct a textbook 121-byte SEC1 ASN.1 DER Sequence block
+$sec1Bytes = New-Object System.Collections.Generic.List[byte]
+
+# Outer SEQUENCE Header (Total Inner Payload size is exactly 119 bytes -> 0x77)
+$sec1Bytes.AddRange([byte[]]@(0x30, 0x77))
+
+# Version: 1 (3 bytes)
+$sec1Bytes.AddRange([byte[]]@(0x02, 0x01, 0x01))
+
+# Private Key: Octet String wrapper + 32 padded bytes (34 bytes)
+$sec1Bytes.AddRange([byte[]]@(0x04, 0x20))
+$sec1Bytes.AddRange($dKey)
+
+# Parameters OID: secp256r1 [0] (12 bytes)
+$sec1Bytes.AddRange([byte[]]@(0xa0, 0x0a, 0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07))
+
+# Public Key: Explicit context wrapper [1] + BitString header + Uncompressed token (0x04) + X + Y (70 bytes)
+$sec1Bytes.AddRange([byte[]]@(0xa1, 0x44, 0x03, 0x42, 0x00, 0x04))
+$sec1Bytes.AddRange($qX)
+$sec1Bytes.AddRange($qY)
+
+# 4. Save the flawless key array directly out to the device workspace folder
+[System.IO.File]::WriteAllBytes($certKeyPath, $sec1Bytes.ToArray())
+
 if ($verbose) {
     Write-Host "Subject:    $($leafCert.Subject)"
     Write-Host "Issuer:     $($leafCert.Issuer)"
@@ -93,5 +102,4 @@ if ($verbose) {
     Write-Host "Thumbprint: $($leafCert.Thumbprint)"
 }
 
-# list the files this run created
 Write-Host "Created: $hostname.key.der $hostname.crt.der"
