@@ -48,8 +48,9 @@ $ ./create-ca.sh
 Enter your amateur radio callsign: N1KDO
 ```
 
-**Note:** The Windows PowerShell scripts (`create-ca.ps1` and `create-cert.ps1`) are untested;
-use them at your own risk.
+The Windows PowerShell twins (`create-ca.ps1` and `create-cert.ps1`) use only stock Windows
+built-ins, have been tested on Windows 10, and must be run from an elevated (Administrator)
+prompt.
 
 The script produces two files:
 
