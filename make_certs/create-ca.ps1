@@ -24,9 +24,14 @@ $callsign = Read-Host "Enter your amateur radio callsign"
 $callsign = $callsign.ToLower()
 $cn = "$callsign-root-ca"
 
+# Define absolute output paths so System32 context doesn't break file writing
+$certCerPath = Join-Path $PSScriptRoot "$cn.cer"
+$certCrtPath = Join-Path $PSScriptRoot "$cn.crt"
+$certKeyPath = Join-Path $PSScriptRoot "$cn.key"
+
 # refuse to overwrite an existing CA of the same name; a new key pair would
 # invalidate every certificate already signed by the old CA
-if ((Test-Path "$cn.key") -or (Test-Path "$cn.crt")) {
+if ((Test-Path $certKeyPath) -or (Test-Path $certCrtPath)) {
     Write-Error "Refusing to overwrite existing CA '$cn' ($cn.key / $cn.crt already exist)."
     exit 1
 }
@@ -36,8 +41,7 @@ if ((Test-Path "$cn.key") -or (Test-Path "$cn.crt")) {
 # matching create-ca.sh.
 $rootCA = New-SelfSignedCertificate -Type Custom `
     -Subject "CN=$cn" `
-    -KeyAlgorithm ECDSA_Cert `
-    -KeyLength 256 `
+    -KeyAlgorithm ECDSA_P256 `
     -KeyExportPolicy Exportable `
     -KeyUsage CertSign, CRLSign `
     -CertStoreLocation "Cert:\LocalMachine\My" `
@@ -50,17 +54,20 @@ $rootStore.Add($rootCA)
 $rootStore.Close()
 
 # deliverable: the CA certificate as PEM (what browsers/trust stores import).
-# Export-Certificate writes DER; re-encode it as a PEM block.
-Export-Certificate -Cert $rootCA -Type CERT -FilePath "$cn.cer" | Out-Null
-$der = [System.IO.File]::ReadAllBytes("$cn.cer")
-Remove-Item "$cn.cer"
+# Export-Certificate writes DER; re-encode it as a PEM block. Use absolute paths.
+Export-Certificate -Cert $rootCA -Type CERT -FilePath $certCerPath | Out-Null
+$der = [System.IO.File]::ReadAllBytes($certCerPath)
+Remove-Item $certCerPath
 $b64 = [Convert]::ToBase64String($der, 'InsertLineBreaks')
-[System.IO.File]::WriteAllText("$cn.crt", "-----BEGIN CERTIFICATE-----`n${b64}`n-----END CERTIFICATE-----`n")
+[System.IO.File]::WriteAllText($certCrtPath, "-----BEGIN CERTIFICATE-----`n${b64}`n-----END CERTIFICATE-----`n")
 
-# deliverable: the CA private key as unencrypted PKCS#8 DER (deliberately not
-# passphrase-encrypted, matching create-ca.sh; protect the file's permissions)
-$caKey = [System.Security.Cryptography.X509Certificates.ECDsaCertificateExtensions]::GetECDsaPrivateKey($rootCA)
-[System.IO.File]::WriteAllBytes("$cn.key", $caKey.ExportPkcs8PrivateKey())
+# deliverable: the CA private key as unencrypted PKCS#8 DER.
+# Safely capture the live ECDsaCng object directly from the certificate
+$ecdsaKey = [System.Security.Cryptography.X509Certificates.ECDsaCertificateExtensions]::GetECDsaPrivateKey($rootCA)
+
+# Export the raw PKCS8 private key blob using the underlying .Key handle properties
+$pkcs8Bytes = $ecdsaKey.Key.Export([System.Security.Cryptography.CngKeyBlobFormat]::Pkcs8PrivateBlob)
+[System.IO.File]::WriteAllBytes($certKeyPath, $pkcs8Bytes)
 
 # tell me about the cert, if asked for
 if ($verbose) {
