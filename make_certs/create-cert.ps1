@@ -63,7 +63,7 @@ $leafArgs = @{
     Signer            = $rootCA
     KeyAlgorithm      = 'ECDSA_P256'
     KeyExportPolicy   = 'Exportable'
-    KeyUsage          = 'DigitalSignature', 'KeyEncipherment'
+    KeyUsage          = 'DigitalSignature'
     TextExtension     = @("2.5.29.37={text}1.3.6.1.5.5.7.3.1")
     CertStoreLocation = "Cert:\LocalMachine\My"
     NotAfter          = (Get-Date).AddDays(3652)
@@ -81,8 +81,8 @@ Export-Certificate -Cert $leafCert -Type CERT -FilePath $certDerPath | Out-Null
 # Safely capture the live ECDsaCng object directly from the certificate
 $ecKey = [System.Security.Cryptography.X509Certificates.ECDsaCertificateExtensions]::GetECDsaPrivateKey($leafCert)
 
-# Export the raw PKCS8 private key blob using the underlying .Key handle properties to support PowerShell 5.1
-$pkcs8Bytes = $ecKey.Key.Export([System.Security.Cryptography.CngKeyBlobFormat]::Pkcs8PrivateBlob)
+# Export standard, unencrypted binary PKCS8 bytes rather than a Windows CNG envelope
+$pkcs8Bytes = $ecKey.ExportPkcs8PrivateKey()
 [System.IO.File]::WriteAllBytes($certKeyPath, $pkcs8Bytes)
 
 # tell me about the new cert, if asked for
