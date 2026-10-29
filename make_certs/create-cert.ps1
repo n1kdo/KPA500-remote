@@ -39,6 +39,10 @@ $hostname = Read-Host "Enter hostname (subject name) for the certificate"
 # force lowercase; DNS names are case-insensitive and this keeps the cert predictable
 $hostname = $hostname.ToLower()
 
+# Define absolute output paths so System32 context doesn't break file writing
+$certDerPath = Join-Path $PSScriptRoot "$hostname.crt.der"
+$certKeyPath = Join-Path $PSScriptRoot "$hostname.key.der"
+
 # prompt for zero or more subject alternative names; a blank line ends input
 $sans = @()
 while ($true) {
@@ -57,8 +61,7 @@ $leafArgs = @{
     Type              = 'Custom'
     Subject           = "CN=$hostname"
     Signer            = $rootCA
-    KeyAlgorithm      = 'ECDSA_Cert'
-    KeyLength         = 256
+    KeyAlgorithm      = 'ECDSA_P256'
     KeyExportPolicy   = 'Exportable'
     KeyUsage          = 'DigitalSignature', 'KeyEncipherment'
     TextExtension     = @("2.5.29.37={text}1.3.6.1.5.5.7.3.1")
@@ -72,9 +75,15 @@ $leafCert = New-SelfSignedCertificate @leafArgs
 
 # deliverables: the certificate as DER and the EC P-256 private key as
 # unencrypted PKCS#8 DER (what MicroPython's load_cert_chain/load_key want)
-Export-Certificate -Cert $leafCert -Type CERT -FilePath "$hostname.crt.der" | Out-Null
+# Use absolute paths for both outputs.
+Export-Certificate -Cert $leafCert -Type CERT -FilePath $certDerPath | Out-Null
+
+# Safely capture the live ECDsaCng object directly from the certificate
 $ecKey = [System.Security.Cryptography.X509Certificates.ECDsaCertificateExtensions]::GetECDsaPrivateKey($leafCert)
-[System.IO.File]::WriteAllBytes("$hostname.key.der", $ecKey.ExportPkcs8PrivateKey())
+
+# Export the raw PKCS8 private key blob using the underlying .Key handle properties to support PowerShell 5.1
+$pkcs8Bytes = $ecKey.Key.Export([System.Security.Cryptography.CngKeyBlobFormat]::Pkcs8PrivateBlob)
+[System.IO.File]::WriteAllBytes($certKeyPath, $pkcs8Bytes)
 
 # tell me about the new cert, if asked for
 if ($verbose) {
