@@ -3,7 +3,7 @@
 #
 __author__ = 'J. B. Otterson'
 __copyright__ = 'Copyright 2023, 2024, 2025, 2026 J. B. Otterson N1KDO.'
-__version__ = '0.10.31'  # 2026-10-01
+__version__ = '0.10.32'  # 2026-10-29
 
 #
 # Copyright 2023, 2024, 2025, 2026 J. B. Otterson N1KDO.
@@ -150,7 +150,7 @@ async def api_config_callback(http, verb, args, reader, writer, request_headers=
             config['dhcp'] = dhcp
         hostname = args.get('hostname')
         if hostname is not None:
-            if 1 <= len(hostname) <= 16 and is_hostname(hostname):
+            if 1 <= len(hostname) <= 32 and is_hostname(hostname):  # 32 = network.hostname() limit
                 config['hostname'] = hostname
             else:
                 errors.append('hostname')

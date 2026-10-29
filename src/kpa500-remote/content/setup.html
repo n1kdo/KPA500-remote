@@ -223,7 +223,7 @@
                 alert("Invalid password");
                 return;
             }
-            if ((hostname.length < 1) || (hostname.length > 64) || (/\s/.test(hostname))) {
+            if ((hostname.length < 1) || (hostname.length > 32) || (/\s/.test(hostname))) {
                 alert("Invalid hostname");
                 return;
             }
@@ -356,7 +356,7 @@
             </p>
             <p>
                 <label for="hostname_input">Hostname:</label>
-                <input type="text" id="hostname_input" maxlength="64">
+                <input type="text" id="hostname_input" maxlength="32">
             </p>
             <p>
                 <label for="ip_address_input">IP Address:</label>
