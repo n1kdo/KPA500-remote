@@ -20,7 +20,7 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-__version__ = '0.10.92'  # 2026-10-26
+__version__ = '0.10.93'  # 2026-10-29
 
 """
 Note: to edit linux forced device names, edit
@@ -313,7 +313,9 @@ def load_device(port, force=False,
     for file in special_files_list:
         if is_pattern(file):
             for local_example in sorted(glob.glob(os.path.join(source_directory, file + '.example'))):
+                # relpath() uses the host OS separator; the device VFS always wants '/'.
                 device_path = os.path.relpath(local_example, source_directory)[:-len('.example')]
+                device_path = device_path.replace(os.sep, '/')
                 if device_path not in existing_files:
                     put_file(device_path, target, source_directory=source_directory,
                              src_file_name=os.path.relpath(local_example, source_directory))
