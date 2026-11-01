@@ -3,7 +3,7 @@
 #
 __author__ = 'J. B. Otterson'
 __copyright__ = 'Copyright 2023, 2024, 2025, 2026 J. B. Otterson N1KDO.'
-__version__ = '0.10.32'  # 2026-10-25
+__version__ = '0.10.33'  # 2026-10-30
 
 #
 # Copyright 2023, 2024, 2025, 2026 J. B. Otterson N1KDO.
@@ -39,12 +39,16 @@ __version__ = '0.10.32'  # 2026-10-25
 # (_settle_https) and handed to mbedTLS again before each wrap. See _restore_tls_reserve().
 # Sized to the measured per-connection wrap cost (~22.8 KB) plus margin; every extra
 # byte pinned here is a byte stolen from the heap during module imports.
+
+from utils import is_pico2
 _TLS_RESERVE_SIZE = 24000
 _tls_reserve = None
-try:
-    _tls_reserve = bytes(_TLS_RESERVE_SIZE)
-except MemoryError:
-    _tls_reserve = None
+# Only pin a fallback reserve if running on the original Pico W layout
+if not is_pico2:
+    try:
+        _tls_reserve = bytes(_TLS_RESERVE_SIZE)
+    except MemoryError:
+        _tls_reserve = None
 
 # Import scratch blocks: as modules import, their code objects fragment the heap until
 # no large contiguous block survives (measured: largest free block ~2 KB after all
@@ -53,9 +57,11 @@ except MemoryError:
 # block before any import; dropping it immediately before each of those allocations
 # guarantees a contiguous block exists, so neither depends on import order or on the
 # sizes of the other modules. The dropped memory simply joins the free pool.
+# this is a revolting hack to work around the small heap on the Pico-W.
 _import_scratch_a = bytes(8192)  # for HttpServer's response buffer
 _import_scratch_b = bytes(8192)  # for picow_network's import
 
+from utils import milliseconds, safe_int, upython, is_pico2, LineReader, is_ipv4, is_hostname, make_ssl_server_context
 import asyncio
 import gc
 import socket
@@ -84,9 +90,9 @@ _import_scratch_a = None
 gc.collect()
 http_server = HttpServer(content_dir=CONTENT_DIR)
 
-from utils import upython
 if upython:
     import machine
+
     _import_scratch_b = None
     gc.collect()
     from picow_network import PicowNetwork
@@ -104,7 +110,7 @@ else:
 from kpa500 import KPA500
 from kat500 import KAT500
 from morse_code import MorseCode
-from utils import upython, safe_int, is_ipv4, is_hostname, make_ssl_server_context, LineReader, milliseconds
+
 import micro_logging as logging
 
 picow_network: PicowNetwork | None = None
@@ -115,8 +121,8 @@ ap_mode_button = machine.Pin(3, machine.Pin.IN, machine.Pin.PULL_UP)
 
 # globals...
 keep_running = True
-kpa500 : KPA500 | None = None
-kat500 : KAT500 | None = None
+kpa500: KPA500 | None = None
+kat500: KAT500 | None = None
 
 # config data
 config = ConfigData()
@@ -529,7 +535,7 @@ def _restore_tls_reserve():
     return size
 
 
-_HTTPS_IDLE_SLICE = 2             # s; idle-wait slice; bounds eviction-notice latency
+_HTTPS_IDLE_SLICE = 2  # s; idle-wait slice; bounds eviction-notice latency
 _HTTPS_FIRST_REQ_TIMEOUT = 15000  # ms; a just-wrapped conn is not evictable this long
 
 
@@ -548,8 +554,8 @@ class _HttpsConn:
         global _https_next_id
         self.id = _https_next_id
         _https_next_id += 1
-        self.sock = sock      # wrapped TLS socket; closed in the task's finally block
-        self.s2s = s2s         # Stream view of sock, used for read/write
+        self.sock = sock  # wrapped TLS socket; closed in the task's finally block
+        self.s2s = s2s  # Stream view of sock, used for read/write
         self.addr = addr
         self.state = 'wait'
         self.served = 0
@@ -559,8 +565,8 @@ class _HttpsConn:
         self.last_done = born
 
 
-_https_pending = []   # (sock, addr) accepted raw sockets awaiting their TLS wrap
-_https_live = {}      # conn.id -> _HttpsConn; wrapped sockets currently being served
+_https_pending = []  # (sock, addr) accepted raw sockets awaiting their TLS wrap
+_https_live = {}  # conn.id -> _HttpsConn; wrapped sockets currently being served
 _https_next_id = 1
 _https_ssl_ctx = None
 
@@ -660,7 +666,8 @@ async def _serve_https_conn(conn):
     # peer goes away or when its mbedTLS span is needed by a queued client.  The
     # idle wait runs in slices so an eviction flag (or a queued client) is noticed
     # within one slice.
-    lines = LineReader(conn.s2s, max_line_length=4096)  # must match _BUFFER_SIZE (const() names are not importable across modules)
+    lines = LineReader(conn.s2s,
+                       max_line_length=4096)  # must match _BUFFER_SIZE (const() names are not importable across modules)
     try:
         while True:
             if conn.evict:
@@ -716,11 +723,13 @@ async def serve_https(ssl_ctx):
     # handshake (~1.3 s of crypto) carries unlimited later requests, which is what
     # makes the once-per-second status poll affordable.
     global _https_ssl_ctx
-    if Stream is None:
+    _https_ssl_ctx = ssl_ctx
+
+    # Pico 2 W bypass: run standard parallel streams without serializing handshakes
+    if is_pico2 or Stream is None:
         # CPython host debugging: no heap constraint, use the standard TLS server.
         await asyncio.start_server(http_server.serve_http_client, '0.0.0.0', 443, ssl=ssl_ctx)
         return
-    _https_ssl_ctx = ssl_ctx
     try:
         addr_info = socket.getaddrinfo('0.0.0.0', 443)[0]
         s = socket.socket(addr_info[0])
@@ -886,8 +895,8 @@ async def main():
 
 
 if __name__ == '__main__':
-    #logging.loglevel = logging.INFO
-    logging.loglevel = logging.DEBUG
+    logging.loglevel = logging.INFO
+    logging.loglevel = logging.DEBUG  # TODO FIXME
     logging.info('starting', 'main:__main__')
     try:
         asyncio.run(main())
