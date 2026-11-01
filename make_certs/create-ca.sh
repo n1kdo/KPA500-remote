@@ -25,7 +25,7 @@ fi
 #
 # generate private key for this CA (deliberately not passphrase-encrypted)
 #
-openssl genrsa -out $cn.key 4096
+openssl ecparam -name prime256v1 -genkey -noout -out $cn.key
 #
 # create config file for signing
 #

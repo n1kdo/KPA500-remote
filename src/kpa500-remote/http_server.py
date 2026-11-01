@@ -23,9 +23,10 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 '''
-__version__ = '0.1.25'  # 2026-10-27
+__version__ = '0.1.26'  # 2026-10-30
 
 import asyncio
+import gc
 import os
 import re
 
@@ -352,6 +353,7 @@ class HttpServer:
                 await writer.wait_closed()
             except Exception:
                 pass  # the peer may have gone away already.
+            gc.collect()
 
     async def _handle_request(self, reader, writer, lines, request_line):
         t0 = milliseconds()
