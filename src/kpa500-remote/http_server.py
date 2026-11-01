@@ -23,7 +23,7 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 '''
-__version__ = '0.1.26'  # 2026-10-30
+__version__ = '0.1.27'  # 2026-11-01
 
 import asyncio
 import gc
@@ -222,7 +222,7 @@ class HttpServer:
         except Exception as exc:
             if isinstance(exc, OSError) and ('ECONNRESET' in str(exc) or 'CONN_EOF' in str(exc)
                                              or 'FATAL_ALERT' in str(exc)):
-                logging.info(b'client went away', 'http_server:serve_content')
+                logging.debug(b'client went away', 'http_server:serve_content')
             else:
                 logging.exception(b'error serving %s' % filename, 'http_server:serve_content', exc_info=exc)
         return content_length, HTTP_STATUS_OK
@@ -342,7 +342,7 @@ class HttpServer:
             if isinstance(ex, OSError) and (
                     'FATAL_ALERT' in str(ex) or 'CONN_EOF' in str(ex) or 'ECONNRESET' in str(ex)
             ):
-                logging.info(b'client went away', 'http_server:serve_http_client')
+                logging.debug(b'client went away', 'http_server:serve_http_client')
             else:
                 logging.exception(
                     b'exception serving %s' % partner, 'http_server:serve_http_client', ex
