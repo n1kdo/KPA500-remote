@@ -9,7 +9,6 @@
   "hostname": "kpa500",
   "kpa_tcp_port": "4626",
   "kat_tcp_port": "4627",
-  "web_port": "80",
   "username": "admin",
   "password": "admin"
  }
