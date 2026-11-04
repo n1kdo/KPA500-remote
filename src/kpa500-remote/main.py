@@ -591,10 +591,11 @@ async def main():
 
             if ten_count >= 10:  # every one second
                 gc.collect()
-                if logging.should_log(logging.INFO):
+                if logging.should_log(logging.DEBUG):
                     free = gc.mem_free()
                     alloc = gc.mem_alloc()
-                    logging.info(f'Memory: {alloc} allocated, {free} free ({free / (free + alloc) * 100:6.2f}% free)')
+                    logging.debug(f'Memory: {alloc} allocated, {free} free ({free / (free + alloc) * 100:6.2f}% free)',
+                                  'main:main')
                 msg = picow_network.get_message()
                 if msg != last_message:
                     last_message = msg
