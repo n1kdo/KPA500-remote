@@ -3,7 +3,7 @@
 #
 __author__ = 'J. B. Otterson'
 __copyright__ = 'Copyright 2024, 2025, 2026  J. B. Otterson N1KDO.'
-__version__ = '0.10.17'  # 2026-10-26
+__version__ = '0.10.18'  # 2026-11-04
 
 #
 # Copyright 2024, 2025, 2026 J. B. Otterson N1KDO.
@@ -116,7 +116,6 @@ class PicowNetwork:
             self._wlan.active(False)
             sleep(0.5)
             self._wlan.deinit()
-            logging.info('TEMPDEBUG deinit complete', 'PicowNetwork:deinit')
         self._keepalive = False
         if self._keepalive_task is not None:
             self._keepalive_task.cancel()
@@ -230,17 +229,6 @@ class PicowNetwork:
             logging.debug('Connecting to WLAN...6', 'PicowNetwork:connect_to_network')
             await sleep(0.1)
 
-            # TEMP DEBUG (warm-restart diagnosis): unfiltered scan to see what the radio hears.
-            try:
-                _plain_scan = self._wlan.scan()
-                _ours = 0
-                for _r in _plain_scan:
-                    if _r[0].decode('utf-8', 'replace') == self._ssid:
-                        _ours += 1
-                logging.info(b'  TEMPDEBUG plain_scan total=%d ours=%d' % (len(_plain_scan), _ours),
-                             'PicowNetwork:connect_to_network')
-            except OSError as _ose:
-                logging.exception('TEMPDEBUG plain scan failed', 'PicowNetwork:connect_to_network', _ose)
             logging.info(b'scanning for best signal for SSID "%s"' % self._ssid, 'PicowNetwork:connect_to_network')
             # scan ssid option is not documented.  Using it here to reduce the result set size.
             # see https://github.com/micropython/micropython/blob/master/extmod/network_cyw43.c#L192

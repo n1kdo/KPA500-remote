@@ -4,6 +4,16 @@ This guide will walk you through the process of creating your own SSL certificat
 Certificate Authority (CA). This is useful for testing and development purposes, as well as for 
 securing your own internal services.
 
+## Important Note ##
+
+The Raspberry Pi Pico-W does not have enough memory to support more than one SSL client at a time.
+The Pico2-W does.  The code currently limits SSL support to Pico2-W devices.  Even on them, the 
+SSL sessions are a bit slow.
+
+If you must have SSL (https) support, you muse use a Raspberry Pi Pico2-W device.
+Regardsless, you should use a protected method if you plan to expose this device to 
+the larger Internet.  A VPN is recommended in any case.
+
 ## Limitations ##
 
 Note that using this approach will require you to install the private CA's certificate on all 
@@ -34,8 +44,6 @@ The hostname is critically important in creating a SSL certificate for the devic
 your home router configured to assign and resolve a hostname for the device (e.g. 
 `kpa500.n1kdo.com`) you may want to use that hostname when creating the SSL certificate, or
 use the mDNS hostname `<hostname>.local` *and* the router's assigned DNS name in the certificate.
-
-
 
 ## Creating the Private CA ##
 
@@ -147,3 +155,4 @@ commit it to version control, post it anywhere, or copy it to untrusted machines
 possesses it can issue certificates that your clients will trust.  All `*.key`, `*.crt`, and
 `*.der` files are covered by the `.gitignore` in this directory for exactly this reason.
 
+n1kdo 2026-11-04
