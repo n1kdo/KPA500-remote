@@ -21,7 +21,7 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-__version__ = '0.9.92'  # 2026-10-02
+__version__ = '0.9.93'  # 2026-11-19
 
 from utils import upython
 import asyncio
@@ -93,7 +93,8 @@ class KDevice:
             if len(dcq) < self.COMMAND_QUEUE_MAXLEN:
                 dcq.append(c)
             else:
-                logging.warning(f'device command queue full, dropping "{c}"', 'kdevice:enqueue_command')
+                logging.warning(f'device command queue full, dropping "'
+                                f'{c.decode("utf-8", "replace")}"', 'kdevice:enqueue_command')
 
     def dequeue_command(self):
         dcq = self.device_command_queue
@@ -126,7 +127,8 @@ class KDevice:
             while True:
                 buf_and_length.bytes_received = device_port.readinto(buf_and_length.buffer)
                 if  buf_and_length.bytes_received > 0:
-                    logging.warning(b'waiting to send "%s", rx buffer was not empty: "%s".' % (message, buf_and_length.data()),
+                    logging.warning('waiting to send "%s", rx buffer was not empty: "%s".'
+                                    % (message.decode('utf-8', 'replace'), buf_and_length.data().decode('utf-8', 'replace')),
                                     'kdevice:device_send_receive')
                 else:
                     break
@@ -147,11 +149,13 @@ class KDevice:
                 return
             if retries_left > 0:
                 if logging.should_log(logging.DEBUG):
-                    logging.debug(b'received %d bytes response to %s, %d retries left.' % (buf_and_length.bytes_received, message, retries_left),
+                    logging.debug('received %d bytes response to %s, %d retries left.'
+                                  % (buf_and_length.bytes_received, message.decode('utf-8', 'replace'), retries_left),
                                   'kdevice:device_send_receive')
             else:
                 if logging.should_log(logging.DEBUG):
-                    logging.debug(b'timeout waiting for response to "%s".' % (message,), 'kdevice:device_send_receive')
+                    logging.debug('timeout waiting for response to "%s".' % (message.decode('utf-8', 'replace'),),
+                                  'kdevice:device_send_receive')
 
     @staticmethod
     async def read_network_client(lines) -> bytes | None:
@@ -166,6 +170,6 @@ class KDevice:
         # except ConnectionResetError as cre:  # micropython does not support ConnectionResetError
         #    logging.warning(f'ConnectionResetError in read_network_client: {str(cre)}', 'read_network_client')
         except Exception as exc:
-            logging.exception(f'exception in read_network_client: {str(exc)}',
+            logging.exception(f'exception in read_network_client',
                               'kdevice:read_network_client', exc_info=exc)
         return None

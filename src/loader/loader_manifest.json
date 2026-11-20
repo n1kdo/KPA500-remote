@@ -22,6 +22,7 @@
     "content/kpa500.html",
     "content/setup.html"],
   "special_files": [
-    "data/config.json"
+    "data/config.json",
+    "data/*.der"
   ]
 }

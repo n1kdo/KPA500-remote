@@ -4,7 +4,7 @@
 
 __author__ = 'J. B. Otterson'
 __copyright__ = """
-Copyright 2022, 2024, 2025 J. B. Otterson N1KDO.
+Copyright 2022, 2024, 2025, 2026 J. B. Otterson N1KDO.
 Redistribution and use in source and binary forms, with or without modification, 
 are permitted provided that the following conditions are met:
   1. Redistributions of source code must retain the above copyright notice, 
@@ -23,7 +23,7 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-__version__ = '0.10.2'  # 2026-09-22
+__version__ = '0.10.4'  # 2026-11-19
 
 # disable pylint import error
 # pylint: disable=E0401
@@ -39,7 +39,7 @@ class MorseCode:
     MORSE_ESP = MORSE_DIT  # inter-element space
     MORSE_DAH = 3 * MORSE_PERIOD
     MORSE_LSP = 5 * MORSE_PERIOD  # more space between letters
-    MORSE_PATTERNS = {  # sparse to save space
+    MORSE_PATTERNS = {  # sparse to save space. key is ASCII code.
         32: (0, 0, 0, 0, 0),  # 5 element spaces then a letter space = 10 element pause  # space is 0x20 ascii
         48: (MORSE_DAH, MORSE_DAH, MORSE_DAH, MORSE_DAH, MORSE_DAH),  # 0 is 0x30 ascii
         49: (MORSE_DIT, MORSE_DAH, MORSE_DAH, MORSE_DAH, MORSE_DAH),
@@ -72,7 +72,7 @@ class MorseCode:
     def set_message(self, new_message: bytes):
         new_message = new_message.upper().replace(b'.', b' ')
         if self.message != new_message:
-            logging.info(b'new message "%s"' % new_message, 'morse_code:set_message')
+            logging.info('new message "%s"' % new_message.decode(), 'morse_code:set_message')
             self.message = new_message
 
     async def morse_sender(self):
@@ -93,11 +93,12 @@ class MorseCode:
                 if not msg:
                     await sleep_ms(morse_esp)  # empty message: nothing to send; yield so we don't hog the loop
                     continue
-                logging.debug(f'starting message "{msg}"', 'morse_code:morse_sender')
+                if logging.should_log(logging.DEBUG):
+                    logging.debug('starting message "%s"' % msg.decode(), 'morse_code:morse_sender')
                 for morse_letter in msg:
                     blink_pattern = patterns.get(morse_letter)
                     if blink_pattern is None:
-                        logging.warning(f'No pattern for letter "{morse_letter}"',
+                        logging.warning('No pattern for letter "%s"' % chr(morse_letter),
                                         'morse_code:morse_sender')
                         blink_pattern = patterns.get(32)  # space
                     for blink_time in blink_pattern:
@@ -108,5 +109,5 @@ class MorseCode:
                         await sleep_ms(morse_esp)  # dit length element space
                     await sleep_ms(morse_lsp)  # + inter-letter space
             except Exception as exc:
-                logging.exception('morse sender error', 'morse_code:morse_sender', exc)
+                logging.exception('morse sender error', 'morse_code:morse_sender', exc_info=exc)
                 await asyncio.sleep(1)

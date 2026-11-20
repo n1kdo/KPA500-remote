@@ -22,7 +22,7 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-__version__ = '0.9.92'   # 2026-10-02
+__version__ = '0.9.93'   # 2026-11-19
 
 # disable pylint import error
 # pylint: disable=E0401
@@ -141,12 +141,12 @@ class KPA500(KDevice):
         if msg == b';':
             return
         if msg[0] != 94:  # '^'
-            logging.warning(b'bad data: %s' % msg, 'process_kpa500_message')
+            logging.warning('bad data: %s' % msg.decode('utf-8', 'replace'), 'process_kpa500_message')
             return
 
         semi_offset = msg.find(b';')
         if semi_offset < 0:
-            logging.warning(b'bad data (no semicolon): %s' % msg, 'process_kpa500_message')
+            logging.warning('bad data (no semicolon): %s' % msg.decode('utf-8', 'replace'), 'process_kpa500_message')
             return
 
         cmd_str = msg[1:semi_offset]
@@ -219,7 +219,8 @@ class KPA500(KDevice):
                     swr = swr[1:]
                 self.update_device_data(11, swr)
         else:
-            logging.error(f'unprocessed command {cmd} with data {cmd_data}', 'process_kpa500_message')
+            logging.error(f'unprocessed command {cmd.decode("utf-8", "replace")}'
+                          f' with data {cmd_data.decode("utf-8", "replace")}', 'process_kpa500_message')
 
     def set_amp_off_data(self):
         # reset all the indicators when the amp is turned off.
@@ -440,7 +441,7 @@ class KPA500(KDevice):
                                 command = b'^FC%s;^FC;' % value
                                 self.enqueue_command(command)
                             else:
-                                logging.info(b'unhandled message "%s"' % message,
+                                logging.info('unhandled message "%s"' % message.decode('utf-8', 'replace'),
                                              'kpa500:serve_kpa500_remote_client')
                 else:  # response was None
                     if not timed_out:

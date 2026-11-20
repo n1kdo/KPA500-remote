@@ -407,6 +407,11 @@
             bypass_checkbox.checked = (kat500_data[2] === "B");
             band_value.textContent = kat500_data[7];
 
+            if (update_timeout !== 0) {
+                clearTimeout(update_timeout)
+                update_timeout = 0;
+            }
+
             let button_secs = update_secs;
             if (auto_updates > 0) {
                 update_timeout = setTimeout(get_status, 1000);

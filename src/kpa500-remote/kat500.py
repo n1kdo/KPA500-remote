@@ -22,7 +22,7 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-__version__ = '0.9.92'  # 2026-10-02
+__version__ = '0.9.93'  # 2026-11-19
 
 # disable pylint import error
 # pylint: disable=E0401
@@ -113,7 +113,7 @@ class KAT500(KDevice):
         if msg == b';':
             return
         if msg[-1] != 59:  # b';'
-            logging.warning(b'bad data: %s' % msg, 'kat500:process_kat500_message')
+            logging.warning('bad data: %s' % msg.decode('utf-8', 'replace'), 'kat500:process_kat500_message')
             return
 
         cmd = msg[:-1]
@@ -163,13 +163,16 @@ class KAT500(KDevice):
                 self.update_device_data(4, data)
         elif cmd.startswith(b'RV'):
             data = cmd[2:]
-            logging.info(b'Revision %s' % data if data else 'Revision Query', 'kat500:process_kat500_message')
+            logging.info('Revision %s' % data.decode('utf-8', 'replace') if data else 'Revision Query',
+                         'kat500:process_kat500_message')
         elif cmd.startswith(b'SL'):
             data = cmd[2:]
-            logging.info(b'SLeep query %s' % data if data else 'SLeep Query', 'kat500:process_kat500_message')
+            logging.info('SLeep query %s' % data.decode('utf-8', 'replace') if data else 'SLeep Query',
+                         'kat500:process_kat500_message')
         elif cmd.startswith(b'SN'):
             data = cmd[2:]
-            logging.info(b'Serial Number %s' % data if data else 'Serial Number Query', 'kat500:process_kat500_message')
+            logging.info('Serial Number %s' % data.decode('utf-8', 'replace') if data else 'Serial Number Query',
+                         'kat500:process_kat500_message')
         elif cmd.startswith(b'TP'):
             data = cmd[2:]
             if data:
@@ -179,7 +182,7 @@ class KAT500(KDevice):
             if data:
                 self.update_device_data(10, data)
         else:
-            logging.error(b'unhandled: %s' % msg, 'kat500:process_kat500_message')
+            logging.error('unhandled: %s' % msg.decode('utf-8', 'replace'), 'kat500:process_kat500_message')
 
     def set_tuner_off_data(self):
         # reset all the indicators when the amp is turned off.
@@ -288,7 +291,9 @@ class KAT500(KDevice):
                             tuner_state = 0
                             self.update_device_data(9, b'5')  # set FAULT to NO TUNER
                             self.set_tuner_off_data()
-                            logging.debug(f'no response to command {query}, tuner state 3-->0', 'kat500:kat500_server')
+                            if logging.should_log(logging.DEBUG):
+                                logging.debug(f'no response to command {query.decode("utf-8", "replace")}, '
+                                              f'tuner state 3-->0', 'kat500:kat500_server')
                 else:
                     logging.error(f'invalid tuner state: {tuner_state}, bye bye.', 'kat500:kat500_server')
                     run_loop = False
@@ -332,7 +337,8 @@ class KAT500(KDevice):
                     client_data.last_activity = milliseconds()
                     if len(message) > 0:
                         if logging.should_log(logging.DEBUG):
-                            logging.debug(f'RECEIVED "{message}" FROM client {client_name}',
+                            logging.debug(f'RECEIVED "{message.decode("utf-8", "replace")}" '
+                                          f'FROM client {client_name}',
                                           'kat500:serve_kat500_remote_client')
                     if len(message) == 0:  # keepalive?
                         if logging.should_log(logging.DEBUG):
@@ -382,7 +388,8 @@ class KAT500(KDevice):
                                 elif value == b'Three':
                                     command = b'AN3;AN;'
                                 else:
-                                    logging.error(f'confused; antenna dropdown value {value}',
+                                    logging.error(f'confused; antenna dropdown value '
+                                                  f'{value.decode("utf-8", "replace")}',
                                                   'kat500:serve_kat500_remote_client')
                                 if command is not None:
                                     self.enqueue_command(command)
@@ -420,7 +427,7 @@ class KAT500(KDevice):
                                     command = b'FT;TP;'
                                     self.enqueue_command(command)
                             else:
-                                logging.info(b'unhandled message from client "%s"' % message,
+                                logging.info('unhandled message from client "%s"' % message.decode('utf-8', 'replace'),
                                              'kat500:serve_kat500_remote_client')
                 else:  # response was None
                     if not timed_out:

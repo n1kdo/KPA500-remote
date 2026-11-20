@@ -4,7 +4,7 @@
 
 __author__ = 'J. B. Otterson'
 __copyright__ = 'Copyright 2026 J. B. Otterson N1KDO.'
-__version__ = '0.0.2'  # 2026-09-01
+__version__ = '0.0.3'  # 2026-11-01
 
 #
 # Copyright 2026 J. B. Otterson N1KDO.
@@ -38,7 +38,6 @@ DEFAULT_SECRET = 'elecraft'
 DEFAULT_SSID = 'kpa500'
 DEFAULT_KPA500_TCP_PORT = 4626
 DEFAULT_KAT500_TCP_PORT = 4627
-DEFAULT_WEB_PORT = 80
 
 
 class ConfigData(CachedConfigData):
@@ -60,5 +59,4 @@ class ConfigData(CachedConfigData):
             'dns_server': '8.8.8.8',
             'kpa_tcp_port': DEFAULT_KPA500_TCP_PORT,
             'kat_tcp_port': DEFAULT_KAT500_TCP_PORT,
-            'web_port': DEFAULT_WEB_PORT,
 }

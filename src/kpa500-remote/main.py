@@ -3,7 +3,7 @@
 #
 __author__ = 'J. B. Otterson'
 __copyright__ = 'Copyright 2023, 2024, 2025, 2026 J. B. Otterson N1KDO.'
-__version__ = '0.10.31'  # 2026-10-01
+__version__ = '0.10.36'  # 2026-11-19
 
 #
 # Copyright 2023, 2024, 2025, 2026 J. B. Otterson N1KDO.
@@ -31,23 +31,38 @@ __version__ = '0.10.31'  # 2026-10-01
 # disable pylint import error
 # pylint: disable=E0401
 
+# Import scratch blocks: as modules import, their code objects fragment the heap until
+# no large contiguous block survives (measured: largest free block ~2 KB after all
+# imports). Two allocations in this startup sequence need one: HttpServer's 4 KB
+# response buffer and picow_network's largest code object (~2.1 KB). Pin an 8 KB
+# block before any import; dropping it immediately before each of those allocations
+# guarantees a contiguous block exists, so neither depends on import order or on the
+# sizes of the other modules. The dropped memory simply joins the free pool.
+# this is a revolting hack to work around the small heap on the Pico-W.
+_import_scratch_a = bytes(8192)  # for HttpServer's response buffer
+_import_scratch_b = bytes(8192)  # for picow_network's import
+
+from utils import safe_int, upython, is_pico2, is_ipv4, is_hostname, make_ssl_server_context
 import asyncio
 import gc
 
 from config_data import (ConfigData,
-                         DEFAULT_SSID, DEFAULT_SECRET, DEFAULT_WEB_PORT,
+                         DEFAULT_SSID, DEFAULT_SECRET,
                          DEFAULT_KAT500_TCP_PORT, DEFAULT_KPA500_TCP_PORT)
 from http_server import (HttpServer,
                          HTTP_STATUS_OK, HTTP_STATUS_BAD_REQUEST, HTTP_STATUS_MOVED_PERMANENTLY,
                          HTTP_VERB_GET, HTTP_VERB_POST)
-from kpa500 import KPA500
-from kat500 import KAT500
-from morse_code import MorseCode
-from utils import upython, safe_int, is_ipv4, is_hostname
-import micro_logging as logging
+
+CONTENT_DIR = 'content/'
+_import_scratch_a = None
+gc.collect()
+http_server = HttpServer(content_dir=CONTENT_DIR)
 
 if upython:
     import machine
+
+    _import_scratch_b = None
+    gc.collect()
     from picow_network import PicowNetwork
 
     try:
@@ -60,24 +75,25 @@ else:
 
     Watchdog = None
 
+from kpa500 import KPA500
+from kat500 import KAT500
+from morse_code import MorseCode
+
+import micro_logging as logging
+
 picow_network: PicowNetwork | None = None
 
 onboard = machine.Pin('LED', machine.Pin.OUT, value=0)
 morse_led = machine.Pin(2, machine.Pin.OUT, value=0)  # status LED
 ap_mode_button = machine.Pin(3, machine.Pin.IN, machine.Pin.PULL_UP)
 
-CONTENT_DIR = 'content/'
-
 # globals...
 keep_running = True
-kpa500 : KPA500 | None = None
-kat500 : KAT500 | None = None
+kpa500: KPA500 | None = None
+kat500: KAT500 | None = None
 
 # config data
 config = ConfigData()
-
-# http server
-http_server = HttpServer(content_dir=CONTENT_DIR)
 
 
 # noinspection PyUnusedLocal
@@ -99,26 +115,30 @@ async def api_config_callback(http, verb, args, reader, writer, request_headers=
     elif verb == HTTP_VERB_POST:
         errors = []
         kat_tcp_port = args.get('kat_tcp_port')
+        kat_tcp_port_int = None
         if kat_tcp_port is not None:
             kat_tcp_port_int = safe_int(kat_tcp_port, -2)
-            if 0 <= kat_tcp_port_int <= 65535:
-                config['kat_tcp_port'] = kat_tcp_port_int
-            else:
+            if not 0 <= kat_tcp_port_int <= 65535:
                 errors.append('kat_tcp_port')
         kpa_tcp_port = args.get('kpa_tcp_port')
+        kpa_tcp_port_int = None
         if kpa_tcp_port is not None:
             kpa_tcp_port_int = safe_int(kpa_tcp_port, -2)
-            if 0 <= kpa_tcp_port_int <= 65535:
-                config['kpa_tcp_port'] = kpa_tcp_port_int
-            else:
+            if not 0 <= kpa_tcp_port_int <= 65535:
                 errors.append('kpa_tcp_port')
-        web_port = args.get('web_port')
-        if web_port is not None:
-            web_port_int = safe_int(web_port, -2)
-            if 0 <= web_port_int <= 65535:
-                config['web_port'] = web_port_int
-            else:
-                errors.append('web_port')
+        # the KPA500 and KAT500 client servers must bind different ports.
+        if ((kat_tcp_port is not None or kpa_tcp_port is not None)
+                and 'kat_tcp_port' not in errors and 'kpa_tcp_port' not in errors):
+            eff_kat = kat_tcp_port_int if kat_tcp_port_int is not None else safe_int(
+                config.get('kat_tcp_port'), DEFAULT_KAT500_TCP_PORT)
+            eff_kpa = kpa_tcp_port_int if kpa_tcp_port_int is not None else safe_int(
+                config.get('kpa_tcp_port'), DEFAULT_KPA500_TCP_PORT)
+            if eff_kat == eff_kpa:
+                errors.append('kat_tcp_port==kpa_tcp_port')
+        if kat_tcp_port_int is not None and 'kat_tcp_port' not in errors:
+            config['kat_tcp_port'] = kat_tcp_port_int
+        if kpa_tcp_port_int is not None and 'kpa_tcp_port' not in errors:
+            config['kpa_tcp_port'] = kpa_tcp_port_int
         ssid = args.get('SSID')
         if ssid is not None:
             # PicowNetwork only accepts SSIDs of 32 chars or fewer.
@@ -150,7 +170,7 @@ async def api_config_callback(http, verb, args, reader, writer, request_headers=
             config['dhcp'] = dhcp
         hostname = args.get('hostname')
         if hostname is not None:
-            if 1 <= len(hostname) <= 16 and is_hostname(hostname):
+            if 1 <= len(hostname) <= 32 and is_hostname(hostname):  # 32 = network.hostname() limit
                 config['hostname'] = hostname
             else:
                 errors.append('hostname')
@@ -183,7 +203,7 @@ async def api_config_callback(http, verb, args, reader, writer, request_headers=
             http_status = HTTP_STATUS_OK
             bytes_sent = await http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
         else:
-            response = f'parameter(s) out of range\r\n {", ".join(errors)}'.encode('utf-8')
+            response = f'error(s): {", ".join(errors)}\r\n'.encode('utf-8')
             http_status = HTTP_STATUS_BAD_REQUEST
             bytes_sent = await http.send_simple_response(writer, http_status, http.CT_TEXT_TEXT, response)
     else:
@@ -441,6 +461,13 @@ async def api_kat_set_bypass_callback(http, verb, args, reader, writer, request_
     return bytes_sent, http_status
 
 
+async def serve_https(ssl_ctx):
+    # HTTPS is only enabled on a Pico 2, whose heap comfortably holds several
+    # concurrent mbedTLS wrapped sockets, so the standard parallel-streams TLS
+    # server suffices.
+    await asyncio.start_server(http_server.serve_http_client, '0.0.0.0', 443, ssl=ssl_ctx)
+
+
 async def main():
     global keep_running, kpa500, kat500, picow_network
 
@@ -480,17 +507,12 @@ async def main():
             kpa500_port = None
             logging.error(f'Unsupported platform {sys.platform}')
 
-    web_port = safe_int(config.get('web_port') or DEFAULT_WEB_PORT, DEFAULT_WEB_PORT)
-    if web_port < 0 or web_port > 65535:
-        web_port = DEFAULT_WEB_PORT
-        config['web_port'] = str(web_port)
-
     ap_mode = ap_mode_button.value() == 0
 
     if upython:
         picow_network = PicowNetwork(config, DEFAULT_SSID, DEFAULT_SECRET, access_point_mode=ap_mode)
         morse_code_sender = MorseCode(morse_led)
-        if logging.loglevel != logging.DEBUG and Watchdog is not None:
+        if logging.get_level() != logging.DEBUG and Watchdog is not None:
             _ = Watchdog()
 
     else:
@@ -506,7 +528,7 @@ async def main():
                                                               '0.0.0.0', kpa500_tcp_port)
         except Exception as e:
             logging.exception(f'could not start KPA500 client service on port {kpa500_tcp_port}',
-                              'main:main', e)
+                              'main:main', exc_info=e)
             kpa500_client_server = None
         # this task talks to the amplifier hardware.
         logging.info(f'Starting KPA500 amplifier service', 'main:main')
@@ -524,7 +546,7 @@ async def main():
                                                               '0.0.0.0', kat500_tcp_port)
         except Exception as e:
             logging.exception(f'could not start KAT500 client service on port {kat500_tcp_port}',
-                              'main:main', e)
+                              'main:main', exc_info=e)
             kat500_client_server = None
         # this task talks to the tuner hardware.
         logging.info(f'Starting KAT500 tuner service', 'main:main')
@@ -534,12 +556,31 @@ async def main():
         kat500_client_server = None
         kat500_server = None
 
-    logging.info(f'Starting web service on port {web_port}', 'main:main')
+    # Web service: cleartext HTTP always on port 80.  HTTPS is additionally
+    # served on port 443 on a Pico 2 when the convention-named cert/key files
+    # are present and valid; in AP (setup) mode the hostname is not meaningful,
+    # so HTTPS is never enabled there.
+    logging.info('Starting web service on port 80', 'main:main')
     try:
-        web_server = await asyncio.start_server(http_server.serve_http_client, '0.0.0.0', web_port)
+        web_server = await asyncio.start_server(http_server.serve_http_client, '0.0.0.0', 80)
     except Exception as e:
-        logging.exception('could not start web server', 'main:main', e)
+        logging.exception('could not start web server on port 80', 'main:main', exc_info=e)
         web_server = None
+
+    https_server = None
+    if ap_mode:
+        logging.info('HTTPS disabled (AP mode)', 'main:main')
+    elif not is_pico2:
+        logging.info('HTTPS disabled (not a Pico 2)', 'main:main')
+    else:
+        ssl_ctx = make_ssl_server_context(config.get('hostname'))
+        if ssl_ctx is not None:
+            logging.info('Starting HTTPS service on port 443', 'main:main')
+            try:
+                https_server = asyncio.create_task(serve_https(ssl_ctx))
+            except Exception as e:
+                logging.exception('could not start HTTPS server on port 443', 'main:main', exc_info=e)
+                https_server = None
 
     ten_count = 0
     last_message = b''
@@ -553,7 +594,8 @@ async def main():
                 if logging.should_log(logging.DEBUG):
                     free = gc.mem_free()
                     alloc = gc.mem_alloc()
-                    logging.debug(f'Memory: {alloc} allocated, {free} free ({free / (free + alloc) * 100:6.2f}% free)')
+                    logging.debug(f'Memory: {alloc} allocated, {free} free ({free / (free + alloc) * 100:6.2f}% free)',
+                                  'main:main')
                 msg = picow_network.get_message()
                 if msg != last_message:
                     last_message = msg
@@ -567,8 +609,8 @@ async def main():
 
 
 if __name__ == '__main__':
-    logging.loglevel = logging.INFO
-    # logging.loglevel = logging.DEBUG
+    logging.set_level(logging.INFO)
+    # logging.set_level(logging.DEBUG)
     logging.info('starting', 'main:__main__')
     try:
         asyncio.run(main())
