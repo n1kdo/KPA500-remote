@@ -1,6 +1,5 @@
 .idea/*
 .git/*
-.github/*
 __pycache__/
 .venv/*
 /src/kpa500-remote/data/config.json
