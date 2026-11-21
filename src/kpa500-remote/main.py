@@ -3,7 +3,7 @@
 #
 __author__ = 'J. B. Otterson'
 __copyright__ = 'Copyright 2023, 2024, 2025, 2026 J. B. Otterson N1KDO.'
-__version__ = '0.10.36'  # 2026-11-19
+__version__ = '0.10.37'  # 2026-11-21
 
 #
 # Copyright 2023, 2024, 2025, 2026 J. B. Otterson N1KDO.
@@ -70,6 +70,8 @@ if upython:
     except ImportError:
         Watchdog = None
 else:
+    _import_scratch_b = None  # no picow_network import on the host; release anyway
+    gc.collect()
     from not_machine import machine
     import sys
 
